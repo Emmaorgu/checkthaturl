@@ -1,0 +1,224 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="05c5af5e-0a25-49ad-a04d-58f986cd0838" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/ requirements.txt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.env" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/ProjectPhish.iml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/inspectionProfiles/profiles_settings.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/LICENSE" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/app.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/templates/index.html" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/data/balanced_feature_dataset.csv" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/AccountCompromised.html" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/ApplyFastPromo.html" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/ApplyNowLoanForm.html" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/ApplyQuickLoanNow.html" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/BVNDiscountOffer.html" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/BVNVerificationAlert.html" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/BankAlert.html" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/BonusGiftRegistration.html" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/CashBonus.html" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/ClaimRewardNow.html" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/DeadlineAlert.html" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/DiscountLoanAccess.html" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/DiscountedGiftOffer.html" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/FgYouthEmp.html" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/FinalVerificationWarning.html" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/FlashWinPromo.html" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/GiftCardClaimNow.html" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/GovTaxRefund.html" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/InstantCash.html" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/JobConf.html" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/LimitedTimeGift.html" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/LuckyWinner.html" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/PasswdExp.html" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/PrizePortal.html" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/QuickLoanApproval.html" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/ReactivateCompromisedAccount.html" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/RefundEligibility.html" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/ScamShield.html" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/SecureBankWarning.html" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/SecurityBreachWarning.html" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/StartApplicationNow.html" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/StartNowVerification.html" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/SuspiciousLoginAlert.html" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/TaxUpdateNotice.html" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/UrgentBVNUpdate.html" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/UrgentPaymentVerification.html" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/UrgentVerification.html" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/ValidateToReceiveFunds.html" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/account.html" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/alert.nigeria.banking-secure.com.html" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/bvn.html" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/covid1.html" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/covid2.html" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/fake_bvn_verification.html" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/fake_login_portal.html" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/fake_nin_linking.html" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/fake_quick_loan.html" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/refund.irs-bvn.ng.html" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/tax.html" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/tracking.updatepackage.ng.html" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/verify-login.bankname.support.html" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/verify.unionbnk-portal.online.html" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/data/feature_dataset.csv" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/data/global_phishing_urls.csv" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/data/legit_urls.csv" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/data/real_phishing_urls.csv" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/extract_features.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/generate_feature_dataset.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/global_sources.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/inference/predict.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/logs/ prediction_log.csv" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/model/phish_rf_model_20250613_164905.pkl" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/phishing_feeds_cache/openphish_urls.json" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/phishing_feeds_cache/urlhaus_urls.json" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/phishing_phrases.json" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/pipeline.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/predict_url.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/test.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/train_model.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/utils/text_cleaning.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/utils/url_utils.py" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="Python Script" />
+        <option value="HTML File" />
+      </list>
+    </option>
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 0
+}</component>
+  <component name="ProjectId" id="2xdHXc3yFHhTZVT9fed8Hn16d5e" />
+  <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;ASKED_MARK_IGNORED_FILES_AS_EXCLUDED&quot;: &quot;true&quot;,
+    &quot;DefaultHtmlFileTemplate&quot;: &quot;HTML File&quot;,
+    &quot;Python.app.executor&quot;: &quot;Run&quot;,
+    &quot;Python.extract.executor&quot;: &quot;Run&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;master&quot;,
+    &quot;last_opened_file_path&quot;: &quot;C:/Users/User/PycharmProjects/ProjectPhish&quot;
+  }
+}</component>
+  <component name="RecentsManager">
+    <key name="CopyFile.RECENT_KEYS">
+      <recent name="C:\Users\User\PycharmProjects\ProjectPhish\Data\phishing" />
+      <recent name="C:\Users\User\PycharmProjects\ProjectPhish" />
+    </key>
+    <key name="MoveFile.RECENT_KEYS">
+      <recent name="C:\Users\User\PycharmProjects\ProjectPhish" />
+      <recent name="C:\Users\User\PycharmProjects\ProjectPhish\app" />
+      <recent name="C:\Users\User\PycharmProjects\ProjectPhish\app\templates" />
+      <recent name="C:\Users\User\PycharmProjects\ProjectPhish\data" />
+    </key>
+  </component>
+  <component name="RunManager" selected="Python.app">
+    <configuration name="app" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+      <module name="ProjectPhish" />
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/app" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/app/app.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration name="extract" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+      <module name="ProjectPhish" />
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/extract.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <recent_temporary>
+      <list>
+        <item itemvalue="Python.app" />
+        <item itemvalue="Python.extract" />
+      </list>
+    </recent_temporary>
+  </component>
+  <component name="SharedIndexes">
+    <attachedChunks>
+      <set>
+        <option value="bundled-python-sdk-d7ad00fb9fc3-c546a90a8094-com.jetbrains.pycharm.community.sharedIndexes.bundled-PC-242.23726.102" />
+      </set>
+    </attachedChunks>
+  </component>
+  <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="05c5af5e-0a25-49ad-a04d-58f986cd0838" name="Changes" comment="" />
+      <created>1748261071428</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1748261071428</updated>
+    </task>
+    <servers />
+  </component>
+  <component name="UnknownFeatures">
+    <option featureType="com.intellij.fileTypeFactory" implementationName=".env" />
+  </component>
+  <component name="XDebuggerManager">
+    <breakpoint-manager>
+      <breakpoints>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/predict_url.py</url>
+          <option name="timeStamp" value="1" />
+        </line-breakpoint>
+      </breakpoints>
+    </breakpoint-manager>
+  </component>
+</project>

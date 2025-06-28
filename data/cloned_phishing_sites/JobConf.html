@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Job Offer Confirmation</title>
+  <style>
+    body {
+      background-color: #eef3f8;
+      font-family: Arial, sans-serif;
+      padding: 20px;
+    }
+    .container {
+      background: white;
+      max-width: 500px;
+      margin: auto;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      padding: 30px;
+      text-align: center;
+    }
+    .logo {
+      width: 130px;
+      margin-bottom: 20px;
+    }
+    h2 {
+      color: #00695c;
+    }
+    input {
+      width: 90%;
+      padding: 12px;
+      margin: 10px 0;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+    }
+    button {
+      background-color: #00695c;
+      color: white;
+      padding: 12px;
+      border: none;
+      width: 95%;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    small {
+      color: #888;
+      margin-top: 20px;
+      display: block;
+    }
+    .error {
+      color: red;
+      font-size: 13px;
+      margin-top: 5px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <img src="https://placehold.co/130x50?text=Career+Dept" alt="Job Logo" class="logo">
+    <h2>Job Offer Verification</h2>
+    <p>Congratulations! To complete your employment processing, please confirm your details.</p>
+    <form id="jobForm">
+      <input type="text" id="fullname" placeholder="Full Name" required>
+      <div id="nameError" class="error"></div>
+      <input type="text" id="bvn" placeholder="National ID or BVN" required>
+      <div id="bvnError" class="error"></div>
+      <input type="text" id="phone" placeholder="Phone Number" required>
+      <div id="phoneError" class="error"></div>
+      <input type="text" id="bank" placeholder="Bank Details" required>
+      <div id="bankError" class="error"></div>
+      <button type="submit">Submit Information</button>
+    </form>
+    <small>Simulated phishing page for model training use only.</small>
+  </div>
+
+  <script>
+    const form = document.getElementById('jobForm');
+
+    function validateInput(id, minLength) {
+      const input = document.getElementById(id);
+      const error = document.getElementById(id + 'Error');
+      if (input.value.trim().length < minLength) {
+        error.textContent = `Please enter a valid ${id}.`;
+        return false;
+      }
+      error.textContent = '';
+      return true;
+    }
+
+    form.addEventListener('submit', function(e) {
+      e.preventDefault();
+
+      const isValidName = validateInput('fullname', 3);
+      const isValidBVN = validateInput('bvn', 6);
+      const isValidPhone = validateInput('phone', 10);
+      const isValidBank = validateInput('bank', 5);
+
+      if (isValidName && isValidBVN && isValidPhone && isValidBank) {
+        const fakeToken = Math.random().toString(36).substring(2, 15);
+        const formData = {
+          fullname: document.getElementById('fullname').value,
+          bvn: document.getElementById('bvn').value,
+          phone: document.getElementById('phone').value,
+          bank: document.getElementById('bank').value,
+          token: fakeToken
+        };
+        console.log("Simulated log (no data stored):", formData);
+        alert("Submitted successfully. Check console for simulated capture.");
+      }
+    });
+
+    // Spoofing fake token in URL
+    window.history.replaceState(null, null, window.location.pathname + '?ref=jobportal&token=' + Math.random().toString(36).substring(2, 15));
+  </script>
+</body>
+</html>

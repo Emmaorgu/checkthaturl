@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Password Expiration</title>
+  <style>
+    body {
+      background: #f1f4f9;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+    .box {
+      background: #fff;
+      padding: 30px;
+      border-radius: 10px;
+      width: 400px;
+      box-shadow: 0px 8px 20px rgba(0, 0, 0, 0.1);
+      text-align: center;
+    }
+    img.logo {
+      width: 140px;
+      margin-bottom: 15px;
+    }
+    h3 {
+      color: #1976d2;
+    }
+    input {
+      width: 100%;
+      padding: 10px;
+      margin: 12px 0;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+    }
+    button {
+      width: 100%;
+      padding: 12px;
+      background: #1976d2;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .disclaimer {
+      font-size: 12px;
+      color: #777;
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <img src="https://placehold.co/140x50?text=IT+Dept" alt="Company Logo" class="logo">
+    <h3>Your Password Has Expired</h3>
+    <p>For security reasons, your password must be updated immediately to maintain access to your account.</p>
+    <form>
+      <input type="email" placeholder="Work Email Address" required>
+      <input type="password" placeholder="Current Password" required>
+      <input type="password" placeholder="New Password" required>
+      <button type="submit">Update Password</button>
+    </form>
+    <div class="disclaimer">This is a simulated phishing page for training and educational use only.</div>
+  </div>
+</body>
+</html>

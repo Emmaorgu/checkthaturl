@@ -1,0 +1,32 @@
+Flask==2.2.5
+scikit-learn==1.2.2
+joblib==1.2.0
+beautifulsoup4==4.12.2
+requests==2.31.0
+tld==0.12.6
+numpy==1.25.2
+pandas==2.0.3
+lxml==4.9.3
+
+Explanation:
+Flask — for building the web API or frontend interface.
+
+scikit-learn — for your machine learning models.
+
+joblib — for saving/loading your trained models.
+
+beautifulsoup4 — to parse HTML content.
+
+requests — to fetch web pages or URLs.
+
+tld — to parse top-level domain info.
+
+numpy & pandas — useful for data manipulation and feature engineering.
+
+lxml — a faster HTML/XML parser alternative (used by BeautifulSoup optionally).
+
+How to use:
+Save this as requirements.txt in your project root.
+
+Run:
+pip install -r requirements.txt
