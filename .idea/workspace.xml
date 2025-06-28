@@ -5,90 +5,7 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="05c5af5e-0a25-49ad-a04d-58f986cd0838" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/ requirements.txt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.env" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/ProjectPhish.iml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/inspectionProfiles/profiles_settings.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/LICENSE" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/app/app.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/app/templates/index.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/data/balanced_feature_dataset.csv" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/AccountCompromised.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/ApplyFastPromo.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/ApplyNowLoanForm.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/ApplyQuickLoanNow.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/BVNDiscountOffer.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/BVNVerificationAlert.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/BankAlert.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/BonusGiftRegistration.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/CashBonus.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/ClaimRewardNow.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/DeadlineAlert.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/DiscountLoanAccess.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/DiscountedGiftOffer.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/FgYouthEmp.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/FinalVerificationWarning.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/FlashWinPromo.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/GiftCardClaimNow.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/GovTaxRefund.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/InstantCash.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/JobConf.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/LimitedTimeGift.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/LuckyWinner.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/PasswdExp.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/PrizePortal.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/QuickLoanApproval.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/ReactivateCompromisedAccount.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/RefundEligibility.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/ScamShield.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/SecureBankWarning.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/SecurityBreachWarning.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/StartApplicationNow.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/StartNowVerification.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/SuspiciousLoginAlert.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/TaxUpdateNotice.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/UrgentBVNUpdate.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/UrgentPaymentVerification.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/UrgentVerification.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/ValidateToReceiveFunds.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/account.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/alert.nigeria.banking-secure.com.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/bvn.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/covid1.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/covid2.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/fake_bvn_verification.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/fake_login_portal.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/fake_nin_linking.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/fake_quick_loan.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/refund.irs-bvn.ng.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/tax.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/tracking.updatepackage.ng.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/verify-login.bankname.support.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/data/cloned_phishing_sites/verify.unionbnk-portal.online.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/data/feature_dataset.csv" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/data/global_phishing_urls.csv" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/data/legit_urls.csv" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/data/real_phishing_urls.csv" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/extract_features.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/generate_feature_dataset.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/global_sources.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/inference/predict.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/logs/ prediction_log.csv" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/model/phish_rf_model_20250613_164905.pkl" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/phishing_feeds_cache/openphish_urls.json" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/phishing_feeds_cache/urlhaus_urls.json" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/phishing_phrases.json" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/pipeline.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/predict_url.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/test.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/train_model.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/utils/text_cleaning.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/utils/url_utils.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -115,17 +32,17 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;ASKED_MARK_IGNORED_FILES_AS_EXCLUDED&quot;: &quot;true&quot;,
-    &quot;DefaultHtmlFileTemplate&quot;: &quot;HTML File&quot;,
-    &quot;Python.app.executor&quot;: &quot;Run&quot;,
-    &quot;Python.extract.executor&quot;: &quot;Run&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;master&quot;,
-    &quot;last_opened_file_path&quot;: &quot;C:/Users/User/PycharmProjects/ProjectPhish&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "ASKED_MARK_IGNORED_FILES_AS_EXCLUDED": "true",
+    "DefaultHtmlFileTemplate": "HTML File",
+    "Python.app.executor": "Run",
+    "Python.extract.executor": "Run",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "git-widget-placeholder": "main",
+    "last_opened_file_path": "C:/Users/User/PycharmProjects/ProjectPhish"
   }
-}</component>
+}]]></component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
       <recent name="C:\Users\User\PycharmProjects\ProjectPhish\Data\phishing" />
