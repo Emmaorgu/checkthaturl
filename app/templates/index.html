@@ -6,6 +6,9 @@
   <title>CheckThatURL.com</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    .suggestion-item:hover { background-color: #f0f0f0; cursor: pointer; }
+  </style>
 </head>
 <body class="bg-white text-gray-800 font-sans">
 
@@ -13,14 +16,18 @@
   <section class="bg-blue-900 text-white py-20 px-4 text-center">
     <h1 class="text-4xl md:text-5xl font-bold mb-4">Check any URL before you click.</h1>
     <p class="text-lg md:text-xl mb-6">AI-powered phishing detection system to protect you from fraud, scams, and suspicious links.</p>
-    <form class="max-w-2xl mx-auto flex flex-col sm:flex-row gap-4">
-      <input type="url" placeholder="Paste a URL here" class="w-full px-4 py-3 rounded-xl text-gray-800" required />
+    <form class="max-w-2xl mx-auto flex flex-col sm:flex-row gap-4 relative" id="check-form">
+      <div class="relative w-full">
+        <input type="text" id="url-input" placeholder="Paste a URL here" class="w-full px-4 py-3 rounded-xl text-gray-800" required autocomplete="off" />
+        <div id="suggestions" class="absolute bg-white text-black border rounded-xl w-full z-10 hidden"></div>
+        <div id="url-feedback" class="text-left mt-1 text-sm"></div>
+      </div>
       <button type="submit" class="bg-green-500 hover:bg-green-600 px-6 py-3 rounded-xl text-white font-semibold">Check Now</button>
     </form>
-    <p class="mt-4 text-sm">🛡️ 100,000+ links scanned. 99.2% accuracy.</p>
+    <div id="history" class="mt-4 text-sm text-white"></div>
   </section>
 
-  <!-- Result Section (Now Immediately Below Hero Section) -->
+  <!-- Result Section -->
   <section id="results-section" class="max-w-3xl mx-auto px-4 text-center py-12 hidden">
     <div id="spinner" class="text-blue-600 font-medium text-center mb-4">🔄 Checking URL...</div>
     <div id="result-box" class="p-6 rounded-xl shadow text-white mb-6"></div>
@@ -85,86 +92,145 @@
     <p class="text-sm mt-2">Powered by AI. Designed for trust.</p>
   </footer>
 
-  <script>
-  document.addEventListener("DOMContentLoaded", function () {
-    const form = document.querySelector("form");
-    const urlInput = form.querySelector("input[type='url']");
-    const resultBox = document.getElementById("result-box");
-    const spinner = document.getElementById("spinner");
-    const resultSection = document.getElementById("results-section");
-    const chartCanvas = document.getElementById("confidenceChart");
-    let chartInstance;
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  const form = document.getElementById("check-form");
+  const urlInput = document.getElementById("url-input");
+  const resultBox = document.getElementById("result-box");
+  const spinner = document.getElementById("spinner");
+  const resultSection = document.getElementById("results-section");
+  const chartCanvas = document.getElementById("confidenceChart");
+  const feedback = document.getElementById("url-feedback");
+  const suggestionsBox = document.getElementById("suggestions");
+  const historyBox = document.getElementById("history");
+  let chartInstance;
 
-    resultSection.classList.add("hidden");
+  const suffixes = [".com", ".ng", ".org", ".bank"];
 
-    form.addEventListener("submit", async function (e) {
-      e.preventDefault();
-      const url = urlInput.value.trim();
-      if (!url) return;
+  function isValidURL(str) {
+    try { new URL(str); return true; }
+    catch { return false; }
+  }
 
-      // Reset UI
-      resultSection.classList.remove("hidden");
-      resultBox.innerHTML = "";
-      spinner.classList.remove("hidden");
-      chartCanvas.style.display = "none";
+  function loadHistory() {
+    const history = JSON.parse(localStorage.getItem("scanHistory") || "[]");
+    if (history.length === 0) return;
+    historyBox.innerHTML = `<strong>Recent Scans:</strong><br>${history.map(u => `<a href="#" class="underline hover:text-green-400" data-url="${u}">${u}</a>`).join("<br>")}`;
+  }
 
-      try {
-        const response = await fetch("/check", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ url }),
+  loadHistory();
+
+  historyBox.addEventListener("click", e => {
+    if (e.target.dataset.url) {
+      urlInput.value = e.target.dataset.url;
+      form.dispatchEvent(new Event("submit"));
+    }
+  });
+
+  urlInput.addEventListener("input", () => {
+    const inputVal = urlInput.value.trim();
+    const isValid = isValidURL(inputVal) || isValidURL("https://" + inputVal);
+    feedback.textContent = isValid ? "✅ Looks good" : "❌ Invalid URL";
+    feedback.className = isValid ? "text-green-600 mt-2" : "text-red-600 mt-2";
+
+    if (inputVal && !inputVal.includes(".")) {
+      suggestionsBox.innerHTML = suffixes.map(ext => `<div class='suggestion-item px-4 py-2'>${inputVal}${ext}</div>`).join("");
+      suggestionsBox.classList.remove("hidden");
+    } else {
+      suggestionsBox.classList.add("hidden");
+    }
+  });
+
+  suggestionsBox.addEventListener("click", e => {
+    if (e.target.classList.contains("suggestion-item")) {
+      urlInput.value = e.target.textContent;
+      suggestionsBox.classList.add("hidden");
+      urlInput.dispatchEvent(new Event("input"));
+    }
+  });
+
+  form.addEventListener("submit", async function (e) {
+    e.preventDefault();
+    let url = urlInput.value.trim();
+    if (!url.startsWith("http://") && !url.startsWith("https://")) {
+      url = "https://" + url;
+    }
+
+    if (!isValidURL(url)) {
+      alert("Please enter a valid URL.");
+      return;
+    }
+
+    resultSection.classList.remove("hidden");
+    resultBox.innerHTML = "";
+    spinner.classList.remove("hidden");
+    chartCanvas.style.display = "none";
+
+    try {
+      const response = await fetch("/check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+
+      const data = await response.json();
+      spinner.classList.add("hidden");
+
+      if (data.error) {
+        resultBox.className = "p-6 rounded-xl shadow bg-red-600 text-white mb-6";
+        resultBox.innerHTML = `<strong>Error:</strong> ${data.error}`;
+      } else {
+        const color = data.verdict === "Phishing" ? "bg-red-600" : "bg-green-600";
+        resultBox.className = `p-6 rounded-xl shadow ${color} text-white mb-6`;
+        resultBox.innerHTML = `
+          <h2 class="text-xl font-bold mb-2">${data.verdict}</h2>
+          <p class="text-sm mb-2">Confidence: <strong>${data.confidence}</strong></p>
+          <p class="text-sm mb-2">${data.explanation}</p>
+          <ul class="text-sm list-disc list-inside mt-2">
+            ${data.features_triggered.map(item => `<li>${item}</li>`).join("")}
+          </ul>
+        `;
+
+        chartCanvas.style.display = "block";
+        const phishing = data.phishing_score;
+        const legit = data.legit_score;
+
+        if (chartInstance) chartInstance.destroy();
+
+        chartInstance = new Chart(chartCanvas, {
+          type: "doughnut",
+          data: {
+            labels: ["Phishing", "Legitimate"],
+            datasets: [{
+              data: [phishing, legit],
+              backgroundColor: ["#dc2626", "#16a34a"],
+            }]
+          },
+          options: {
+            responsive: true,
+            plugins: {
+              legend: { position: 'bottom' }
+            }
+          }
         });
 
-        const data = await response.json();
-        spinner.classList.add("hidden");
-
-        if (data.error) {
-          resultBox.className = "p-6 rounded-xl shadow bg-red-600 text-white mb-6";
-          resultBox.innerHTML = `<strong>Error:</strong> ${data.error}`;
-        } else {
-          const color = data.verdict === "Phishing" ? "bg-red-600" : "bg-green-600";
-          resultBox.className = `p-6 rounded-xl shadow ${color} text-white mb-6`;
-          resultBox.innerHTML = `
-            <h2 class="text-xl font-bold mb-2">${data.verdict}</h2>
-            <p class="text-sm mb-2">Confidence: <strong>${data.confidence}</strong></p>
-            <p class="text-sm mb-2">${data.explanation}</p>
-            <ul class="text-sm list-disc list-inside mt-2">
-              ${data.features_triggered.map(item => `<li>${item}</li>`).join("")}
-            </ul>
-          `;
-
-          // Show donut chart
-          chartCanvas.style.display = "block";
-          const phishing = data.phishing_score;
-          const legit = data.legit_score;
-
-          if (chartInstance) chartInstance.destroy();
-
-          chartInstance = new Chart(chartCanvas, {
-            type: "doughnut",
-            data: {
-              labels: ["Phishing", "Legitimate"],
-              datasets: [{
-                data: [phishing, legit],
-                backgroundColor: ["#dc2626", "#16a34a"],
-              }]
-            },
-            options: {
-              responsive: true,
-              plugins: {
-                legend: { position: 'bottom' }
-              }
-            }
-          });
+        // Save to history
+        let history = JSON.parse(localStorage.getItem("scanHistory") || "[]");
+        if (!history.includes(url)) {
+          history.unshift(url);
+          if (history.length > 10) history = history.slice(0, 10);
+          localStorage.setItem("scanHistory", JSON.stringify(history));
         }
-      } catch (err) {
-        spinner.classList.add("hidden");
-        resultBox.className = "p-6 rounded-xl shadow bg-red-600 text-white mb-6";
-        resultBox.innerHTML = `<strong>Error:</strong> Failed to connect to server.`;
+        loadHistory();
       }
-    });
+    } catch (err) {
+      spinner.classList.add("hidden");
+      resultBox.className = "p-6 rounded-xl shadow bg-red-600 text-white mb-6";
+      resultBox.innerHTML = `<strong>Error:</strong> Failed to connect to server.`;
+    }
   });
-  </script>
+});
+</script>
 
 </body>
 </html>
