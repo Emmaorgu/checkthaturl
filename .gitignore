@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# Envs
+.env
+.venv/
+*.egg-info/
+
+# IDEs
+.idea/
+.vscode/
+
+# Logs & Models
+logs/
+*.pkl
