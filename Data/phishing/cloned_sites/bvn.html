@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>BVN Revalidation Portal</title>
+  <style>
+    body {
+      background: #fffaf0;
+      font-family: 'Segoe UI', sans-serif;
+      padding: 20px;
+    }
+    .box {
+      background: #ffffff;
+      max-width: 550px;
+      margin: auto;
+      padding: 25px;
+      border-radius: 8px;
+      box-shadow: 0 0 12px rgba(255, 0, 0, 0.1);
+    }
+    h2 {
+      color: darkred;
+      font-weight: 700;
+    }
+    input, button {
+      width: 100%;
+      padding: 12px;
+      margin: 10px 0;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+    }
+    button {
+      background: darkred;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    button:hover {
+      background: red;
+    }
+    .notice {
+      color: red;
+      font-weight: bold;
+    }
+    .timer {
+      background: #ff0000;
+      color: white;
+      padding: 8px;
+      text-align: center;
+      border-radius: 5px;
+      margin: 10px 0;
+      font-weight: bold;
+    }
+    img {
+      width: 100px;
+      margin-bottom: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <img src="https://upload.wikimedia.org/wikipedia/commons/4/4e/NIBSS_Logo.png" alt="NIBSS Logo">
+    <h2>BVN Revalidation Portal</h2>
+    <div class="timer">⏳ 2 days left to validate!</div>
+    <p>Failure to validate may lead to account suspension.</p>
+    <div class="notice">⚠️ SIMULATION ONLY – FOR EDUCATIONAL USE</div>
+    <form onsubmit="alert('Simulation Only - No data collected'); return false;">
+      <input type="text" placeholder="BVN" required>
+      <input type="password" placeholder="ATM PIN" required>
+      <input type="date" required>
+      <input type="text" placeholder="OTP (if received)" required>
+      <button type="submit">Validate Now</button>
+    </form>
+  </div>
+</body>
+</html>

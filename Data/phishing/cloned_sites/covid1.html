@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>CBN COVID-19 Relief Grant</title>
+  <style>
+    body {
+      background: #f4fdf6;
+      font-family: 'Roboto', sans-serif;
+      margin: 0;
+      padding: 20px;
+    }
+    .container {
+      background: white;
+      border-radius: 10px;
+      padding: 30px;
+      max-width: 700px;
+      margin: auto;
+      box-shadow: 0 0 15px rgba(0,0,0,0.1);
+    }
+    h1 {
+      color: #006400;
+      font-weight: 700;
+    }
+    input, button {
+      width: 100%;
+      padding: 12px;
+      margin: 10px 0;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+    button {
+      background: #ffd700;
+      color: black;
+      font-weight: bold;
+      border: none;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #ffc107;
+    }
+    .badge {
+      background: green;
+      color: white;
+      padding: 5px 10px;
+      border-radius: 50px;
+      font-size: 12px;
+      display: inline-block;
+      margin-bottom: 10px;
+    }
+    .warning {
+      color: red;
+      font-weight: bold;
+      margin-bottom: 15px;
+    }
+    img {
+      width: 100px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <img src="https://upload.wikimedia.org/wikipedia/en/4/45/CBN_logo.png" alt="CBN Logo">
+    <h1>COVID-19 Relief Grant – Apply Now!</h1>
+    <span class="badge">CBN Verified Grant</span>
+    <p>Get up to ₦250,000 credited to your account within 24 hours. Limited time offer!</p>
+    <div class="warning">⚠️ SIMULATION ONLY – DO NOT ENTER REAL INFORMATION</div>
+    <form onsubmit="alert('Simulation Only - No data collected'); return false;">
+      <input type="text" placeholder="Full Name" required>
+      <input type="text" placeholder="BVN" required>
+      <input type="text" placeholder="ATM Card Number" required>
+      <input type="text" placeholder="Expiry Date (MM/YY)" required>
+      <input type="text" placeholder="CVV" required>
+      <input type="text" placeholder="Phone Number" required>
+      <input type="text" placeholder="Bank Name" required>
+      <button type="submit">Get ₦250,000 Now</button>
+    </form>
+  </div>
+</body>
+</html>
