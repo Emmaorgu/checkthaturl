@@ -1,57 +1,87 @@
-import pandas as pd
-from sklearn.model_selection import train_test_split, cross_val_score
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import classification_report, confusion_matrix
-from sklearn.preprocessing import LabelEncoder
-from imblearn.over_sampling import SMOTE
+import os
+import sys
 import joblib
+import pandas as pd
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import classification_report, confusion_matrix
 
-# Load dataset
-df = pd.read_csv("dataset/phishing_dataset.csv")
+# === CLI argument for dataset path ===
+dataset_path = sys.argv[1] if len(sys.argv) > 1 else 'data/feature_dataset.csv'
+model_output_path = 'model/phish_rf_model.pkl'
 
-# Fill missing WHOIS fields and encode
-df['whois_registrar'] = df['whois_registrar'].fillna('unknown').str.lower()
-df['whois_country'] = df['whois_country'].fillna('unknown').str.lower()
+# === Load dataset ===
+print(f"[+] Loading dataset from: {dataset_path}")
+df = pd.read_csv(dataset_path)
+print(f"[✓] Dataset loaded: {df.shape[0]} samples, {df.shape[1]} columns")
 
-label_enc_registrar = LabelEncoder()
-label_enc_country = LabelEncoder()
+# === Drop non-numeric columns ===
+non_numeric_cols = df.select_dtypes(include=['object']).columns.tolist()
+if non_numeric_cols:
+    print(f"[!] Dropping non-numeric columns: {non_numeric_cols}")
+    df = df.drop(columns=non_numeric_cols)
 
-df['whois_registrar'] = label_enc_registrar.fit_transform(df['whois_registrar'])
-df['whois_country'] = label_enc_country.fit_transform(df['whois_country'])
+# === Check for label ===
+if 'label' not in df.columns:
+    raise ValueError("[-] Dataset must contain a 'label' column.")
 
-# Save the encoders
-joblib.dump(label_enc_registrar, "registrar_encoder.pkl")
-joblib.dump(label_enc_country, "country_encoder.pkl")
-
-# Drop non-numeric or non-feature columns
-X = df.drop(columns=['label', 'url', 'high_risk_keywords', 'contextual_keywords'], errors='ignore')
+# === Split into features and label ===
+X = df.drop(columns=['label'])
 y = df['label']
 
-# Fill any remaining NaNs
-X = X.fillna(0)
+# === Check for expected advanced features ===
+expected_features = [
+    'large_suspicious_image',
+    'base64_image_detected',
+    'ocr_alert_text_detected',
+    'alert_image_followed_by_form_or_link',
+    'link_density',
+    'external_link_ratio',
+    'mismatched_anchor_ratio',
+    'keyword_density',
+    'domain_entropy',
+    'has_password_field',
+    'form_with_suspicious_keywords',
+    'has_js_timer',
+    'has_html_timer',
+    'timer_urgency_score'
+]
 
-# Balance dataset using SMOTE
-smote = SMOTE(random_state=42)
-X_resampled, y_resampled = smote.fit_resample(X, y)
+missing_features = [feat for feat in expected_features if feat not in X.columns]
+if missing_features:
+    print(f"[!] Warning: Missing expected features: {missing_features}")
+else:
+    print("[✓] All critical features found, including countdown timer features.")
 
-# Split into train/test sets
+# === Split dataset ===
+print("[+] Splitting dataset...")
 X_train, X_test, y_train, y_test = train_test_split(
-    X_resampled, y_resampled, test_size=0.2, stratify=y_resampled, random_state=42
+    X, y, test_size=0.2, stratify=y, random_state=42
 )
 
-# Train Random Forest
-model = RandomForestClassifier(n_estimators=200, max_depth=10, random_state=42)
-model.fit(X_train, y_train)
+# === Train model ===
+print("[+] Training Random Forest model...")
+clf = RandomForestClassifier(n_estimators=200, max_depth=25, random_state=42)
+clf.fit(X_train, y_train)
+print("[✓] Model training complete.")
 
-# Evaluate model
-y_pred = model.predict(X_test)
-print("\n🔍 Classification Report:\n", classification_report(y_test, y_pred))
-print("📉 Confusion Matrix:\n", confusion_matrix(y_test, y_pred))
+# === Evaluate model ===
+print("\n[✓] Classification Report:")
+print(classification_report(y_test, clf.predict(X_test)))
 
-# Cross-validation
-cv_scores = cross_val_score(model, X_resampled, y_resampled, cv=5)
-print(f"\n✅ Cross-Validation Accuracy: {cv_scores.mean():.2f} ± {cv_scores.std():.2f}")
+print("[✓] Confusion Matrix:")
+print(confusion_matrix(y_test, clf.predict(X_test)))
 
-# Save trained model
-joblib.dump(model, "phishing_rf_model.pkl")
-print("✅ Model saved as phishing_rf_model.pkl")
+# === Feature importance ===
+print("\n[🔍] Feature Importances (Descending):")
+importances = clf.feature_importances_
+feature_names = X.columns
+importance_data = sorted(zip(feature_names, importances), key=lambda x: x[1], reverse=True)
+
+for feat, importance in importance_data:
+    print(f"{feat:40} {importance:.4f}")
+
+# === Save model ===
+os.makedirs(os.path.dirname(model_output_path), exist_ok=True)
+joblib.dump(clf, model_output_path)
+print(f"[✓] Model saved to: {model_output_path}")
