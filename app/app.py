@@ -6,6 +6,7 @@ import pandas as pd
 import joblib
 from flask import Flask, render_template, request, jsonify
 from flask_cors import CORS
+from datetime import datetime
 
 sys.path = ['..'] + sys.path
 from app.extract_features import extract_features
@@ -13,14 +14,24 @@ from app.extract_features import extract_features
 app = Flask(__name__)
 CORS(app)
 
-# Automatically pick the latest trained model
+# Automatically pick the latest trained model based on timestamp in filename
 def get_latest_model_path():
     model_dir = os.path.join(os.path.dirname(__file__), '..', 'model')
     versioned_models = glob.glob(os.path.join(model_dir, "phish_rf_model_*.pkl"))
+
+    def extract_timestamp(filepath):
+        filename = os.path.basename(filepath)
+        ts_str = filename.replace("phish_rf_model_", "").replace(".pkl", "")
+        try:
+            return datetime.strptime(ts_str, "%Y%m%d_%H%M%S")
+        except ValueError:
+            return datetime.min
+
     if versioned_models:
-        latest_model = max(versioned_models, key=os.path.getctime)
+        latest_model = max(versioned_models, key=extract_timestamp)
         print(f"[INFO] Loaded latest model: {os.path.basename(latest_model)}")
         return latest_model
+
     fallback = os.path.join(model_dir, "phish_rf_model.pkl")
     print("[WARN] No versioned model found. Falling back to:", os.path.basename(fallback))
     return fallback
@@ -28,7 +39,7 @@ def get_latest_model_path():
 MODEL_PATH = get_latest_model_path()
 model = joblib.load(MODEL_PATH)
 
-# Local homepage HTML fallback
+# Local fallback for self-check
 LOCAL_HOMEPAGE_PATH = os.path.join(os.path.dirname(__file__), 'index.html')
 
 @app.route("/check", methods=['POST'])
@@ -39,14 +50,12 @@ def check_url():
     if not url:
         return jsonify({'error': 'No URL provided'}), 400
 
-    # Add http:// if missing
     if not url.startswith(('http://', 'https://')):
         url = 'http://' + url
 
     html_content = ""
     reasons = []
 
-    # Use local homepage HTML if testing self
     if "checkthaturl.com" in url:
         try:
             with open(LOCAL_HOMEPAGE_PATH, 'r', encoding='utf-8') as f:
@@ -57,9 +66,9 @@ def check_url():
     else:
         try:
             headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                'Accept-Language': 'en-US,en;q=0.5',
+                'User-Agent': 'Mozilla/5.0',
+                'Accept': 'text/html,application/xhtml+xml',
+                'Accept-Language': 'en-US,en;q=0.9',
                 'Connection': 'keep-alive'
             }
             response = requests.get(url, headers=headers, timeout=10)
@@ -84,7 +93,7 @@ def check_url():
 
     prediction = 'Phishing' if phishing_score > legit_score else 'Legitimate'
 
-    # Explanations
+    # Explanation logic
     if prediction == 'Phishing':
         if features.get('suspicious_keyword_found'): reasons.append("🔑 Suspicious keywords present.")
         if features.get('suspicious_tld'): reasons.append("🌐 Suspicious TLD.")
@@ -112,19 +121,10 @@ def check_url():
         "features_triggered": reasons
     })
 
-@app.route("/", methods=['GET'])
+@app.route("/", methods=["GET"])
 def index():
-    return render_template('index.html')
+    return render_template("index.html")
 
-@app.route("/about")
-def about():
-    return render_template("about.html")
-
-@app.route("/blog/spot-phishing")
-def blog_post():
-    return render_template("blog/spot-phishing.html")
-
-
-if __name__ == '__main__':
-    if 'gunicorn' not in sys.argv[0]:
+if __name__ == "__main__":
+    if "gunicorn" not in sys.argv[0]:
         app.run(debug=True)
