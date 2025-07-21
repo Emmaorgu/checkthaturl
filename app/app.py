@@ -1,5 +1,6 @@
 import os
 import sys
+import glob
 import requests
 import pandas as pd
 import joblib
@@ -12,8 +13,19 @@ from app.extract_features import extract_features
 app = Flask(__name__)
 CORS(app)
 
-# Path to the trained model
-MODEL_PATH = os.path.join(os.path.dirname(__file__), '..', 'model', 'phish_rf_model.pkl')
+# Automatically pick the latest trained model
+def get_latest_model_path():
+    model_dir = os.path.join(os.path.dirname(__file__), '..', 'model')
+    versioned_models = glob.glob(os.path.join(model_dir, "phish_rf_model_*.pkl"))
+    if versioned_models:
+        latest_model = max(versioned_models, key=os.path.getctime)
+        print(f"[INFO] Loaded latest model: {os.path.basename(latest_model)}")
+        return latest_model
+    fallback = os.path.join(model_dir, "phish_rf_model.pkl")
+    print("[WARN] No versioned model found. Falling back to:", os.path.basename(fallback))
+    return fallback
+
+MODEL_PATH = get_latest_model_path()
 model = joblib.load(MODEL_PATH)
 
 # Local homepage HTML fallback
@@ -105,6 +117,5 @@ def index():
     return render_template('index.html')
 
 if __name__ == '__main__':
-    import sys
     if 'gunicorn' not in sys.argv[0]:
         app.run(debug=True)
