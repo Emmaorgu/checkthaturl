@@ -1,16 +1,74 @@
-# Python
+# --- 🌍 Base Ignore-All Rule ---
+*
+
+# --- ✅ Explicitly Allow These File Types & Folders ---
+!*/                           # allow folder traversal
+!*.py                         # allow Python scripts
+!*.html                       # allow HTML files
+!*.json                       # allow JSON config files
+!*.pkl                        # allow model files
+!*.txt                        # allow raw data lists
+!*.csv                        # allow datasets
+!*.md                         # allow README, LICENSE etc.
+
+# --- ✅ Whitelist Specific Folders ---
+!app/
+!app/**
+
+# ✅ Allow model files
+!model/
+!model/*.pkl
+
+
+!data/
+!data/**
+
+!templates/
+!templates/**
+
+!phishing_feeds_cache/
+!phishing_feeds_cache/**
+
+!inference/
+!inference/**
+
+!utils/
+!utils/**
+
+# --- 🚫 Virtual Environment ---
+.venv/
+venv/
+.env/
+*.venv/
+*.env
+
+# --- 🚫 IDE and Editor ---
+.vscode/
+.idea/
+*.suo
+*.user
+*.swp
+*.log
+*.db
+*.sqlite
+
+# --- 🚫 OS and Misc ---
 __pycache__/
 *.py[cod]
+*$py.class
+.DS_Store
+Thumbs.db
 
-# Envs
-.env
-.venv/
+# --- 🚫 Build and Packaging ---
+build/
+dist/
 *.egg-info/
+.eggs/
+MANIFEST
 
-# IDEs
-.idea/
-.vscode/
+# --- 🚫 Notebook and Cache ---
+.ipynb_checkpoints/
+.cache/
+pytest-cache/
+.mypy_cache/
 
-# Logs & Models
-logs/
-*.pkl
