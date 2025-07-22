@@ -1,20 +1,16 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-
-  <!-- Google tag (gtag.js) -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-D0RMWZH4ZJ"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-
-  gtag('config', 'G-D0RMWZH4ZJ');
-</script>
-
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>CheckThatURL.com</title>
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-D0RMWZH4ZJ"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-D0RMWZH4ZJ');
+  </script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
@@ -23,7 +19,6 @@
 </head>
 <body class="bg-white text-gray-800 font-sans">
 
-  <!-- Hero Section -->
   <section class="bg-blue-900 text-white py-20 px-4 text-center">
     <h1 class="text-4xl md:text-5xl font-bold mb-4">Check any URL before you click.</h1>
     <p class="text-lg md:text-xl mb-6">AI-powered phishing detection system to protect you from fraud, scams, and suspicious links.</p>
@@ -35,69 +30,40 @@
       </div>
       <button type="submit" class="bg-green-500 hover:bg-green-600 px-6 py-3 rounded-xl text-white font-semibold">Check Now</button>
     </form>
-    <div id="history" class="mt-4 text-sm text-white"></div>
   </section>
 
-  <!-- Result Section -->
   <section id="results-section" class="max-w-3xl mx-auto px-4 text-center py-12 hidden">
     <div id="spinner" class="text-blue-600 font-medium text-center mb-4">🔄 Checking URL...</div>
     <div id="result-box" class="p-6 rounded-xl shadow text-white mb-6"></div>
     <canvas id="confidenceChart" class="mx-auto" width="300" height="300"></canvas>
+    <div id="history" class="mt-8 text-sm text-gray-700"></div>
   </section>
 
-  <!-- How It Works -->
   <section class="py-16 px-6 bg-gray-50 text-center">
     <h2 class="text-3xl font-bold mb-8">How It Works</h2>
     <div class="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
-      <div>
-        <div class="text-5xl mb-4">1️⃣</div>
-        <h3 class="font-semibold text-xl mb-2">Enter the URL</h3>
-        <p>Paste any suspicious link into the box.</p>
-      </div>
-      <div>
-        <div class="text-5xl mb-4">2️⃣</div>
-        <h3 class="font-semibold text-xl mb-2">Instant AI Analysis</h3>
-        <p>We analyze the domain, content, and behavior in real-time.</p>
-      </div>
-      <div>
-        <div class="text-5xl mb-4">3️⃣</div>
-        <h3 class="font-semibold text-xl mb-2">Get the Verdict</h3>
-        <p>See if it’s safe or phishing — with clear explanations.</p>
-      </div>
+      <div><div class="text-5xl mb-4">1️⃣</div><h3 class="font-semibold text-xl mb-2">Enter the URL</h3><p>Paste any suspicious link into the box.</p></div>
+      <div><div class="text-5xl mb-4">2️⃣</div><h3 class="font-semibold text-xl mb-2">Instant AI Analysis</h3><p>We analyze the domain, content, and behavior in real-time.</p></div>
+      <div><div class="text-5xl mb-4">3️⃣</div><h3 class="font-semibold text-xl mb-2">Get the Verdict</h3><p>See if it’s safe or phishing — with clear explanations.</p></div>
     </div>
   </section>
 
-  <!-- Why Choose Us -->
   <section class="py-16 px-6 bg-white text-center">
     <h2 class="text-3xl font-bold mb-8">Why CheckThatURL?</h2>
     <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-8 max-w-6xl mx-auto">
-      <div class="bg-gray-100 p-6 rounded-xl">
-        <h3 class="font-semibold text-lg mb-2">AI-Powered Detection</h3>
-        <p>Advanced machine learning to detect phishing and scams.</p>
-      </div>
-      <div class="bg-gray-100 p-6 rounded-xl">
-        <h3 class="font-semibold text-lg mb-2">Content & Keyword Analysis</h3>
-        <p>We scan the actual HTML and keywords of each page.</p>
-      </div>
-      <div class="bg-gray-100 p-6 rounded-xl">
-        <h3 class="font-semibold text-lg mb-2">Designed for Professionals</h3>
-        <p>Trusted by banks, fintechs, and cybersecurity teams.</p>
-      </div>
-      <div class="bg-gray-100 p-6 rounded-xl">
-        <h3 class="font-semibold text-lg mb-2">Fast & Lightweight</h3>
-        <p>Get results in seconds — no download or login required.</p>
-      </div>
+      <div class="bg-gray-100 p-6 rounded-xl"><h3 class="font-semibold text-lg mb-2">AI-Powered Detection</h3><p>Advanced machine learning to detect phishing and scams.</p></div>
+      <div class="bg-gray-100 p-6 rounded-xl"><h3 class="font-semibold text-lg mb-2">Content & Keyword Analysis</h3><p>We scan the actual HTML and keywords of each page.</p></div>
+      <div class="bg-gray-100 p-6 rounded-xl"><h3 class="font-semibold text-lg mb-2">Designed for Professionals</h3><p>Trusted by banks, fintechs, and cybersecurity teams.</p></div>
+      <div class="bg-gray-100 p-6 rounded-xl"><h3 class="font-semibold text-lg mb-2">Fast & Lightweight</h3><p>Get results in seconds — no download or login required.</p></div>
     </div>
   </section>
 
-  <!-- Call to Action -->
   <section class="bg-blue-800 text-white py-20 px-6 text-center">
     <h2 class="text-3xl md:text-4xl font-bold mb-4">Don’t click blind.</h2>
     <p class="mb-6 text-lg">Paste a suspicious link and get an instant verdict.</p>
     <a href="#" class="inline-block bg-green-500 hover:bg-green-600 px-8 py-4 rounded-xl text-white font-semibold">Scan a Link Now</a>
   </section>
 
-  <!-- Footer -->
   <footer class="py-8 bg-gray-900 text-white text-center">
     <p>© 2025 CheckThatURL.com. Built by Emmanuel Orgu.</p>
     <p class="text-sm mt-2">Powered by AI. Designed for trust.</p>
@@ -118,11 +84,6 @@ document.addEventListener("DOMContentLoaded", function () {
 
   const suffixes = [".com", ".ng", ".org", ".bank"];
 
-  function isValidURL(str) {
-    try { new URL(str); return true; }
-    catch { return false; }
-  }
-
   function loadHistory() {
     const history = JSON.parse(localStorage.getItem("scanHistory") || "[]");
     if (history.length === 0) return;
@@ -140,9 +101,8 @@ document.addEventListener("DOMContentLoaded", function () {
 
   urlInput.addEventListener("input", () => {
     const inputVal = urlInput.value.trim();
-    const isValid = isValidURL(inputVal) || isValidURL("https://" + inputVal);
-    feedback.textContent = isValid ? "✅ Looks good" : "❌ Invalid URL";
-    feedback.className = isValid ? "text-green-600 mt-2" : "text-red-600 mt-2";
+    feedback.textContent = inputVal ? "✅ Looks like a valid input" : "❌ URL is empty";
+    feedback.className = inputVal ? "text-green-600 mt-2" : "text-red-600 mt-2";
 
     if (inputVal && !inputVal.includes(".")) {
       suggestionsBox.innerHTML = suffixes.map(ext => `<div class='suggestion-item px-4 py-2'>${inputVal}${ext}</div>`).join("");
@@ -162,15 +122,13 @@ document.addEventListener("DOMContentLoaded", function () {
 
   form.addEventListener("submit", async function (e) {
     e.preventDefault();
-    let url = urlInput.value.trim();
-    if (!url.startsWith("http://") && !url.startsWith("https://")) {
-      url = "https://" + url;
-    }
-
-    if (!isValidURL(url)) {
-      alert("Please enter a valid URL.");
+    let rawInput = urlInput.value.trim();
+    if (!rawInput) {
+      alert("Please enter a URL.");
       return;
     }
+
+    let url = rawInput;
 
     resultSection.classList.remove("hidden");
     resultBox.innerHTML = "";
@@ -219,13 +177,10 @@ document.addEventListener("DOMContentLoaded", function () {
           },
           options: {
             responsive: true,
-            plugins: {
-              legend: { position: 'bottom' }
-            }
+            plugins: { legend: { position: 'bottom' } }
           }
         });
 
-        // Save to history
         let history = JSON.parse(localStorage.getItem("scanHistory") || "[]");
         if (!history.includes(url)) {
           history.unshift(url);
@@ -242,6 +197,5 @@ document.addEventListener("DOMContentLoaded", function () {
   });
 });
 </script>
-
 </body>
 </html>

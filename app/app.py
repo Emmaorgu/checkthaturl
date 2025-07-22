@@ -14,7 +14,6 @@ from app.extract_features import extract_features
 app = Flask(__name__)
 CORS(app)
 
-# Automatically pick the latest trained model based on timestamp in filename
 def get_latest_model_path():
     model_dir = os.path.join(os.path.dirname(__file__), '..', 'model')
     versioned_models = glob.glob(os.path.join(model_dir, "phish_rf_model_*.pkl"))
@@ -39,8 +38,20 @@ def get_latest_model_path():
 MODEL_PATH = get_latest_model_path()
 model = joblib.load(MODEL_PATH)
 
-# Local fallback for self-check
 LOCAL_HOMEPAGE_PATH = os.path.join(os.path.dirname(__file__), 'index.html')
+
+def resolve_url(raw_url):
+    if raw_url.startswith(('http://', 'https://')):
+        return raw_url
+    for scheme in ['https://', 'http://']:
+        try:
+            test_url = scheme + raw_url
+            response = requests.head(test_url, timeout=5, allow_redirects=True)
+            if response.status_code < 400:
+                return test_url
+        except:
+            continue
+    return None
 
 @app.route("/check", methods=['POST'])
 def check_url():
@@ -50,8 +61,10 @@ def check_url():
     if not url:
         return jsonify({'error': 'No URL provided'}), 400
 
-    if not url.startswith(('http://', 'https://')):
-        url = 'http://' + url
+    resolved = resolve_url(url)
+    if not resolved:
+        return jsonify({'error': 'Could not resolve URL via HTTP/HTTPS'}), 400
+    url = resolved
 
     html_content = ""
     reasons = []
@@ -93,7 +106,6 @@ def check_url():
 
     prediction = 'Phishing' if phishing_score > legit_score else 'Legitimate'
 
-    # Explanation logic
     if prediction == 'Phishing':
         if features.get('suspicious_keyword_found'): reasons.append("🔑 Suspicious keywords present.")
         if features.get('suspicious_tld'): reasons.append("🌐 Suspicious TLD.")
