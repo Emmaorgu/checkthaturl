@@ -1,160 +1,110 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <title>FAQ — CheckThatURL</title>
+  <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="description" content="Answers to common questions about how CheckThatURL works and how we handle privacy." />
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔍</text></svg>">
+  <title>FAQ — CheckThatURL</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          colors: {
-            brand: { 50:"#eefaff",100:"#d6f1ff",200:"#aee2ff",300:"#7dd0ff",400:"#41b4ff",500:"#1799ff",600:"#0c7be0",700:"#0a65b6",800:"#0b5495",900:"#0c477b" }
-          }
-        }
-      }
-    }
+    tailwind.config = { theme: { extend: {
+      colors:{brand:{50:"#eefaff",100:"#d6f1ff",200:"#aee2ff",300:"#7dd0ff",400:"#41b4ff",500:"#1799ff",600:"#0c7be0",700:"#0a65b6",800:"#0b5495",900:"#0c477b"}},
+    } } }
   </script>
   <style>
-    .glass { backdrop-filter: blur(10px); background: rgba(255,255,255,.08); }
-    .dark .glass { background: rgba(0,0,0,.25); }
-    .faq-item[open] .chev { transform: rotate(180deg); }
+    .glass{backdrop-filter:blur(10px);background:rgba(255,255,255,.08)}
+    @media (max-width:640px){ .glass{backdrop-filter:blur(6px)} }
+    details > summary::-webkit-details-marker{display:none}
   </style>
-
-  <!-- FAQPage JSON-LD -->
-  <script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@type": "FAQPage",
-    "mainEntity": [{
-      "@type": "Question",
-      "name": "Do you store the URLs I scan?",
-      "acceptedAnswer": {
-        "@type": "Answer",
-        "text": "No. We do not store scanned URLs, cookies, or tracking data. Results are computed in-memory and discarded."
-      }
-    },{
-      "@type": "Question",
-      "name": "What does the Suspicious verdict mean?",
-      "acceptedAnswer": {
-        "@type": "Answer",
-        "text": "It sits between Legitimate and Phishing. Some risk signals were detected but not enough for a definitive call. Treat with caution."
-      }
-    },{
-      "@type": "Question",
-      "name": "Which signals do you analyze?",
-      "acceptedAnswer": {
-        "@type": "Answer",
-        "text": "Domain signals (age, TLD, entropy), content cues (keyword density, login prompts, urgency timers), and link structure (anchor mismatches, redirect chains)."
-      }
-    },{
-      "@type": "Question",
-      "name": "Is CheckThatURL suitable for sensitive internal links?",
-      "acceptedAnswer": {
-        "@type": "Answer",
-        "text": "Use a self-hosted deployment behind your firewall for sensitive/internal content."
-      }
-    }]
-  }
-  </script>
 </head>
 <body class="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-white">
   <!-- Nav -->
-  <header class="max-w-5xl mx-auto px-4 py-5 flex items-center justify-between">
-
-      {% if SELF_HOSTED %}
-<div class="max-w-5xl mx-auto px-4">
-  <div class="glass rounded-xl ring-1 ring-white/10 p-3 text-sm text-slate-200">
-    🔒 <span class="font-medium">Self‑hosted mode:</span> scans run locally; optional external lookups are disabled.
-  </div>
-</div>
-{% endif %}
-
-
-
-    <a class="flex items-center gap-2 font-semibold tracking-tight" href="/">
-      <span class="text-brand-400">●</span> CheckThatURL
-    </a>
-    <nav class="flex items-center gap-6 text-sm text-slate-300">
-      <a href="/" class="hover:text-white">Home</a>
+  <header class="max-w-7xl mx-auto px-4 py-5 flex items-center justify-between">
+    <a class="flex items-center gap-2 font-semibold tracking-tight" href="/"><span class="text-brand-400">●</span> CheckThatURL</a>
+    <nav class="hidden sm:flex items-center gap-6 text-sm text-slate-300">
       <a href="/privacy" class="hover:text-white">Privacy</a>
       <a href="/legal" class="hover:text-white">Legal</a>
       <a href="/faq" class="text-white">FAQ</a>
     </nav>
   </header>
 
-  <main class="max-w-5xl mx-auto px-4 pb-20">
-    <section class="glass rounded-3xl ring-1 ring-white/10 p-6 md:p-10">
-      <h1 class="text-3xl md:text-4xl font-extrabold">FAQ</h1>
-      <p class="mt-3 text-slate-300">Last updated: 9 August 2025</p>
+  {% if SELF_HOSTED %}
+  <div class="max-w-7xl mx-auto px-4">
+    <div class="glass rounded-xl ring-1 ring-white/10 p-3 text-sm text-slate-200">
+      🔒 <span class="font-medium">Self‑hosted mode:</span> scans run locally; optional external lookups are disabled.
+    </div>
+  </div>
+  {% endif %}
 
-      <div class="mt-8 space-y-3">
-        <!-- Item -->
-        <details class="faq-item glass rounded-2xl ring-1 ring-white/10 p-5">
-          <summary class="flex items-center justify-between cursor-pointer select-none">
-            <span class="font-semibold">Do you store the URLs I scan?</span>
-            <svg class="chev w-4 h-4 transition-transform" viewBox="0 0 20 20" fill="currentColor"><path d="M5.23 7.21a.75.75 0 011.06.02L10 10.939l3.71-3.71a.75.75 0 111.06 1.061l-4.24 4.24a.75.75 0 01-1.06 0l-4.24-4.24a.75.75 0 01.02-1.06z"/></svg>
-          </summary>
-          <p class="mt-3 text-sm text-slate-300">No. We don’t store scanned URLs, set tracking cookies, or sell data. Results are computed in‑memory and discarded.</p>
-        </details>
+  <main class="max-w-3xl mx-auto px-4 pb-20">
+    <h1 class="text-3xl sm:text-4xl font-extrabold mt-4">FAQ</h1>
 
-        <details class="faq-item glass rounded-2xl ring-1 ring-white/10 p-5">
-          <summary class="flex items-center justify-between cursor-pointer select-none">
-            <span class="font-semibold">What does the “Suspicious” verdict mean?</span>
-            <svg class="chev w-4 h-4 transition-transform" viewBox="0 0 20 20" fill="currentColor"><path d="M5.23 7.21a.75.75 0 011.06.02L10 10.939l3.71-3.71a.75.75 0 111.06 1.061l-4.24 4.24a.75.75 0 01-1.06 0l-4.24-4.24a.75.75 0 01.02-1.06z"/></svg>
-          </summary>
-          <p class="mt-3 text-sm text-slate-300">It’s a caution band. We detected some risk signals, but not enough for a definitive “Phishing.” Treat it carefully and verify the source.</p>
-        </details>
-
-        <details class="faq-item glass rounded-2xl ring-1 ring-white/10 p-5">
-          <summary class="flex items-center justify-between cursor-pointer select-none">
-            <span class="font-semibold">Which signals do you analyze?</span>
-            <svg class="chev w-4 h-4 transition-transform" viewBox="0 0 20 20" fill="currentColor"><path d="M5.23 7.21a.75.75 0 011.06.02L10 10.939l3.71-3.71a.75.75 0 111.06 1.061l-4.24 4.24a.75.75 0 01-1.06 0l-4.24-4.24a.75.75 0 01.02-1.06z"/></svg>
-          </summary>
-          <p class="mt-3 text-sm text-slate-300">Domain risks (age, TLD, WHOIS anomalies, entropy), content cues (keyword density, login prompts, urgency timers), and link/behavioral patterns (anchor mismatches, excessive externals, redirects).</p>
-        </details>
-
-        <details class="faq-item glass rounded-2xl ring-1 ring-white/10 p-5">
-          <summary class="flex items-center justify-between cursor-pointer select-none">
-            <span class="font-semibold">Can I self‑host CheckThatURL?</span>
-            <svg class="chev w-4 h-4 transition-transform" viewBox="0 0 20 20" fill="currentColor"><path d="M5.23 7.21a.75.75 0 011.06.02L10 10.939l3.71-3.71a.75.75 0 111.06 1.061l-4.24 4.24a.75.75 0 01-1.06 0l-4.24-4.24a.75.75 0 01.02-1.06z"/></svg>
-          </summary>
-          <p class="mt-3 text-sm text-slate-300">Yes. For sensitive workflows, deploy the app within your network. Disable any optional external lookups and keep models/data local.</p>
-        </details>
-
-        <details class="faq-item glass rounded-2xl ring-1 ring-white/10 p-5">
-          <summary class="flex items-center justify-between cursor-pointer select-none">
-            <span class="font-semibold">Do you check against threat feeds?</span>
-            <svg class="chev w-4 h-4 transition-transform" viewBox="0 0 20 20" fill="currentColor"><path d="M5.23 7.21a.75.75 0 011.06.02L10 10.939l3.71-3.71a.75.75 0 111.06 1.061l-4.24 4.24a.75.75 0 01-1.06 0l-4.24-4.24a.75.75 0 01.02-1.06z"/></svg>
-          </summary>
-          <p class="mt-3 text-sm text-slate-300">Optionally, yes (e.g., OpenPhish, URLhaus, Google Safe Browsing). Lookups are one‑way for verification; we don’t share your identity.</p>
-        </details>
-
-        <details class="faq-item glass rounded-2xl ring-1 ring-white/10 p-5">
-          <summary class="flex items-center justify-between cursor-pointer select-none">
-            <span class="font-semibold">Will you ever add accounts or analytics?</span>
-            <svg class="chev w-4 h-4 transition-transform" viewBox="0 0 20 20" fill="currentColor"><path d="M5.23 7.21a.75.75 0 011.06.02L10 10.939l3.71-3.71a.75.75 0 111.06 1.061l-4.24 4.24a.75.75 0 01-1.06 0l-4.24-4.24a.75.75 0 01.02-1.06z"/></svg>
-          </summary>
-          <p class="mt-3 text-sm text-slate-300">Only if strictly necessary and privacy‑preserving (self‑hosted analytics, opt‑in). The default experience remains no‑login, no‑tracking.</p>
-        </details>
-      </div>
-    </section>
-
-    <footer class="border-t border-white/10 mt-10">
-      <div class="max-w-5xl mx-auto px-4 py-8 text-sm text-slate-400 flex flex-col md:flex-row items-center justify-between gap-4">
-        <p>© 2025 CheckThatURL. Built by Emmanuel Orgu.</p>
-        <div class="flex items-center gap-4">
-          <a href="/privacy" class="hover:text-white">Privacy</a>
-          <span class="text-slate-600">•</span>
-          <a href="/legal" class="hover:text-white">Legal</a>
-          <span class="text-slate-600">•</span>
-          <a href="/faq" class="hover:text-white">FAQ</a>
+    <!-- Accordion Q&A -->
+    <div class="mt-6 space-y-3">
+      <details class="glass rounded-2xl ring-1 ring-white/10 p-4">
+        <summary class="cursor-pointer select-none text-base sm:text-lg font-semibold flex items-center justify-between">
+          How does CheckThatURL work?
+          <span class="text-slate-400 text-sm">tap</span>
+        </summary>
+        <div class="text-slate-300 text-sm sm:text-base mt-2">
+          We analyze domain patterns, page text, links, forms, and behavioral signals. A trained model predicts phishing risk and we group reasons for clarity.
         </div>
-      </div>
-    </footer>
+      </details>
+
+      <details class="glass rounded-2xl ring-1 ring-white/10 p-4">
+        <summary class="cursor-pointer select-none text-base sm:text-lg font-semibold flex items-center justify-between">
+          Do you store the links I scan?
+          <span class="text-slate-400 text-sm">tap</span>
+        </summary>
+        <div class="text-slate-300 text-sm sm:text-base mt-2">
+          No. Scans are processed in memory and discarded. Your browser keeps a local “Recent” list you can clear anytime.
+        </div>
+      </details>
+
+      <details class="glass rounded-2xl ring-1 ring-white/10 p-4">
+        <summary class="cursor-pointer select-none text-base sm:text-lg font-semibold flex items-center justify-between">
+          What is “Self‑hosted mode”?
+          <span class="text-slate-400 text-sm">tap</span>
+        </summary>
+        <div class="text-slate-300 text-sm sm:text-base mt-2">
+          When enabled by an admin (<code class="px-1 bg-white/10 rounded">CTU_SELF_HOSTED=1</code>), all scans stay in your network and external lookups
+          (e.g., WHOIS) are disabled or pulled from a local cache.
+        </div>
+      </details>
+
+      <details class="glass rounded-2xl ring-1 ring-white/10 p-4">
+        <summary class="cursor-pointer select-none text-base sm:text-lg font-semibold flex items-center justify-between">
+          Are verdicts always correct?
+          <span class="text-slate-400 text-sm">tap</span>
+        </summary>
+        <div class="text-slate-300 text-sm sm:text-base mt-2">
+          No model is perfect. Treat the verdict as guidance and apply judgment—especially for high‑value actions like banking or crypto transfers.
+        </div>
+      </details>
+
+      <details class="glass rounded-2xl ring-1 ring-white/10 p-4">
+        <summary class="cursor-pointer select-none text-base sm:text-lg font-semibold flex items-center justify-between">
+          Can I integrate this into my product?
+          <span class="text-slate-400 text-sm">tap</span>
+        </summary>
+        <div class="text-slate-300 text-sm sm:text-base mt-2">
+          Yes—there’s a simple REST endpoint at <code class="px-1 bg-white/10 rounded">/check</code>. Contact us for rate limits and enterprise options.
+        </div>
+      </details>
+    </div>
+
+    <div class="mt-6 text-slate-400 text-xs sm:text-sm">
+      Didn’t see your question? Email <span class="underline decoration-dotted">support@checkthaturl.com</span>.
+    </div>
   </main>
+
+  <footer class="border-t border-white/10">
+    <div class="max-w-7xl mx-auto px-4 py-6 sm:py-8 text-xs sm:text-sm text-slate-400 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 sm:gap-4">
+      <p>© 2025 CheckThatURL. Built by Emmanuel Orgu.</p>
+      <div class="flex flex-wrap items-center gap-3 sm:gap-4">
+        <a href="/privacy" class="hover:text-white">Privacy</a><span class="text-slate-600">•</span>
+        <a href="/legal" class="hover:text-white">Legal</a>
+      </div>
+    </div>
+  </footer>
 </body>
 </html>

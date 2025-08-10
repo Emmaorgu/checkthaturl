@@ -12,21 +12,8 @@
       theme: {
         extend: {
           colors: {
-            brand: {
-              50: "#eefaff",
-              100: "#d6f1ff",
-              200: "#aee2ff",
-              300: "#7dd0ff",
-              400: "#41b4ff",
-              500: "#1799ff",
-              600: "#0c7be0",
-              700: "#0a65b6",
-              800: "#0b5495",
-              900: "#0c477b"
-            },
-            success: "#16a34a",
-            warning: "#f59e0b",
-            danger:  "#ef4444"
+            brand: {50:"#eefaff",100:"#d6f1ff",200:"#aee2ff",300:"#7dd0ff",400:"#41b4ff",500:"#1799ff",600:"#0c7be0",700:"#0a65b6",800:"#0b5495",900:"#0c477b"},
+            success:"#16a34a", warning:"#f59e0b", danger:"#ef4444"
           }
         }
       }
@@ -37,23 +24,27 @@
 
   <meta name="description" content="Instant AI phishing checks. Paste a link, get a verdict, and see why." />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔍</text></svg>">
+
   <style>
     .glass { backdrop-filter: blur(10px); background: rgba(255,255,255,.08); }
     .dark .glass { background: rgba(0,0,0,.25); }
     .pulse-ring { box-shadow: 0 0 0 0 rgba(23,153,255,.6); animation: pulse 2s infinite; }
-    @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(23,153,255,.6);} 70% { box-shadow: 0 0 0 12px rgba(23,153,255,0);} 100% { box-shadow: 0 0 0 0 rgba(23,153,255,0);} }
-    .tooltip { position: relative; }
-    .tooltip:hover .tooltip-card { opacity:1; transform: translateY(0); pointer-events:auto; }
+    @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(23,153,255,.6)}70%{box-shadow:0 0 0 12px rgba(23,153,255,0)}100%{box-shadow:0 0 0 0 rgba(23,153,255,0)} }
+    .tooltip{position:relative}
+    .tooltip:hover .tooltip-card{opacity:1;transform:translateY(0);pointer-events:auto}
+    /* mobile perf: reduce blur a bit */
+    @media (max-width:640px){ .glass{ backdrop-filter: blur(6px); } }
   </style>
 </head>
 
-<body class="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-white selection:bg-brand-500 selection:text-white">
+<body class="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-white selection:bg-brand-500 selection:text-white pt-[env(safe-area-inset-top)]">
   <!-- Nav -->
   <header class="max-w-7xl mx-auto px-4 py-5 flex items-center justify-between">
     <a class="flex items-center gap-2 font-semibold tracking-tight" href="/">
       <span class="text-brand-400">●</span> CheckThatURL
     </a>
-    <nav class="flex items-center gap-6 text-sm text-slate-300">
+    <!-- cleaner nav on mobile -->
+    <nav class="hidden sm:flex items-center gap-6 text-sm text-slate-300">
       <a href="#how" class="hover:text-white">How it works</a>
       <a href="/privacy" class="hover:text-white">Privacy</a>
       <a href="/legal" class="hover:text-white">Legal</a>
@@ -61,7 +52,7 @@
     </nav>
   </header>
 
-  <!-- Self-hosted banner (env: CTU_SELF_HOSTED=1) -->
+  <!-- Self-hosted banner (rendered by Flask if CTU_SELF_HOSTED=1) -->
   {% if SELF_HOSTED %}
   <div class="max-w-7xl mx-auto px-4">
     <div class="glass rounded-xl ring-1 ring-white/10 p-3 text-sm text-slate-200">
@@ -71,41 +62,41 @@
   {% endif %}
 
   <!-- Hero -->
-  <section class="max-w-7xl mx-auto px-4 pt-8 pb-4">
-    <div class="grid md:grid-cols-2 gap-8 items-center">
+  <section class="max-w-7xl mx-auto px-4 pt-6 sm:pt-8 pb-3 sm:pb-4">
+    <div class="grid md:grid-cols-2 gap-6 sm:gap-8 items-center">
       <div>
-        <h1 class="text-4xl md:text-5xl font-extrabold leading-tight">
+        <h1 class="text-3xl sm:text-4xl md:text-5xl font-extrabold leading-tight">
           Scan any link.<br><span class="text-brand-400">Instant</span> verdicts. Clear reasons.
         </h1>
-        <p class="mt-4 text-slate-300">
+        <p class="mt-3 sm:mt-4 text-slate-300 text-sm sm:text-base">
           AI-powered phishing detection for people who refuse to get scammed.
         </p>
 
         <!-- Form -->
-        <form id="check-form" class="mt-6 glass rounded-2xl p-2 ring-1 ring-white/10">
-          <div class="flex items-center gap-2">
+        <form id="check-form" class="mt-5 sm:mt-6 glass rounded-2xl p-2 ring-1 ring-white/10">
+          <div class="flex flex-col md:flex-row gap-2 md:items-center">
             <div class="relative flex-1">
               <input id="url-input"
                      type="text"
                      placeholder="Paste a URL (e.g. https://bank.example/login)"
                      autocomplete="off"
                      class="w-full bg-transparent placeholder-slate-400 focus:outline-none px-4 py-3 text-base" />
-              <div id="suggestions" class="absolute left-2 right-2 top-full mt-2 hidden rounded-xl bg-slate-900/95 ring-1 ring-white/10 shadow-xl overflow-hidden"></div>
+              <div id="suggestions" class="absolute left-2 right-2 top-full mt-2 hidden rounded-xl bg-slate-900/95 ring-1 ring-white/10 shadow-xl overflow-hidden z-50"></div>
             </div>
             <button type="submit"
-                    class="px-4 py-3 rounded-xl bg-brand-500 hover:bg-brand-400 transition font-semibold pulse-ring">
+                    class="w-full md:w-auto px-4 py-3 rounded-xl bg-brand-500 hover:bg-brand-400 transition font-semibold">
               Check
             </button>
           </div>
-          <div id="url-feedback" class="text-sm mt-2 text-slate-400"></div>
+          <div id="url-feedback" class="text-xs sm:text-sm mt-2 text-slate-400"></div>
         </form>
 
         <!-- Recent -->
-        <div id="history" class="mt-4 text-xs text-slate-400"></div>
+        <div id="history" class="mt-4 text-xs sm:text-sm text-slate-400"></div>
       </div>
 
       <!-- Result Card -->
-      <div id="results-card" class="glass rounded-2xl p-6 ring-1 ring-white/10 hidden">
+      <div id="results-card" class="glass rounded-2xl p-4 sm:p-6 ring-1 ring-white/10 hidden">
         <div class="flex items-center justify-between">
           <div class="text-sm text-slate-300">Verdict</div>
           <div id="badge" class="px-3 py-1 text-xs rounded-full bg-slate-800">—</div>
@@ -115,8 +106,8 @@
         <p id="explanation" class="mt-2 text-sm text-slate-300">—</p>
 
         <!-- Risk groups -->
-        <div class="grid md:grid-cols-3 gap-3 mt-6">
-          <div class="glass rounded-xl p-3 ring-1 ring-white/10">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mt-4 sm:mt-6">
+          <div class="glass rounded-xl p-3 sm:p-4 ring-1 ring-white/10">
             <div class="flex items-center justify-between">
               <span class="text-sm font-semibold">🌐 Domain Risks</span>
               <span class="tooltip text-[11px] text-slate-400 underline decoration-dotted cursor-help">
@@ -127,10 +118,10 @@
                 </span>
               </span>
             </div>
-            <ul id="domain-risks" class="mt-2 text-xs space-y-1"></ul>
+            <ul id="domain-risks" class="mt-2 text-xs space-y-1 max-h-40 overflow-auto md:max-h-none"></ul>
           </div>
 
-          <div class="glass rounded-xl p-3 ring-1 ring-white/10">
+          <div class="glass rounded-xl p-3 sm:p-4 ring-1 ring-white/10">
             <div class="flex items-center justify-between">
               <span class="text-sm font-semibold">📝 Content Risks</span>
               <span class="tooltip text-[11px] text-slate-400 underline decoration-dotted cursor-help">
@@ -141,10 +132,10 @@
                 </span>
               </span>
             </div>
-            <ul id="content-risks" class="mt-2 text-xs space-y-1"></ul>
+            <ul id="content-risks" class="mt-2 text-xs space-y-1 max-h-40 overflow-auto md:max-h-none"></ul>
           </div>
 
-          <div class="glass rounded-xl p-3 ring-1 ring-white/10">
+          <div class="glass rounded-xl p-3 sm:p-4 ring-1 ring-white/10">
             <div class="flex items-center justify-between">
               <span class="text-sm font-semibold">🔗 Link Risks</span>
               <span class="tooltip text-[11px] text-slate-400 underline decoration-dotted cursor-help">
@@ -155,17 +146,19 @@
                 </span>
               </span>
             </div>
-            <ul id="link-risks" class="mt-2 text-xs space-y-1"></ul>
+            <ul id="link-risks" class="mt-2 text-xs space-y-1 max-h-40 overflow-auto md:max-h-none"></ul>
           </div>
         </div>
 
-        <!-- Chart -->
-        <div class="mt-6">
-          <canvas id="confidenceChart" height="220"></canvas>
+        <!-- Chart (responsive square) -->
+        <div class="mt-4 sm:mt-6">
+          <div class="relative w-full" style="aspect-ratio: 1 / 1;">
+            <canvas id="confidenceChart"></canvas>
+          </div>
         </div>
 
         <!-- Raw list for accessibility -->
-        <details class="mt-6 text-xs text-slate-400">
+        <details class="mt-4 sm:mt-6 text-xs text-slate-400">
           <summary class="cursor-pointer">See raw checks</summary>
           <ul id="raw-list" class="mt-2 space-y-1"></ul>
         </details>
@@ -174,9 +167,9 @@
   </section>
 
   <!-- How it works -->
-  <section id="how" class="max-w-7xl mx-auto px-4 py-16">
+  <section id="how" class="max-w-7xl mx-auto px-4 py-10 sm:py-16">
     <h3 class="text-2xl font-bold mb-6">How it works</h3>
-    <div class="grid md:grid-cols-3 gap-6">
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
       <div class="glass rounded-2xl p-6 ring-1 ring-white/10">
         <div class="text-4xl">1️⃣</div>
         <div class="mt-3 font-semibold">Paste a link</div>
@@ -196,15 +189,15 @@
   </section>
 
   <!-- CTA -->
-  <section class="max-w-7xl mx-auto px-4 pb-20">
-    <div class="glass rounded-3xl p-8 ring-1 ring-white/10 flex flex-col md:flex-row items-center justify-between gap-6">
+  <section class="max-w-7xl mx-auto px-4 pb-16 sm:pb-20">
+    <div class="glass rounded-2xl sm:rounded-3xl p-6 sm:p-8 ring-1 ring-white/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 sm:gap-6">
       <div>
-        <h4 class="text-xl font-bold">Don’t click blind.</h4>
+        <h4 class="text-lg sm:text-xl font-bold">Don’t click blind.</h4>
         <p class="text-slate-300 text-sm mt-1">Scan links in seconds — no login, no tracking.</p>
       </div>
       <a href="#"
          onclick="document.getElementById('url-input').focus();"
-         class="px-5 py-3 bg-brand-500 hover:bg-brand-400 rounded-xl font-semibold">
+         class="w-full sm:w-auto px-5 py-3 bg-brand-500 hover:bg-brand-400 rounded-xl font-semibold text-center">
         Scan a link
       </a>
     </div>
@@ -212,15 +205,15 @@
 
   <!-- Footer -->
   <footer class="border-t border-white/10">
-    <div class="max-w-7xl mx-auto px-4 py-8 text-sm text-slate-400 flex flex-col md:flex-row items-center justify-between gap-4">
+    <div class="max-w-7xl mx-auto px-4 py-6 sm:py-8 text-xs sm:text-sm text-slate-400 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 sm:gap-4">
       <p>© 2025 CheckThatURL. Built by Emmanuel Orgu.</p>
-      <div class="flex items-center gap-4">
+      <div class="flex flex-wrap items-center gap-3 sm:gap-4">
         <a href="/privacy" class="hover:text-white">Privacy</a>
         <span class="text-slate-600">•</span>
         <a href="/legal" class="hover:text-white">Legal</a>
         <span class="text-slate-600">•</span>
         <a href="/faq" class="hover:text-white">FAQ</a>
-        <span class="text-slate-600">•</span>
+        <span class="text-slate-600 hidden md:inline">•</span>
         <span>No data stored. No cookies. No tracking.</span>
       </div>
     </div>
@@ -240,8 +233,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const contentList = document.getElementById("content-risks");
   const linkList = document.getElementById("link-risks");
   const rawList = document.getElementById("raw-list");
-  const historyBox = document.getElementById("history");
   const chartCanvas = document.getElementById("confidenceChart");
+  const historyBox = document.getElementById("history");
   let chartInstance;
 
   const suffixes = [".com", ".ng", ".org", ".bank", ".io", ".app"];
@@ -259,16 +252,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
   historyBox.addEventListener("click", (e) => {
     const u = e.target.getAttribute("data-url");
-    if (u) {
-      urlInput.value = u;
-      form.dispatchEvent(new Event("submit"));
-    }
+    if (u) { urlInput.value = u; form.dispatchEvent(new Event("submit")); }
   });
 
   urlInput.addEventListener("input", () => {
     const v = urlInput.value.trim();
     feedback.textContent = v ? "Looks good — press Enter to scan." : "Paste a URL to begin.";
-    feedback.className = v ? "text-sm mt-2 text-brand-200" : "text-sm mt-2 text-slate-400";
+    feedback.className = v ? "text-xs sm:text-sm mt-2 text-brand-200" : "text-xs sm:text-sm mt-2 text-slate-400";
 
     if (v && !v.includes(".")) {
       suggestionsBox.innerHTML = suffixes.map(ext => `<div class="px-3 py-2 hover:bg-white/10 cursor-pointer">${v}${ext}</div>`).join("");
@@ -298,12 +288,14 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function renderList(el, items) {
-    el.innerHTML = items && items.length ? items.map(i => `<li class="leading-relaxed">${i}</li>`).join("") : `<li class="text-slate-500">No notable issues.</li>`;
+    el.innerHTML = items && items.length
+      ? items.map(i => `<li class="leading-relaxed">${i}</li>`).join("")
+      : `<li class="text-slate-500">No notable issues.</li>`;
   }
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
-    let url = urlInput.value.trim();
+    const url = urlInput.value.trim();
     if (!url) return;
 
     resultsCard.classList.remove("hidden");
@@ -326,11 +318,13 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
 
+      // verdict + bands
       const v = data.verdict || "Suspicious";
       setBadge(v);
       verdictTitle.textContent = v;
       explanation.textContent = data.explanation || "We’ve grouped risk signals below.";
 
+      // grouped risks (backend-native or fallback)
       const groups = {
         domain_risks: data.domain_risks || [],
         content_risks: data.content_risks || [],
@@ -344,26 +338,29 @@ document.addEventListener("DOMContentLoaded", () => {
       renderList(contentList, groups.content_risks);
       renderList(linkList, groups.link_risks);
 
+      // doughnut chart (responsive)
       const phishing = Number(data.phishing_score || 0);
       const legit    = Number(data.legit_score || 0);
 
       if (chartInstance) chartInstance.destroy();
       chartInstance = new Chart(chartCanvas, {
         type: "doughnut",
-        data: {
-          labels: ["Phishing", "Legitimate"],
-          datasets: [{ data: [phishing, legit], backgroundColor: ["#ef4444", "#16a34a"] }]
-        },
-        options: { plugins: { legend: { position: "bottom", labels: { color: "#cbd5e1" } } } }
+        data: { labels: ["Phishing", "Legitimate"], datasets: [{ data: [phishing, legit], backgroundColor: ["#ef4444", "#16a34a"] }] },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: { legend: { position: "bottom", labels: { color: "#cbd5e1" } } }
+        }
       });
 
-      const raw = [
+      // raw list
+      rawList.innerHTML = [
         `Confidence: ${data.confidence ?? "-"}`,
         `Phishing score: ${phishing}`,
         `Legit score: ${legit}`
-      ];
-      rawList.innerHTML = raw.map(x => `<li>${x}</li>`).join("");
+      ].map(x => `<li>${x}</li>`).join("");
 
+      // history
       let history = JSON.parse(localStorage.getItem("scanHistory") || "[]");
       if (!history.includes(url)) {
         history.unshift(url); history = history.slice(0, 10);
