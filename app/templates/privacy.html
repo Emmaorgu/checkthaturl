@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Privacy — CheckThatURL</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="We don’t store your URLs. No cookies. No tracking. Here’s exactly what happens when you scan a link on CheckThatURL." />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔍</text></svg>">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: { 50:"#eefaff",100:"#d6f1ff",200:"#aee2ff",300:"#7dd0ff",400:"#41b4ff",500:"#1799ff",600:"#0c7be0",700:"#0a65b6",800:"#0b5495",900:"#0c477b" }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    .glass { backdrop-filter: blur(10px); background: rgba(255,255,255,.08); }
+    .dark .glass { background: rgba(0,0,0,.25); }
+  </style>
+
+  <!-- JSON-LD (SoftwareApplication + PrivacyPolicy) -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "CheckThatURL",
+    "url": "https://www.checkthaturl.com",
+    "applicationCategory": "SecurityApplication",
+    "operatingSystem": "All",
+    "description": "Instant AI phishing checks. Paste a link, get a verdict, and see why.",
+    "publisher": { "@type": "Organization", "name": "CheckThatURL" },
+    "privacyPolicy": "https://www.checkthaturl.com/privacy"
+  }
+  </script>
+</head>
+<body class="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-white">
+  <!-- Nav -->
+  <header class="max-w-5xl mx-auto px-4 py-5 flex items-center justify-between">
+    <a class="flex items-center gap-2 font-semibold tracking-tight" href="/">
+      <span class="text-brand-400">●</span> CheckThatURL
+    </a>
+    <nav class="flex items-center gap-6 text-sm text-slate-300">
+      <a href="/" class="hover:text-white">Home</a>
+      <a href="/privacy" class="text-white">Privacy</a>
+    </nav>
+  </header>
+
+  {% if SELF_HOSTED %}
+<div class="max-w-5xl mx-auto px-4">
+  <div class="glass rounded-xl ring-1 ring-white/10 p-3 text-sm text-slate-200">
+    🔒 <span class="font-medium">Self‑hosted mode:</span> scans run locally; optional external lookups are disabled.
+  </div>
+</div>
+{% endif %}
+
+
+  <!-- Page -->
+  <main class="max-w-5xl mx-auto px-4 pb-20">
+    <section class="glass rounded-3xl ring-1 ring-white/10 p-6 md:p-10">
+      <h1 class="text-3xl md:text-4xl font-extrabold">Privacy</h1>
+      <p class="mt-3 text-slate-300">Last updated: 9 August 2025</p>
+
+      <!-- Summary -->
+      <div class="mt-8 grid md:grid-cols-3 gap-4">
+        <div class="glass rounded-2xl ring-1 ring-white/10 p-5">
+          <div class="text-sm font-semibold text-slate-200">No Storage</div>
+          <p class="mt-2 text-sm text-slate-300">We don’t save the URLs you scan. Results are computed in-memory and discarded.</p>
+        </div>
+        <div class="glass rounded-2xl ring-1 ring-white/10 p-5">
+          <div class="text-sm font-semibold text-slate-200">No Tracking</div>
+          <p class="mt-2 text-sm text-slate-300">No cookies. No ads. No analytics beacons following you around.</p>
+        </div>
+        <div class="glass rounded-2xl ring-1 ring-white/10 p-5">
+          <div class="text-sm font-semibold text-slate-200">Security‑first</div>
+          <p class="mt-2 text-sm text-slate-300">We fetch pages safely, sanitize inputs, and minimize data in transit.</p>
+        </div>
+      </div>
+
+      <!-- What we process -->
+      <div class="mt-10">
+        <h2 class="text-xl font-bold">What we process (and why)</h2>
+        <div class="mt-4 space-y-4 text-sm text-slate-300">
+          <p><span class="font-semibold">URL you submit:</span> used to fetch the page and run phishing checks (domain, content, link structure, and behavioral signals if enabled).</p>
+          <p><span class="font-semibold">Page content (transient):</span> fetched to compute features (e.g., suspicious keywords, timers, anchor mismatches). We do not store full page content.</p>
+          <p><span class="font-semibold">Derived features (transient):</span> numeric signals our model uses to produce a verdict and explanation. Discarded after response.</p>
+        </div>
+      </div>
+
+      <!-- What we don't collect -->
+      <div class="mt-8">
+        <h2 class="text-xl font-bold">What we don’t collect</h2>
+        <ul class="mt-3 list-disc list-inside text-sm text-slate-300 space-y-1">
+          <li>No accounts, emails, names, or identifiers</li>
+          <li>No cookies for tracking or advertising</li>
+          <li>No persistent logs of submitted URLs or results</li>
+        </ul>
+      </div>
+
+      <!-- How scanning works -->
+      <div class="mt-8">
+        <h2 class="text-xl font-bold">How scanning works</h2>
+        <div class="mt-3 text-sm text-slate-300 space-y-2">
+          <p>We analyze the URL and fetch the page to extract signals like domain age, TLD, keyword density, link/anchor mismatches, urgency timers, and more. Our model then assigns a probability and returns a verdict: <span class="text-green-400">Legitimate</span>, <span class="text-yellow-400">Suspicious</span>, or <span class="text-red-400">Phishing</span>, with grouped reasons.</p>
+          <p>We do not use the page content for any purpose beyond this one‑time analysis.</p>
+        </div>
+      </div>
+
+      <!-- Third parties -->
+      <div class="mt-8">
+        <h2 class="text-xl font-bold">Third‑party services</h2>
+        <p class="mt-3 text-sm text-slate-300">We do not sell data or use ad networks. Optional integrations (e.g., threat feeds like OpenPhish/URLhaus or Google Safe Browsing) are used to verify risk but are not given your identity.</p>
+      </div>
+
+      <!-- Security -->
+      <div class="mt-8">
+        <h2 class="text-xl font-bold">Security</h2>
+        <ul class="mt-3 list-disc list-inside text-sm text-slate-300 space-y-1">
+          <li>Input sanitization and safe HTTP clients</li>
+          <li>Minimal data retention (in‑memory only)</li>
+          <li>Feature‑level logging only when debugging (disabled in production)</li>
+        </ul>
+      </div>
+
+      <!-- Your choices -->
+      <div class="mt-8">
+        <h2 class="text-xl font-bold">Your choices</h2>
+        <p class="mt-3 text-sm text-slate-300">If you don’t want the app to fetch a live page, you can analyze a non‑sensitive placeholder or a test URL first. For sensitive internal links, run a self‑hosted instance behind your firewall.</p>
+      </div>
+
+      <!-- Contact -->
+      <div class="mt-10 glass rounded-2xl ring-1 ring-white/10 p-6">
+        <h2 class="text-xl font-bold">Contact</h2>
+        <p class="mt-3 text-sm text-slate-300">Questions? Reach out to the maintainer: <span class="text-slate-200 font-medium"><a href="https://www.linkedin.com/in/orguemmanuel/"> Emmanuel Orgu</a></span>.</p>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="border-t border-white/10 mt-10">
+      <div class="max-w-5xl mx-auto px-4 py-8 text-sm text-slate-400 flex flex-col md:flex-row items-center justify-between gap-4">
+        <p>© 2025 CheckThatURL. Built by <a href="https://www.linkedin.com/in/orguemmanuel/"> Emmanuel Orgu.</a></p>
+        <div class="flex items-center gap-4">
+          <a href="/privacy" class="hover:text-white">Privacy</a>
+          <span class="text-slate-600">•</span>
+          <span>No data stored. No cookies. No tracking.</span>
+        </div>
+      </div>
+    </footer>
+  </main>
+</body>
+</html>
