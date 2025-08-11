@@ -47,6 +47,19 @@ else:
 app = Flask(__name__, template_folder="templates", static_folder="static")
 CORS(app)
 
+# --- HTML fetch helpers -------------------------------------------------------
+from urllib.parse import urlparse
+CTU_USE_LOCAL_INDEX = os.getenv("CTU_USE_LOCAL_INDEX", "0") == "1"
+OUR_HOSTS = {"checkthaturl.com", "www.checkthaturl.com"}
+LOCAL_TEMPLATE_INDEX = os.path.join(os.path.dirname(__file__), "templates", "index.html")
+
+def _is_our_domain(u: str) -> bool:
+    try:
+        host = urlparse(u).netloc.split(":")[0].lower()
+        return host in OUR_HOSTS
+    except Exception:
+        return False
+
 # Register Day-4 feedback blueprint
 if feedback_bp is not None:
     app.register_blueprint(feedback_bp)
