@@ -105,7 +105,7 @@ model = joblib.load(MODEL_PATH)
 # ------------------------------------------------------------------------------
 # Template helpers
 # ------------------------------------------------------------------------------
-LOCAL_HOMEPAGE_PATH = os.path.join(os.path.dirname(__file__), 'index.html')
+LOCAL_TEMPLATE_INDEX = os.path.join(os.path.dirname(__file__), 'templates', 'index.html')
 
 @app.context_processor
 def inject_flags():
@@ -242,11 +242,13 @@ def check_url():
     # Local shortcut for your own pages (avoid network)
     if "checkthaturl.com" in url:
         try:
-            with open(LOCAL_HOMEPAGE_PATH, 'r', encoding='utf-8') as f:
+            with open(LOCAL_TEMPLATE_INDEX, 'r', encoding='utf-8') as f:
                 html_content = f.read()
         except Exception as e:
-            reasons.append(f"⚠ Failed to load local homepage HTML: {str(e)}. Partial analysis only.")
-    else:
+            # dev-only local index not found; ignore and fall back to network
+            # reasons suppressed for local-template miss
+            # reasons.append(f"⚠ Failed to load local homepage HTML: {str(e)}. Partial analysis only.")
+    if not html_content:
         try:
             headers = {
                 'User-Agent': 'Mozilla/5.0',
