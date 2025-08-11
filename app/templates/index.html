@@ -52,29 +52,12 @@
     @media (max-width:640px){ .glass{ backdrop-filter: blur(6px) } }
   </style>
 
-  <!-- JSON-LD: Organization + WebSite -->
+  <!-- JSON-LD -->
   <script type="application/ld+json">
-  {
-    "@context":"https://schema.org",
-    "@type":"Organization",
-    "name":"CheckThatURL",
-    "url":"{{ request.url_root }}",
-    "logo":"{{ request.url_root.rstrip('/') }}/static/og.png",
-    "sameAs":[]
-  }
+  {"@context":"https://schema.org","@type":"Organization","name":"CheckThatURL","url":"{{ request.url_root }}","logo":"{{ request.url_root.rstrip('/') }}/static/og.png","sameAs":[]}
   </script>
   <script type="application/ld+json">
-  {
-    "@context":"https://schema.org",
-    "@type":"WebSite",
-    "url":"{{ request.url_root }}",
-    "name":"CheckThatURL",
-    "potentialAction":{
-      "@type":"SearchAction",
-      "target":"{{ request.url_root }}?q={search_term_string}",
-      "query-input":"required name=search_term_string"
-    }
-  }
+  {"@context":"https://schema.org","@type":"WebSite","url":"{{ request.url_root }}","name":"CheckThatURL","potentialAction":{"@type":"SearchAction","target":"{{ request.url_root }}?q={search_term_string}","query-input":"required name=search_term_string"}}
   </script>
 </head>
 
@@ -138,14 +121,14 @@
       <div id="results-card" class="glass rounded-2xl p-4 sm:p-6 ring-1 ring-white/10 hidden">
         <div class="flex items-center justify-between">
           <div class="text-sm text-slate-300">Verdict</div>
-          <div id="badge" class="px-3 py-1 text-xs rounded-full bg-slate-800">—</div>
+          <div id="badge" class="px-3 py-1 text-xs rounded-full bg-slate-700 text-slate-200 ring-1 ring-white/10">—</div>
         </div>
 
         <h2 id="verdict-title" class="mt-2 text-2xl font-bold">—</h2>
         <p id="explanation" class="mt-2 text-sm text-slate-300">—</p>
         <p id="summary-line" class="mt-1 text-xs text-slate-400"></p>
 
-        <!-- Day-4 Feedback row -->
+        <!-- Feedback row -->
         <div class="mt-3 flex flex-wrap items-center gap-2 text-sm">
           <span class="text-slate-300">Was this result helpful?</span>
           <button id="fb-yes" class="px-3 py-1 rounded-lg bg-white/10 hover:bg-white/20">Yes</button>
@@ -420,13 +403,14 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  function setBadge(verdict) {
+  function setBadgeState(state) {
     const map = {
-      "Phishing":   { text: "Phishing",   cls: "bg-danger/20 text-danger ring-1 ring-danger/30" },
-      "Suspicious": { text: "Suspicious", cls: "bg-warning/20 text-warning ring-1 ring-warning/30" },
-      "Legitimate": { text: "Legitimate", cls: "bg-success/20 text-success ring-1 ring-success/30" },
+      "Checking":  { text: "Checking…", cls: "bg-slate-700 text-slate-200 ring-1 ring-white/10" },
+      "Phishing":  { text: "Phishing",  cls: "bg-danger/20 text-danger ring-1 ring-danger/30" },
+      "Suspicious":{ text: "Suspicious",cls: "bg-warning/20 text-warning ring-1 ring-warning/30" },
+      "Legitimate":{ text: "Legitimate",cls: "bg-success/20 text-success ring-1 ring-success/30" },
     };
-    const cfg = map[verdict] || map["Suspicious"];
+    const cfg = map[state] || map["Checking"];
     badge.className = `px-3 py-1 text-xs rounded-full ${cfg.cls}`;
     badge.textContent = cfg.text;
   }
@@ -443,6 +427,13 @@ document.addEventListener("DOMContentLoaded", () => {
       const pct = Math.round(v * 100);
       scoreEls[k].text.textContent = pct + "%";
       scoreEls[k].bar.style.width = pct + "%";
+    });
+  }
+
+  function resetCategoryScores() {
+    ["domain","content","link","behavior"].forEach(k => {
+      scoreEls[k].text.textContent = "0%";
+      scoreEls[k].bar.style.width = "0%";
     });
   }
 
@@ -476,16 +467,31 @@ document.addEventListener("DOMContentLoaded", () => {
   reportFP.addEventListener("click",()=>sendFeedback("fp"));
   reportFN.addEventListener("click",()=>sendFeedback("fn"));
 
+  function setCheckingState(){
+    resultsCard.classList.remove("hidden");
+    setBadgeState("Checking");
+    verdictTitle.textContent = "Checking…";
+    explanation.textContent = "Running static & behavioral checks.";
+    summaryLine.textContent = "";
+    renderList(domainList, []);
+    renderList(contentList, []);
+    renderList(linkList, []);
+    renderList(behaviorList, []);
+    resetCategoryScores();
+    if (domScoreText) domScoreText.textContent = "—";
+    if (domTemplateText) domTemplateText.textContent = "—";
+    if (visualScoreText) visualScoreText.textContent = "—";
+    if (visualClosestText) visualClosestText.textContent = "—";
+    if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+    rawList.innerHTML = "";
+  }
+
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     const url = urlInput.value.trim();
     if (!url) return;
 
-    resultsCard.classList.remove("hidden");
-    verdictTitle.textContent = "Checking…";
-    explanation.textContent = "Running static & behavioral checks.";
-    summaryLine.textContent = "";
-    setBadge("Suspicious");
+    setCheckingState();
 
     try {
       const res = await fetch("/check", {
@@ -496,7 +502,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const data = await res.json();
 
       if (data.error) {
-        setBadge("Suspicious");
+        setBadgeState("Suspicious");
         verdictTitle.textContent = "Error";
         explanation.textContent = data.error;
         return;
@@ -506,7 +512,7 @@ document.addEventListener("DOMContentLoaded", () => {
       lastScan = { url: data.url || url, verdict: data.verdict || "" };
 
       const v = data.verdict || "Suspicious";
-      setBadge(v);
+      setBadgeState(v);
       verdictTitle.textContent = v;
       explanation.textContent = data.explanation || "We’ve grouped risk signals below.";
 
@@ -546,7 +552,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (chartInstance) chartInstance.destroy();
       chartInstance = new Chart(chartCanvas, {
         type: "doughnut",
-        data: { labels: ["Phishing", "Legitimate"], datasets: [{ data: [phishing, legit], backgroundColor: ["#ef4444", "#16a34a"] }] },
+        data: { labels: ["Phishing", "Legitimate"], datasets: [{ data: [phishing, legit] }] },
         options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { position: "bottom", labels: { color: "#cbd5e1" } } } }
       });
 
@@ -573,7 +579,7 @@ document.addEventListener("DOMContentLoaded", () => {
       loadHistory();
 
     } catch (err) {
-      setBadge("Suspicious");
+      setBadgeState("Suspicious");
       verdictTitle.textContent = "Connection error";
       explanation.textContent = "We couldn’t reach the scanner. Please try again.";
     }
