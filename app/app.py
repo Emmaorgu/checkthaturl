@@ -188,12 +188,15 @@ def guarded_verdict(p_phish: float, feats: dict, behavior_score: float = 0.0) ->
                    or float(feats.get("external_link_ratio", 0)) > 0.50
     behavior_sig = float(behavior_score) >= 0.25
 
+    # Domain-only demotion
     if not DOMAIN_ONLY_CAN_PHISH and base == "Phishing" and not (content_sig or link_sig or behavior_sig or non_surface):
         return "Suspicious"
 
+    # Surface guard
     if STRICT_SURFACE_GUARD and base == "Phishing" and non_surface == 0 and surface > 0:
         return "Suspicious" if p_phish >= 0.45 else "Legitimate"
 
+    # Startup exception guard
     if STARTUP_EXCEPTION_GUARD and base == "Phishing" and feats.get("startup_like", 0) == 1 \
        and feats.get("is_new_domain", 0) == 1 and non_surface <= 1 and p_phish < 0.85:
         return "Suspicious"
@@ -222,30 +225,27 @@ def compute_category_scores(feats: dict, behavior_score: float) -> dict:
     }
 
 # ------------------------------------------------------------------------------
-# Unified "Unreachable" response (no phishing judgement when content not fetched)
+# Neutral/Unreachable responses
 # ------------------------------------------------------------------------------
-def unreachable_response(url: str, err_msg: str, status: int = 200):
-    msg = "We couldn’t reach this site (DNS/host/timeout). No phishing verdict given because content wasn’t available."
+def neutral_response(url: str, verdict: str, msg: str):
+    """
+    Return a neutral (non-phishing) verdict when the site is reachable but not analyzable,
+    or truly unreachable. Risk cards and scores are empty by design.
+    """
     return jsonify({
         "url": url,
-        "verdict": "Unreachable",
+        "verdict": verdict,  # "Blocked" | "Not Found" | "Rate Limited" | "Server Error" | "Unreachable"
         "confidence": 0.0,
         "phishing_score": 0.0,
         "legit_score": 0.0,
         "explanation": msg,
         "domain_risks": [],
-        "content_risks": [f"Site unreachable. {err_msg}".strip()],
+        "content_risks": [],
         "link_risks": [],
         "behavior_risks": [],
         "features_triggered": [],
         "category_scores": {"domain":0,"content":0,"link":0,"behavior":0},
-        "explanations": {
-            "domain": [],
-            "link": [],
-            "content": [],
-            "behavior": [],
-            "summary": "Site unreachable."
-        },
+        "explanations": {"domain": [], "link": [], "content": [], "behavior": [], "summary": msg},
         "behavior": {"mode":"disabled","score":0.0,"events":[]},
         "structure": {"score":0.0,"template":None},
         "visual": {"score":0.0,"closest":None},
@@ -255,7 +255,14 @@ def unreachable_response(url: str, err_msg: str, status: int = 200):
             "domain_only_can_phish": DOMAIN_ONLY_CAN_PHISH
         },
         "startup_like": 0
-    }), status
+    }), 200
+
+def unreachable_response(url: str, err_msg: str):
+    return neutral_response(
+        url,
+        "Unreachable",
+        "We couldn’t reach this site (DNS/host/timeout). No phishing verdict given because content wasn’t available."
+    )
 
 # ------------------------------------------------------------------------------
 # API
@@ -268,10 +275,10 @@ def check_url():
         if not url:
             return jsonify({"error": "No URL provided"}), 400
 
-        # Resolve URL; if no scheme works, treat as Unreachable (not an error to the UI)
+        # Resolve URL; if no scheme works → Unreachable (neutral)
         resolved = resolve_url(url)
         if not resolved:
-            return unreachable_response(url, "Could not resolve host via HTTP/HTTPS.", status=200)
+            return unreachable_response(url, "Could not resolve host via HTTP/HTTPS.")
         url = resolved
 
         html_content = ""
@@ -290,17 +297,32 @@ def check_url():
         if not html_content:
             try:
                 headers = {
-                    "User-Agent": "Mozilla/5.0",
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
                     "Accept": "text/html,application/xhtml+xml",
                     "Accept-Language": "en-US,en;q=0.9",
                     "Connection": "keep-alive",
                 }
-                r = requests.get(url, headers=headers, timeout=10)
-                r.raise_for_status()
-                html_content = r.text
-            except Exception as e:
-                # If we cannot fetch content, return Unreachable instead of partial analysis
-                return unreachable_response(url, f"Failed to fetch HTML content: {e}")
+                r = requests.get(url, headers=headers, timeout=10, allow_redirects=True)
+                status = r.status_code
+
+                if 200 <= status < 300:
+                    html_content = r.text
+                else:
+                    # Map HTTP codes to neutral verdicts (site is reachable but not analyzable)
+                    if status in (401, 403):
+                        return neutral_response(url, "Blocked", f"Access forbidden by host (HTTP {status}). The site is online but blocked our scanner.")
+                    if status == 404:
+                        return neutral_response(url, "Not Found", "The site is online but the page path was not found (HTTP 404).")
+                    if status == 429:
+                        return neutral_response(url, "Rate Limited", "The site is online but rate-limited our request (HTTP 429). Try again later.")
+                    if 400 <= status < 500:
+                        return neutral_response(url, "Blocked", f"Client-side denial from host (HTTP {status}). The site refused analysis.")
+                    if 500 <= status < 600:
+                        return neutral_response(url, "Server Error", f"The site responded with a server error (HTTP {status}).")
+
+            except requests.RequestException:
+                # DNS/timeout/connection → truly unreachable
+                return unreachable_response(url, "Network failure")
 
         # ---------- Feature extraction ----------
         features = extract_features(url, html_content)
@@ -365,12 +387,17 @@ def check_url():
             if features.get("external_link_ratio", 0) > 0.5: reasons.append("🌍 Too many external links.")
             if sum([features.get(f"tfidf_{i}", 0) for i in range(20)]) < 0.1 and not _is_our_domain(url):
                 reasons.append("📉 Low informational content.")
-            if features.get("has_js_timer") or features.get("has_html_timer"): reasons.append("⏳ Urgency timer detected.")
-            if int(behavior.get("post_action_redirects", 0)) > 0: reasons.append("➡️ Redirect occurred after CTA/form action (behavior).")
-            if int(behavior.get("js_redirects_detected", 0)) > 0: reasons.append("↪ JS-driven redirect detected (behavior).")
-            if float(behavior.get("dom_mutation_score", 0)) >= 0.05: reasons.append("🧪 Significant DOM mutation after load (behavior).")
+            if features.get("has_js_timer") or features.get("has_html_timer"):
+                reasons.append("⏳ Urgency timer detected.")
+            # Behavior-driven
+            if int(behavior.get("post_action_redirects", 0)) > 0:
+                reasons.append("➡️ Redirect occurred after CTA/form action (behavior).")
+            if int(behavior.get("js_redirects_detected", 0)) > 0:
+                reasons.append("↪ JS-driven redirect detected (behavior).")
+            if float(behavior.get("dom_mutation_score", 0)) >= 0.05:
+                reasons.append("🧪 Significant DOM mutation after load (behavior).")
         else:
-            reasons = []
+            reasons = []  # keep risk cards empty for Legitimate
 
         # Group reasons
         domain_risks, content_risks, link_risks, behavior_risks, _ = _group_reasons(reasons)
@@ -444,8 +471,12 @@ def check_url():
         })
 
     except Exception as e:
-        # Last-resort: return Unreachable instead of 500 to keep UI honest
-        return unreachable_response(request.json.get("url") if request.is_json else "", f"Scanner error: {type(e).__name__}")
+        # Keep UI stable with a neutral response
+        return neutral_response(
+            request.json.get("url") if request.is_json else "",
+            "Unreachable",
+            f"Scanner error: {type(e).__name__}"
+        )
 
 # ------------------------------------------------------------------------------
 # Pages
