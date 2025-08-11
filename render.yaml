@@ -7,7 +7,6 @@ services:
     buildCommand: |
       python -V
       pip --version
-
       # Normalize requirements.txt to UTF-8 (idempotent)
       python - <<'PY'
 import pathlib
@@ -21,12 +20,9 @@ for enc in ("utf-8","utf-8-sig","utf-16","utf-16-le","utf-16-be"):
     except Exception:
         pass
 PY
-
       pip install --no-cache-dir -r requirements.txt
     startCommand: gunicorn app.app:app -w 2 -k gthread -b 0.0.0.0:$PORT --timeout 180
     envVars:
-      - key: PYTHON_VERSION
-        value: 3.10.14
       - key: CTU_SELF_HOSTED
         value: "0"
       - key: CTU_BEHAVIOR
@@ -41,3 +37,7 @@ PY
         value: "1"
       - key: CTU_FEEDBACK_SALT
         sync: false
+    disks:
+      - name: ctu-data
+        mountPath: /opt/render/project/src/data
+        sizeGB: 1
