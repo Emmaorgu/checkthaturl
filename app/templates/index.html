@@ -91,7 +91,7 @@
 
   <!-- Hero -->
   <section class="max-w-7xl mx-auto px-4 pt-6 sm:pt-8 pb-3 sm:pb-4">
-    <div class="grid md:grid-cols-2 gap-6 sm:gap-8 items-center">
+    <div class="grid md:grid-cols-2 gap-6 sm:gap-8 items-start">
       <div>
         <h1 class="text-3xl sm:text-4xl md:text-5xl font-extrabold leading-tight">
           Scan any link.<br><span class="text-brand-400">Instant</span> verdicts. Clear reasons.
@@ -247,9 +247,9 @@
           </div>
         </div>
 
-        <!-- Chart -->
+        <!-- Chart (compact height to keep everything in view) -->
         <div class="mt-4 sm:mt-6">
-          <div class="relative w-full" style="aspect-ratio: 1 / 1;">
+          <div class="relative w-full h-56 sm:h-64 md:h-72">
             <canvas id="confidenceChart"></canvas>
           </div>
         </div>
@@ -467,6 +467,13 @@ document.addEventListener("DOMContentLoaded", () => {
   reportFP.addEventListener("click",()=>sendFeedback("fp"));
   reportFN.addEventListener("click",()=>sendFeedback("fn"));
 
+  function smoothScrollTo(el){
+    try{
+      const y = el.getBoundingClientRect().top + window.scrollY - 90;
+      window.scrollTo({ top: y, behavior: "smooth" });
+    }catch(_){}
+  }
+
   function setCheckingState(){
     resultsCard.classList.remove("hidden");
     setBadgeState("Checking");
@@ -484,6 +491,8 @@ document.addEventListener("DOMContentLoaded", () => {
     if (visualClosestText) visualClosestText.textContent = "—";
     if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
     rawList.innerHTML = "";
+    // bring results into view immediately
+    smoothScrollTo(resultsCard);
   }
 
   form.addEventListener("submit", async (e) => {
@@ -546,14 +555,30 @@ document.addEventListener("DOMContentLoaded", () => {
       if (visualScoreText) visualScoreText.textContent = vis.score !== undefined ? pct(vis.score) : "—";
       if (visualClosestText) visualClosestText.textContent = vis.closest || "—";
 
-      // Donut chart
+      // Donut chart (red for phishing, green for legit)
       const phishing = Number(data.phishing_score || 0);
       const legit    = Number(data.legit_score || 0);
       if (chartInstance) chartInstance.destroy();
       chartInstance = new Chart(chartCanvas, {
         type: "doughnut",
-        data: { labels: ["Phishing", "Legitimate"], datasets: [{ data: [phishing, legit] }] },
-        options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { position: "bottom", labels: { color: "#cbd5e1" } } } }
+        data: {
+          labels: ["Phishing", "Legitimate"],
+          datasets: [{
+            data: [phishing, legit],
+            backgroundColor: ["#ef4444", "#16a34a"],
+            hoverBackgroundColor: ["#dc2626", "#15803d"],
+            borderWidth: 0
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          cutout: "70%",
+          plugins: {
+            legend: { position: "bottom", labels: { color: "#cbd5e1" } },
+            tooltip: { callbacks: { label: (ctx)=> `${ctx.label}: ${ctx.raw}%` } }
+          }
+        }
       });
 
       // Raw list
