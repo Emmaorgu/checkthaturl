@@ -32,7 +32,7 @@
     tailwind.config = { theme: { extend: {
       colors: {
         brand:{50:"#eefaff",100:"#d6f1ff",200:"#aee2ff",300:"#7dd0ff",400:"#41b4ff",500:"#1799ff",600:"#0c7be0",700:"#0a65b6",800:"#0b5495",900:"#0c477b"},
-        success:"#16a34a", warning:"#f59e0b", danger:"#ef4444"
+        success:"#16a34a", warning:"#f59e0b", danger:"#ef4444", neutral:"#94a3b8"
       }
     } } }
   </script>
@@ -63,9 +63,9 @@
 
 <body class="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-white selection:bg-brand-500 selection:text-white pt-[env(safe-area-inset-top)]">
   <!-- Nav -->
-  <header class="max-w-7xl mx-auto px-4 py-5 flex items-center justify-between">
+  <header class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
     <a class="flex items-center gap-2 font-semibold tracking-tight" href="/"><span class="text-brand-400">●</span> CheckThatURL</a>
-    <nav class="hidden sm:flex items-center gap-6 text-sm text-slate-300">
+    <nav class="hidden sm:flex items-center gap-5 text-sm text-slate-300">
       <a href="#how" class="hover:text-white">How it works</a>
       <a href="/privacy" class="hover:text-white">Privacy</a>
       <a href="/legal" class="hover:text-white">Legal</a>
@@ -75,7 +75,7 @@
 
   {% if SELF_HOSTED %}
   <div class="max-w-7xl mx-auto px-4">
-    <div class="glass rounded-xl ring-1 ring-white/10 p-3 text-sm text-slate-200">
+    <div class="glass rounded-xl ring-1 ring-white/10 p-2.5 text-xs sm:text-sm text-slate-200">
       🔒 <span class="font-medium">Self-hosted mode:</span> scans run locally; optional external lookups are disabled.
     </div>
   </div>
@@ -83,29 +83,29 @@
 
   <!-- Privacy banner -->
   <div class="max-w-7xl mx-auto px-4 mt-2">
-    <div class="glass rounded-xl ring-1 ring-white/10 p-3 text-sm text-slate-200">
+    <div class="glass rounded-xl ring-1 ring-white/10 p-2.5 text-xs sm:text-sm text-slate-200">
       🔐 <strong>Privacy:</strong> We <strong>don’t store</strong> your URLs or page content. Scans are ephemeral and processed in-memory.
       Feedback is optional and anonymous. <a href="/privacy" class="underline">Learn more</a>.
     </div>
   </div>
 
   <!-- Hero -->
-  <section class="max-w-7xl mx-auto px-4 pt-6 sm:pt-8 pb-3 sm:pb-4">
-    <div class="grid md:grid-cols-2 gap-6 sm:gap-8 items-start">
+  <section class="max-w-7xl mx-auto px-4 pt-5 pb-2">
+    <div class="grid md:grid-cols-2 gap-5 items-start">
       <div>
-        <h1 class="text-3xl sm:text-4xl md:text-5xl font-extrabold leading-tight">
-          Scan any link.<br><span class="text-brand-400">Instant</span> verdicts. Clear reasons.
+        <h1 class="text-3xl sm:text-4xl font-extrabold leading-tight">
+          Scan any link. <span class="text-brand-400">Instant</span> verdicts. Clear reasons.
         </h1>
-        <p class="mt-3 sm:mt-4 text-slate-300 text-sm sm:text-base">
+        <p class="mt-2.5 text-slate-300 text-sm sm:text-base">
           AI-powered phishing detection for people who refuse to get scammed.
         </p>
 
         <!-- Form -->
-        <form id="check-form" class="mt-5 sm:mt-6 glass rounded-2xl p-2 ring-1 ring-white/10">
+        <form id="check-form" class="mt-4 glass rounded-2xl p-2 ring-1 ring-white/10">
           <div class="flex flex-col md:flex-row gap-2 md:items-center">
             <div class="relative flex-1">
               <input id="url-input" type="text" placeholder="Paste a URL (e.g. https://bank.example/login)" autocomplete="off"
-                     class="w-full bg-transparent placeholder-slate-400 focus:outline-none px-4 py-3 text-base" />
+                     class="w-full bg-transparent placeholder-slate-400 focus:outline-none px-3.5 py-3 text-[15px]" />
               <div id="suggestions" class="absolute left-2 right-2 top-full mt-2 hidden rounded-xl bg-slate-900/95 ring-1 ring-white/10 shadow-xl overflow-hidden z-50"></div>
             </div>
             <button type="submit" class="w-full md:w-auto px-4 py-3 rounded-xl bg-brand-500 hover:bg-brand-400 transition font-semibold">Check</button>
@@ -114,36 +114,25 @@
         </form>
 
         <!-- Recent -->
-        <div id="history" class="mt-4 text-xs sm:text-sm text-slate-400"></div>
+        <div id="history" class="mt-3 text-xs sm:text-sm text-slate-400"></div>
       </div>
 
       <!-- Result Card -->
-      <div id="results-card" class="glass rounded-2xl p-4 sm:p-6 ring-1 ring-white/10 hidden">
+      <div id="results-card" class="glass rounded-2xl p-4 ring-1 ring-white/10 hidden">
         <div class="flex items-center justify-between">
-          <div class="text-sm text-slate-300">Verdict</div>
-          <div id="badge" class="px-3 py-1 text-xs rounded-full bg-slate-700 text-slate-200 ring-1 ring-white/10">—</div>
+          <div class="text-xs sm:text-sm text-slate-300">Verdict</div>
+          <div id="badge" class="px-2.5 py-1 text-[11px] rounded-full bg-slate-700 text-slate-200 ring-1 ring-white/10">—</div>
         </div>
 
-        <h2 id="verdict-title" class="mt-2 text-2xl font-bold">—</h2>
-        <p id="explanation" class="mt-2 text-sm text-slate-300">—</p>
-        <p id="summary-line" class="mt-1 text-xs text-slate-400"></p>
+        <h2 id="verdict-title" class="mt-1.5 text-xl sm:text-2xl font-bold">—</h2>
+        <p id="explanation" class="mt-1.5 text-[13px] text-slate-300">—</p>
+        <p id="summary-line" class="mt-1 text-[12px] text-slate-400"></p>
 
-        <!-- Feedback row -->
-        <div class="mt-3 flex flex-wrap items-center gap-2 text-sm">
-          <span class="text-slate-300">Was this result helpful?</span>
-          <button id="fb-yes" class="px-3 py-1 rounded-lg bg-white/10 hover:bg-white/20">Yes</button>
-          <button id="fb-no"  class="px-3 py-1 rounded-lg bg-white/10 hover:bg-white/20">No</button>
-          <span class="text-slate-500">•</span>
-          <button id="report-fp" class="px-3 py-1 rounded-lg bg-danger/10 hover:bg-danger/20">Report False Positive</button>
-          <button id="report-fn" class="px-3 py-1 rounded-lg bg-warning/10 hover:bg-warning/20">Report False Negative</button>
-          <span id="fb-toast" class="hidden text-xs text-slate-400"></span>
-        </div>
-
-        <!-- Risk groups -->
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mt-4 sm:mt-6">
-          <div class="glass rounded-xl p-3 sm:p-4 ring-1 ring-white/10">
+        <!-- Risk groups (compact) -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-2 mt-3">
+          <div class="glass rounded-lg p-2.5 ring-1 ring-white/10">
             <div class="flex items-center justify-between">
-              <span class="text-sm font-semibold">🌐 Domain Risks</span>
+              <span class="text-[13px] font-semibold">🌐 Domain Risks</span>
               <span class="tooltip text-[11px] text-slate-400 underline decoration-dotted cursor-help">
                 why?
                 <span class="tooltip-card absolute right-0 mt-2 opacity-0 pointer-events-none transition bg-slate-900/95 text-white text-[11px] w-56 p-3 rounded-xl ring-1 ring-white/10">
@@ -151,12 +140,12 @@
                 </span>
               </span>
             </div>
-            <ul id="domain-risks" class="mt-2 text-xs space-y-1 max-h-40 overflow-auto md:max-h-none"></ul>
+            <ul id="domain-risks" class="mt-2 text-[12px] space-y-1.5 max-h-28 overflow-auto md:max-h-32"></ul>
           </div>
 
-          <div class="glass rounded-xl p-3 sm:p-4 ring-1 ring-white/10">
+          <div class="glass rounded-lg p-2.5 ring-1 ring-white/10">
             <div class="flex items-center justify-between">
-              <span class="text-sm font-semibold">📝 Content Risks</span>
+              <span class="text-[13px] font-semibold">📝 Content Risks</span>
               <span class="tooltip text-[11px] text-slate-400 underline decoration-dotted cursor-help">
                 why?
                 <span class="tooltip-card absolute right-0 mt-2 opacity-0 pointer-events-none transition bg-slate-900/95 text-white text-[11px] w-56 p-3 rounded-xl ring-1 ring-white/10">
@@ -164,12 +153,12 @@
                 </span>
               </span>
             </div>
-            <ul id="content-risks" class="mt-2 text-xs space-y-1 max-h-40 overflow-auto md:max-h-none"></ul>
+            <ul id="content-risks" class="mt-2 text-[12px] space-y-1.5 max-h-28 overflow-auto md:max-h-32"></ul>
           </div>
 
-          <div class="glass rounded-xl p-3 sm:p-4 ring-1 ring-white/10">
+          <div class="glass rounded-lg p-2.5 ring-1 ring-white/10">
             <div class="flex items-center justify-between">
-              <span class="text-sm font-semibold">🔗 Link Risks</span>
+              <span class="text-[13px] font-semibold">🔗 Link Risks</span>
               <span class="tooltip text-[11px] text-slate-400 underline decoration-dotted cursor-help">
                 why?
                 <span class="tooltip-card absolute right-0 mt-2 opacity-0 pointer-events-none transition bg-slate-900/95 text-white text-[11px] w-56 p-3 rounded-xl ring-1 ring-white/10">
@@ -177,12 +166,12 @@
                 </span>
               </span>
             </div>
-            <ul id="link-risks" class="mt-2 text-xs space-y-1 max-h-40 overflow-auto md:max-h-none"></ul>
+            <ul id="link-risks" class="mt-2 text-[12px] space-y-1.5 max-h-28 overflow-auto md:max-h-32"></ul>
           </div>
 
-          <div class="glass rounded-xl p-3 sm:p-4 ring-1 ring-white/10">
+          <div class="glass rounded-lg p-2.5 ring-1 ring-white/10">
             <div class="flex items-center justify-between">
-              <span class="text-sm font-semibold">🧪 Behavior Signals</span>
+              <span class="text-[13px] font-semibold">🧪 Behavior Signals</span>
               <span class="tooltip text-[11px] text-slate-400 underline decoration-dotted cursor-help">
                 why?
                 <span class="tooltip-card absolute right-0 mt-2 opacity-0 pointer-events-none transition bg-slate-900/95 text-white text-[11px] w-56 p-3 rounded-xl ring-1 ring-white/10">
@@ -190,14 +179,14 @@
                 </span>
               </span>
             </div>
-            <ul id="behavior-risks" class="mt-2 text-xs space-y-1 max-h-40 overflow-auto md:max-h-none"></ul>
+            <ul id="behavior-risks" class="mt-2 text-[12px] space-y-1.5 max-h-28 overflow-auto md:max-h-32"></ul>
           </div>
         </div>
 
         <!-- Category scores -->
-        <div class="mt-4 sm:mt-6">
-          <h3 class="text-sm font-semibold mb-2">Category Scores</h3>
-          <div class="space-y-2 text-xs">
+        <div class="mt-3">
+          <h3 class="text-sm font-semibold mb-1.5">Category Scores</h3>
+          <div class="space-y-1.5 text-xs">
             <div>
               <div class="flex justify-between"><span>Domain</span><span id="score-domain-text">0%</span></div>
               <div class="w-full bg-white/10 h-2 rounded-full overflow-hidden">
@@ -226,21 +215,21 @@
         </div>
 
         <!-- Structural & Visual similarity quick view -->
-        <div class="mt-4 sm:mt-6 grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div class="glass rounded-xl p-3 sm:p-4 ring-1 ring-white/10">
+        <div class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-2">
+          <div class="glass rounded-lg p-2.5 ring-1 ring-white/10">
             <div class="flex items-center justify-between">
               <span class="text-sm font-semibold">🧩 Structural Similarity</span>
             </div>
-            <div class="mt-2 text-xs text-slate-300">
+            <div class="mt-1.5 text-xs text-slate-300">
               <div>Match score: <span id="domScoreText">—</span></div>
               <div>Closest template: <span id="domTemplateText">—</span></div>
             </div>
           </div>
-          <div class="glass rounded-xl p-3 sm:p-4 ring-1 ring-white/10">
+          <div class="glass rounded-lg p-2.5 ring-1 ring-white/10">
             <div class="flex items-center justify-between">
               <span class="text-sm font-semibold">🖼️ Visual Similarity</span>
             </div>
-            <div class="mt-2 text-xs text-slate-300">
+            <div class="mt-1.5 text-xs text-slate-300">
               <div>Match score: <span id="visualScoreText">—</span></div>
               <div>Closest template: <span id="visualClosestText">—</span></div>
             </div>
@@ -248,46 +237,59 @@
         </div>
 
         <!-- Chart (compact height to keep everything in view) -->
-        <div class="mt-4 sm:mt-6">
-          <div class="relative w-full h-56 sm:h-64 md:h-72">
+        <div id="chart-wrap" class="mt-3">
+          <div class="relative w-full h-44 sm:h-56">
             <canvas id="confidenceChart"></canvas>
           </div>
         </div>
 
         <!-- Raw list -->
-        <details class="mt-4 sm:mt-6 text-xs text-slate-400">
+        <details class="mt-3 text-xs text-slate-400">
           <summary class="cursor-pointer">See raw checks</summary>
-          <ul id="raw-list" class="mt-2 space-y-1"></ul>
+          <ul id="raw-list" class="mt-1.5 space-y-1"></ul>
         </details>
+
+        <!-- Feedback row (moved to bottom; shown only after scan completes) -->
+        <div id="feedback-row" class="mt-3 hidden">
+          <div class="flex flex-wrap items-center gap-2 text-sm">
+            <span class="text-slate-300">Was this result helpful?</span>
+            <button id="fb-yes" class="px-3 py-1 rounded-lg bg-white/10 hover:bg-white/20">Yes</button>
+            <button id="fb-no"  class="px-3 py-1 rounded-lg bg-white/10 hover:bg-white/20">No</button>
+            <span class="text-slate-500">•</span>
+            <button id="report-fp" class="px-3 py-1 rounded-lg bg-danger/10 hover:bg-danger/20">Report False Positive</button>
+            <button id="report-fn" class="px-3 py-1 rounded-lg bg-warning/10 hover:bg-warning/20">Report False Negative</button>
+            <span id="fb-toast" class="hidden text-xs text-slate-400"></span>
+          </div>
+        </div>
       </div>
     </div>
   </section>
 
   <!-- How it works -->
-  <section id="how" class="max-w-7xl mx-auto px-4 py-10 sm:py-16">
-    <h3 class="text-2xl font-bold mb-6">How it works</h3>
-    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
-      <div class="glass rounded-2xl p-6 ring-1 ring-white/10">
+  <section id="how" class="max-w-7xl mx-auto px-4 py-8">
+    <h3 class="text-2xl font-bold mb-5">How it works</h3>
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div class="glass rounded-2xl p-5 ring-1 ring-white/10">
         <div class="text-4xl">1️⃣</div>
-        <div class="mt-3 font-semibold">Paste a link</div>
+        <div class="mt-2.5 font-semibold">Paste a link</div>
         <p class="text-slate-300 text-sm mt-1">We’ll prep it for safe analysis.</p>
       </div>
-      <div class="glass rounded-2xl p-6 ring-1 ring-white/10">
+      <div class="glass rounded-2xl p-5 ring-1 ring-white/10">
         <div class="text-4xl">2️⃣</div>
-        <div class="mt-3 font-semibold">AI checks content + behavior</div>
+        <div class="mt-2.5 font-semibold">AI checks content + behavior</div>
         <p class="text-slate-300 text-sm mt-1">Domain, text, structure — and more.</p>
       </div>
-      <div class="glass rounded-2xl p-6 ring-1 ring-white/10">
+      <div class="glass rounded-2xl p-5 ring-1 ring-white/10">
         <div class="text-4xl">3️⃣</div>
-        <div class="mt-3 font-semibold">Clear verdict & reasons</div>
+        <div class="mt-2.5 font-semibold">Clear verdict & reasons</div>
         <p class="text-slate-300 text-sm mt-1">See risks grouped by category.</p>
       </div>
     </div>
   </section>
 
   <!-- CTA -->
-  <section class="max-w-7xl mx-auto px-4 pb-16 sm:pb-20">
-    <div class="glass rounded-2xl sm:rounded-3xl p-6 sm:p-8 ring-1 ring-white/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 sm:gap-6">
+  <section class="max-w-7xl mx-auto px-4 pb-10">
+    <div class="glass rounded-2xl p-5 ring-1 ring-white/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
       <div>
         <h4 class="text-lg sm:text-xl font-bold">Don’t click blind.</h4>
         <p class="text-slate-300 text-sm mt-1">Scan links in seconds — no login, no tracking.</p>
@@ -298,9 +300,9 @@
 
   <!-- Footer -->
   <footer class="border-t border-white/10">
-    <div class="max-w-7xl mx-auto px-4 py-6 sm:py-8 text-xs sm:text-sm text-slate-400 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 sm:gap-4">
+    <div class="max-w-7xl mx-auto px-4 py-6 text-xs sm:text-sm text-slate-400 flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
       <p>© 2025 CheckThatURL. Built by Emmanuel Orgu.</p>
-      <div class="flex flex-wrap items-center gap-3 sm:gap-4">
+      <div class="flex flex-wrap items-center gap-3">
         <a href="/privacy" class="hover:text-white">Privacy</a><span class="text-slate-600">•</span>
         <a href="/legal" class="hover:text-white">Legal</a><span class="text-slate-600">•</span>
         <a href="/faq" class="hover:text-white">FAQ</a>
@@ -329,10 +331,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const rawList = document.getElementById("raw-list");
   const chartCanvas = document.getElementById("confidenceChart");
+  const chartWrap = document.getElementById("chart-wrap");
   const historyBox = document.getElementById("history");
+  const feedbackRow = document.getElementById("feedback-row");
   let chartInstance;
 
-  // Day-4 feedback controls
+  // Feedback controls
   const fbYes = document.getElementById("fb-yes");
   const fbNo  = document.getElementById("fb-no");
   const reportFP = document.getElementById("report-fp");
@@ -377,14 +381,15 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   loadHistory();
 
+  // DO NOT auto-submit on history click (user must press Check)
   historyBox.addEventListener("click", (e) => {
     const u = e.target.getAttribute("data-url");
-    if (u) { urlInput.value = u; form.dispatchEvent(new Event("submit")); }
+    if (u) { urlInput.value = u; urlInput.focus(); }
   });
 
   urlInput.addEventListener("input", () => {
     const v = urlInput.value.trim();
-    feedback.textContent = v ? "Looks good — press Enter to scan." : "Paste a URL to begin.";
+    feedback.textContent = v ? "Press Enter or click Check to scan." : "Paste a URL to begin.";
     feedback.className = v ? "text-xs sm:text-sm mt-2 text-brand-200" : "text-xs sm:text-sm mt-2 text-slate-400";
 
     if (v && !v.includes(".")) {
@@ -399,19 +404,20 @@ document.addEventListener("DOMContentLoaded", () => {
     if (e.target && e.target.textContent) {
       urlInput.value = e.target.textContent;
       suggestionsBox.classList.add("hidden");
-      urlInput.dispatchEvent(new Event("input"));
+      urlInput.focus(); // user must still press Check/Enter
     }
   });
 
   function setBadgeState(state) {
     const map = {
-      "Checking":  { text: "Checking…", cls: "bg-slate-700 text-slate-200 ring-1 ring-white/10" },
-      "Phishing":  { text: "Phishing",  cls: "bg-danger/20 text-danger ring-1 ring-danger/30" },
-      "Suspicious":{ text: "Suspicious",cls: "bg-warning/20 text-warning ring-1 ring-warning/30" },
-      "Legitimate":{ text: "Legitimate",cls: "bg-success/20 text-success ring-1 ring-success/30" },
+      "Checking":    { text: "Checking…",  cls: "bg-slate-700 text-slate-200 ring-1 ring-white/10" },
+      "Phishing":    { text: "Phishing",   cls: "bg-danger/20 text-danger ring-1 ring-danger/30" },
+      "Suspicious":  { text: "Suspicious", cls: "bg-warning/20 text-warning ring-1 ring-warning/30" },
+      "Legitimate":  { text: "Legitimate", cls: "bg-success/20 text-success ring-1 ring-success/30" },
+      "Unreachable": { text: "Unreachable",cls: "bg-white/10 text-neutral ring-1 ring-white/20" }
     };
     const cfg = map[state] || map["Checking"];
-    badge.className = `px-3 py-1 text-xs rounded-full ${cfg.cls}`;
+    badge.className = `px-2.5 py-1 text-[11px] rounded-full ${cfg.cls}`;
     badge.textContent = cfg.text;
   }
 
@@ -480,10 +486,8 @@ document.addEventListener("DOMContentLoaded", () => {
     verdictTitle.textContent = "Checking…";
     explanation.textContent = "Running static & behavioral checks.";
     summaryLine.textContent = "";
-    renderList(domainList, []);
-    renderList(contentList, []);
-    renderList(linkList, []);
-    renderList(behaviorList, []);
+    feedbackRow.classList.add("hidden");
+    renderList(domainList, []); renderList(contentList, []); renderList(linkList, []); renderList(behaviorList, []);
     resetCategoryScores();
     if (domScoreText) domScoreText.textContent = "—";
     if (domTemplateText) domTemplateText.textContent = "—";
@@ -491,6 +495,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (visualClosestText) visualClosestText.textContent = "—";
     if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
     rawList.innerHTML = "";
+    chartWrap.classList.remove("hidden");
     // bring results into view immediately
     smoothScrollTo(resultsCard);
   }
@@ -510,15 +515,39 @@ document.addEventListener("DOMContentLoaded", () => {
       });
       const data = await res.json();
 
+      // Remember for feedback (show at the end)
+      lastScan = { url: data.url || url, verdict: data.verdict || "" };
+
+      // Handle unreachable verdict cleanly
+      if (data.verdict === "Unreachable") {
+        setBadgeState("Unreachable");
+        verdictTitle.textContent = "Unreachable";
+        explanation.textContent = data.explanation || "We couldn’t reach this site (DNS/host issue). No phishing verdict given.";
+        summaryLine.textContent = "";
+        renderList(domainList, []);
+        renderList(contentList, data.content_risks || ["Site unreachable. No page content to analyze."]);
+        renderList(linkList, []);
+        renderList(behaviorList, []);
+        resetCategoryScores();
+        if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+        chartWrap.classList.add("hidden");
+        rawList.innerHTML = "";
+        feedbackRow.classList.remove("hidden");
+        // Save history
+        let history = JSON.parse(localStorage.getItem("scanHistory") || "[]");
+        if (!history.includes(url)) { history.unshift(url); localStorage.setItem("scanHistory", JSON.stringify(history.slice(0,10))); }
+        loadHistory();
+        return;
+      }
+
       if (data.error) {
         setBadgeState("Suspicious");
         verdictTitle.textContent = "Error";
         explanation.textContent = data.error;
+        chartWrap.classList.add("hidden");
+        feedbackRow.classList.remove("hidden");
         return;
       }
-
-      // Remember last scan for feedback
-      lastScan = { url: data.url || url, verdict: data.verdict || "" };
 
       const v = data.verdict || "Suspicious";
       setBadgeState(v);
@@ -603,10 +632,15 @@ document.addEventListener("DOMContentLoaded", () => {
       }
       loadHistory();
 
+      // Show feedback only after scan completes
+      feedbackRow.classList.remove("hidden");
+
     } catch (err) {
-      setBadgeState("Suspicious");
+      setBadgeState("Unreachable");
       verdictTitle.textContent = "Connection error";
       explanation.textContent = "We couldn’t reach the scanner. Please try again.";
+      chartWrap.classList.add("hidden");
+      feedbackRow.classList.remove("hidden");
     }
   });
 });

@@ -47,6 +47,8 @@ else:
 # ------------------------------------------------------------------------------
 app = Flask(__name__, template_folder="templates", static_folder="static")
 CORS(app)
+if feedback_bp:
+    app.register_blueprint(feedback_bp)
 
 # ------------------------------------------------------------------------------
 # Tunables / policy
@@ -174,7 +176,6 @@ def _group_reasons(reasons):
 def guarded_verdict(p_phish: float, feats: dict, behavior_score: float = 0.0) -> str:
     base = choose_verdict(p_phish)
 
-    # Count signals
     surface = (
         int(feats.get("is_new_domain", 0) == 1) +
         int(feats.get("has_https", 1) == 0) +
@@ -187,15 +188,12 @@ def guarded_verdict(p_phish: float, feats: dict, behavior_score: float = 0.0) ->
                    or float(feats.get("external_link_ratio", 0)) > 0.50
     behavior_sig = float(behavior_score) >= 0.25
 
-    # Domain-only demotion
     if not DOMAIN_ONLY_CAN_PHISH and base == "Phishing" and not (content_sig or link_sig or behavior_sig or non_surface):
         return "Suspicious"
 
-    # Surface guard
     if STRICT_SURFACE_GUARD and base == "Phishing" and non_surface == 0 and surface > 0:
         return "Suspicious" if p_phish >= 0.45 else "Legitimate"
 
-    # Startup exception guard
     if STARTUP_EXCEPTION_GUARD and base == "Phishing" and feats.get("startup_like", 0) == 1 \
        and feats.get("is_new_domain", 0) == 1 and non_surface <= 1 and p_phish < 0.85:
         return "Suspicious"
@@ -224,19 +222,56 @@ def compute_category_scores(feats: dict, behavior_score: float) -> dict:
     }
 
 # ------------------------------------------------------------------------------
+# Unified "Unreachable" response (no phishing judgement when content not fetched)
+# ------------------------------------------------------------------------------
+def unreachable_response(url: str, err_msg: str, status: int = 200):
+    msg = "We couldn’t reach this site (DNS/host/timeout). No phishing verdict given because content wasn’t available."
+    return jsonify({
+        "url": url,
+        "verdict": "Unreachable",
+        "confidence": 0.0,
+        "phishing_score": 0.0,
+        "legit_score": 0.0,
+        "explanation": msg,
+        "domain_risks": [],
+        "content_risks": [f"Site unreachable. {err_msg}".strip()],
+        "link_risks": [],
+        "behavior_risks": [],
+        "features_triggered": [],
+        "category_scores": {"domain":0,"content":0,"link":0,"behavior":0},
+        "explanations": {
+            "domain": [],
+            "link": [],
+            "content": [],
+            "behavior": [],
+            "summary": "Site unreachable."
+        },
+        "behavior": {"mode":"disabled","score":0.0,"events":[]},
+        "structure": {"score":0.0,"template":None},
+        "visual": {"score":0.0,"closest":None},
+        "policy": {
+            "strict_surface_guard": STRICT_SURFACE_GUARD,
+            "startup_exception_guard": STARTUP_EXCEPTION_GUARD,
+            "domain_only_can_phish": DOMAIN_ONLY_CAN_PHISH
+        },
+        "startup_like": 0
+    }), status
+
+# ------------------------------------------------------------------------------
 # API
 # ------------------------------------------------------------------------------
 @app.route("/check", methods=["POST"])
 def check_url():
     try:
         data = request.json or {}
-        url = data.get("url")
+        url = (data.get("url") or "").strip()
         if not url:
             return jsonify({"error": "No URL provided"}), 400
 
+        # Resolve URL; if no scheme works, treat as Unreachable (not an error to the UI)
         resolved = resolve_url(url)
         if not resolved:
-            return jsonify({"error": "Could not resolve URL via HTTP/HTTPS"}), 400
+            return unreachable_response(url, "Could not resolve host via HTTP/HTTPS.", status=200)
         url = resolved
 
         html_content = ""
@@ -264,12 +299,10 @@ def check_url():
                 r.raise_for_status()
                 html_content = r.text
             except Exception as e:
-                # Don’t penalize our own site for transient timeouts
-                if not OUR_SCAN:
-                    reasons.append(f"⚠ Failed to fetch HTML content: {str(e)}. Partial analysis only.")
-                html_content = ""
+                # If we cannot fetch content, return Unreachable instead of partial analysis
+                return unreachable_response(url, f"Failed to fetch HTML content: {e}")
 
-        # Feature extraction
+        # ---------- Feature extraction ----------
         features = extract_features(url, html_content)
         features.pop("registrar_name", None)
 
@@ -280,14 +313,14 @@ def check_url():
 
         df = align_to_model(pd.DataFrame([features]), model)
 
-        # Model inference
+        # ---------- Model inference ----------
         proba = model.predict_proba(df)[0]
         p_phish = float(dict(zip(model.classes_, proba)).get(1, 0.0))
         phishing_score = round(p_phish * 100.0, 2)
         legit_score    = round((1.0 - p_phish) * 100.0, 2)
         confidence     = round(100 * (1 - math.exp(-4 * abs(p_phish - 0.5))), 1)
 
-        # Behavior (guarded)
+        # ---------- Behavior (guarded) ----------
         behavior = {"mode": "disabled", "score": 0.0, "events": []}
         try:
             if CTU_BEHAVIOR_MODE != "off":
@@ -296,7 +329,7 @@ def check_url():
             behavior = {"mode": "error", "score": 0.0, "events": [f"behavior engine unavailable: {type(e).__name__}"]}
         behavior_score = float(behavior.get("score", 0.0))
 
-        # DOM similarity (guarded)
+        # ---------- DOM similarity (guarded) ----------
         structure = {"score": 0.0, "template": None}
         try:
             structure = structure_similarity(html_content or "")
@@ -305,7 +338,7 @@ def check_url():
         except Exception:
             structure = {"score": 0.0, "template": None}
 
-        # Visual similarity (guarded)
+        # ---------- Visual similarity (guarded) ----------
         visual = {"score": 0.0, "closest": None}
         try:
             visual = visual_similarity(url)
@@ -314,7 +347,7 @@ def check_url():
         except Exception:
             visual = {"score": 0.0, "closest": None}
 
-        # Category + verdict with guard rails
+        # ---------- Category + verdict with guard rails ----------
         category_scores = compute_category_scores(features, behavior_score)
         verdict = guarded_verdict(p_phish, features, behavior_score)
 
@@ -330,16 +363,14 @@ def check_url():
             if features.get("mismatched_anchor_ratio", 0) > 0.3: reasons.append("🔗 Anchor text vs link mismatch.")
             if features.get("link_density", 0) > 0.4:    reasons.append("🌐 Link density is unusually high.")
             if features.get("external_link_ratio", 0) > 0.5: reasons.append("🌍 Too many external links.")
-            # Skip "low informational content" reason for our own domain
-            if sum([features.get(f"tfidf_{i}", 0) for i in range(20)]) < 0.1 and not OUR_SCAN:
+            if sum([features.get(f"tfidf_{i}", 0) for i in range(20)]) < 0.1 and not _is_our_domain(url):
                 reasons.append("📉 Low informational content.")
             if features.get("has_js_timer") or features.get("has_html_timer"): reasons.append("⏳ Urgency timer detected.")
-            # Behavior-driven
             if int(behavior.get("post_action_redirects", 0)) > 0: reasons.append("➡️ Redirect occurred after CTA/form action (behavior).")
             if int(behavior.get("js_redirects_detected", 0)) > 0: reasons.append("↪ JS-driven redirect detected (behavior).")
             if float(behavior.get("dom_mutation_score", 0)) >= 0.05: reasons.append("🧪 Significant DOM mutation after load (behavior).")
         else:
-            reasons = []  # keep risk cards empty for Legitimate
+            reasons = []
 
         # Group reasons
         domain_risks, content_risks, link_risks, behavior_risks, _ = _group_reasons(reasons)
@@ -413,18 +444,8 @@ def check_url():
         })
 
     except Exception as e:
-        # Last-resort safety: never 500 the UI
-        return jsonify({
-            "verdict": "Suspicious",
-            "confidence": 0.0,
-            "explanation": f"Connection error: {type(e).__name__}. We couldn’t reach the scanner.",
-            "domain_risks": [], "content_risks": [], "link_risks": [], "behavior_risks": [],
-            "category_scores": {"domain":0,"content":0,"link":0,"behavior":0},
-            "explanations": {"summary": "Connection error"},
-            "behavior": {"mode":"error","score":0.0,"events":[]},
-            "structure": {"score":0.0,"template":None},
-            "visual": {"score":0.0,"closest":None}
-        }), 200
+        # Last-resort: return Unreachable instead of 500 to keep UI honest
+        return unreachable_response(request.json.get("url") if request.is_json else "", f"Scanner error: {type(e).__name__}")
 
 # ------------------------------------------------------------------------------
 # Pages
