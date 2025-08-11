@@ -3,8 +3,26 @@ services:
     name: checkthaturl
     env: python
     plan: free
-    buildCommand: "pip install -r requirements.txt"
-    startCommand: "gunicorn app:app"
+    region: oregon
+    buildCommand: |
+      pip install -r requirements.txt
+      # Playwright is optional on Render; keep off by default to avoid build failures.
+      # To enable later, set CTU_PLAYWRIGHT=1 and add install step.
+    startCommand: gunicorn app.app:app -w 2 -k gthread -b 0.0.0.0:$PORT --timeout 180
     envVars:
       - key: PYTHON_VERSION
-        value: 3.10
+        value: 3.10.14
+      - key: CTU_SELF_HOSTED
+        value: "0"
+      - key: CTU_BEHAVIOR
+        value: "1"
+      - key: CTU_PLAYWRIGHT
+        value: "0"
+      - key: CTU_PLAYWRIGHT_HEADLESS
+        value: "1"
+      - key: CTU_VISUAL
+        value: "0"
+      - key: CTU_FEEDBACK
+        value: "1"
+      - key: CTU_FEEDBACK_SALT
+        sync: false   # set this secret in Render dashboard

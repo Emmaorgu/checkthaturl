@@ -102,7 +102,7 @@
   <div class="max-w-7xl mx-auto px-4 mt-2">
     <div class="glass rounded-xl ring-1 ring-white/10 p-3 text-sm text-slate-200">
       🔐 <strong>Privacy:</strong> We <strong>don’t store</strong> your URLs or page content. Scans are ephemeral and processed in-memory.
-      <a href="/privacy" class="underline">Learn more</a>.
+      Feedback is optional and anonymous. <a href="/privacy" class="underline">Learn more</a>.
     </div>
   </div>
 
@@ -144,6 +144,17 @@
         <h2 id="verdict-title" class="mt-2 text-2xl font-bold">—</h2>
         <p id="explanation" class="mt-2 text-sm text-slate-300">—</p>
         <p id="summary-line" class="mt-1 text-xs text-slate-400"></p>
+
+        <!-- Day-4 Feedback row -->
+        <div class="mt-3 flex flex-wrap items-center gap-2 text-sm">
+          <span class="text-slate-300">Was this result helpful?</span>
+          <button id="fb-yes" class="px-3 py-1 rounded-lg bg-white/10 hover:bg-white/20">Yes</button>
+          <button id="fb-no"  class="px-3 py-1 rounded-lg bg-white/10 hover:bg-white/20">No</button>
+          <span class="text-slate-500">•</span>
+          <button id="report-fp" class="px-3 py-1 rounded-lg bg-danger/10 hover:bg-danger/20">Report False Positive</button>
+          <button id="report-fn" class="px-3 py-1 rounded-lg bg-warning/10 hover:bg-warning/20">Report False Negative</button>
+          <span id="fb-toast" class="hidden text-xs text-slate-400"></span>
+        </div>
 
         <!-- Risk groups -->
         <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mt-4 sm:mt-6">
@@ -338,6 +349,14 @@ document.addEventListener("DOMContentLoaded", () => {
   const historyBox = document.getElementById("history");
   let chartInstance;
 
+  // Day-4 feedback controls
+  const fbYes = document.getElementById("fb-yes");
+  const fbNo  = document.getElementById("fb-no");
+  const reportFP = document.getElementById("report-fp");
+  const reportFN = document.getElementById("report-fn");
+  const fbToast = document.getElementById("fb-toast");
+  let lastScan = { url: "", verdict: "" };
+
   // Category bars
   const scoreEls = {
     domain:   { bar: document.getElementById("score-domain-bar"),   text: document.getElementById("score-domain-text") },
@@ -432,6 +451,31 @@ document.addEventListener("DOMContentLoaded", () => {
     return (Math.round(n * 1000) / 10) + "%";
   }
 
+  async function sendFeedback(kind){
+    if(!lastScan.url) return;
+    try{
+      const body = (kind==="yes"||kind==="no")
+        ? { url:lastScan.url, verdict:lastScan.verdict, helpful:(kind==="yes") }
+        : { url:lastScan.url, verdict:lastScan.verdict, type:(kind==="fp"?"fp":"fn") };
+      const endpoint = (kind==="yes"||kind==="no") ? "/feedback" : "/report";
+      const res = await fetch(endpoint,{ method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify(body) });
+      const j = await res.json();
+      fbToast.classList.remove("hidden");
+      fbToast.textContent = j.ok ? "Thanks — saved." : ("Error: "+(j.error||"unknown"));
+      setTimeout(()=>fbToast.classList.add("hidden"), 2200);
+    }catch(e){
+      fbToast.classList.remove("hidden");
+      fbToast.textContent = "Network error";
+      setTimeout(()=>fbToast.classList.add("hidden"), 2200);
+    }
+  }
+
+  // Hook up feedback buttons
+  fbYes.addEventListener("click", ()=>sendFeedback("yes"));
+  fbNo.addEventListener("click",  ()=>sendFeedback("no"));
+  reportFP.addEventListener("click",()=>sendFeedback("fp"));
+  reportFN.addEventListener("click",()=>sendFeedback("fn"));
+
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     const url = urlInput.value.trim();
@@ -457,6 +501,9 @@ document.addEventListener("DOMContentLoaded", () => {
         explanation.textContent = data.error;
         return;
       }
+
+      // Remember last scan for feedback
+      lastScan = { url: data.url || url, verdict: data.verdict || "" };
 
       const v = data.verdict || "Suspicious";
       setBadge(v);

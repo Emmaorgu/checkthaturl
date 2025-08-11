@@ -1,0 +1,3 @@
+{"ts": 1754910770, "anon": "c125da3b0e4a775d", "url": "https://phish.example", "type": "fp", "verdict": "Phishing", "notes": ""}
+{"ts": 1754921079, "anon": "39fde3510439f313", "url": "https://relocate.spicethefood.com/apply/", "type": "fp", "verdict": "Suspicious", "notes": ""}
+{"ts": 1754921080, "anon": "39fde3510439f313", "url": "https://relocate.spicethefood.com/apply/", "type": "fn", "verdict": "Suspicious", "notes": ""}

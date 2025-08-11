@@ -1,0 +1,31 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>CheckThatURL</title>
+  <style>
+    body{font-family:sans-serif;min-width:260px;padding:10px}
+    input,button{padding:8px}
+    .row{display:flex;gap:6px}
+  </style>
+</head>
+<body>
+  <h3>CheckThatURL</h3>
+  <div class="row">
+    <input id="u" placeholder="https://example.com" style="flex:1" />
+    <button id="go">Scan</button>
+  </div>
+  <details style="margin-top:8px">
+    <summary>Settings</summary>
+    <div class="row" style="margin-top:6px">
+      <input id="api" placeholder="http://127.0.0.1:5000" style="flex:1" />
+      <button id="save">Save</button>
+    </div>
+  </details>
+  <pre id="out" style="white-space:pre-wrap;font-size:12px;margin-top:8px"></pre>
+
+  <!-- No inline scripts in MV3 -->
+  <script src="popup.js" defer></script>
+</body>
+</html>

@@ -1,74 +1,27 @@
-# --- 🌍 Base Ignore-All Rule ---
-*
+# Python
+__pycache__/
+*.pyc
 
-# --- ✅ Explicitly Allow These File Types & Folders ---
-!*/                           # allow folder traversal
-!*.py                         # allow Python scripts
-!*.html                       # allow HTML files
-!*.json                       # allow JSON config files
-!*.pkl                        # allow model files
-!*.txt                        # allow raw data lists
-!*.csv                        # allow datasets
-!*.md                         # allow README, LICENSE etc.
+# Virtual envs
+.venv/
+env/
+venv/
 
-# --- ✅ Whitelist Specific Folders ---
-!app/
-!app/**
+# Local data and caches (keep dom_templates/json only)
+data/*.csv
+data/*.json
+!data/dom_templates/**
+data/cloned_phishing_sites/**
+data/whois_cache.json
+phishing_feeds_cache/**
 
-# ✅ Allow model files
-!model/
+# Models (keep pkl)
 !model/*.pkl
 
+# Playwright cache
+**/playwright/.local-browsers/
 
-!data/
-!data/**
-
-!templates/
-!templates/**
-
-!phishing_feeds_cache/
-!phishing_feeds_cache/**
-
-!inference/
-!inference/**
-
-!utils/
-!utils/**
-
-# --- 🚫 Virtual Environment ---
-.venv/
-venv/
-.env/
-*.venv/
-*.env
-
-# --- 🚫 IDE and Editor ---
-.vscode/
-.idea/
-*.suo
-*.user
-*.swp
-*.log
-*.db
-*.sqlite
-
-# --- 🚫 OS and Misc ---
-__pycache__/
-*.py[cod]
-*$py.class
+# OS/IDE
 .DS_Store
-Thumbs.db
-
-# --- 🚫 Build and Packaging ---
-build/
-dist/
-*.egg-info/
-.eggs/
-MANIFEST
-
-# --- 🚫 Notebook and Cache ---
-.ipynb_checkpoints/
-.cache/
-pytest-cache/
-.mypy_cache/
-
+.idea/
+.vscode/

@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "CheckThatURL",
+  "version": "0.1.0",
+  "description": "Inline link scanning with verdict badges and pop-up checks.",
+  "permissions": ["storage", "activeTab", "scripting"],
+  "host_permissions": ["http://127.0.0.1:5000/*", "http://localhost:5000/*", "https://*/*", "http://*/*"],
+  "action": { "default_title": "CheckThatURL", "default_popup": "popup.html" },
+  "background": { "service_worker": "sw.js" },
+  "content_scripts": [
+    { "matches": ["https://*/*", "http://*/*"], "js": ["content.js"], "run_at": "document_idle" }
+  ],
+  "icons": { "128": "icon.png" }
+}

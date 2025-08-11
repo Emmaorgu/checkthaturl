@@ -16,6 +16,12 @@ from urllib.parse import urlparse
 from sklearn.feature_extraction.text import TfidfVectorizer
 from datetime import datetime
 
+# Hybrid NLP scorer (BERT optional, regex fallback)
+try:
+    from app.hybrid_nlp import get_phish_context_score
+except Exception:
+    from hybrid_nlp import get_phish_context_score
+
 # Optional deps (graceful fallbacks)
 try:
     import pytesseract
@@ -75,7 +81,19 @@ PHISHING_KEYWORDS = [
     "select below", "claim the grant funds"
 ]
 
-# --- Helpers (fixes your unresolved references) --------------------------------
+# --- Startup patterns & platforms (exception logic) ---------------------------
+STARTUP_TLDS = (".io", ".app", ".dev", ".ai", ".page", ".site")
+STARTUP_LANDING_PHRASES = [
+    "coming soon", "beta access", "waitlist", "join the waitlist",
+    "early access", "launching soon", "we're hiring", "careers", "subscribe for updates"
+]
+HOSTED_PLATFORM_FOOTPRINTS = [
+    "cdn.shopify.com", "myshopify.com", "checkout.shopify.com",
+    "static.wixstatic.com", "wixsite.com", "squarespace.com",
+    "stripe.com", "js.stripe.com", "paypalobjects.com"
+]
+
+# --- Helpers ------------------------------------------------------------------
 def detect_js_timer(html_content: str) -> int:
     html_content = html_content or ""
     patterns = [r"setTimeout\s*\(", r"setInterval\s*\(", r"new\s+Date\s*\(",
@@ -168,13 +186,6 @@ def extract_whois_features(url: str) -> dict:
 
     SELF_HOSTED=1  -> read from local JSON cache only (no external WHOIS).
     SELF_HOSTED=0  -> live WHOIS if python-whois is available.
-    Cache item example:
-      {
-        "example.com": {
-          "creation_date": "2024-06-01T12:00:00Z",
-          "registrar": "Example Registrar LLC"
-        }
-      }
     """
     ext = tldextract.extract(url)
     domain = f"{ext.domain}.{ext.suffix}" if ext.suffix else ext.domain
@@ -210,7 +221,6 @@ def extract_whois_features(url: str) -> dict:
             creation = w.creation_date[0] if isinstance(w.creation_date, list) else w.creation_date
         if creation:
             try:
-                # Some providers return str; normalize to naive datetime
                 c = creation
                 if isinstance(c, str):
                     c = datetime.fromisoformat(c.replace("Z", "+00:00"))
@@ -246,11 +256,25 @@ def extract_features(url: str, html_content: str | None = None) -> dict:
     feats["suspicious_tld"] = int(domain.endswith((".xyz", ".top", ".loan", ".gq")))
     feats["domain_length"] = len(domain)
     feats["domain_entropy"] = round(entropy(domain), 4)
+    feats["startup_like_tld"] = int(any(domain.endswith(tld) for tld in STARTUP_TLDS))
 
     # HTML & text
     soup = BeautifulSoup(html_content or "", "html.parser")
     text = normalize_text(soup.get_text(separator=" ", strip=True))
     word_count = len(text.split()) or 1
+
+    # Hybrid NLP content scoring (BERT if enabled, regex fallback otherwise)
+    feats["phish_context_score"] = round(float(get_phish_context_score(text)), 4)
+
+    # Startup landing/hosted footprints
+    feats["startup_landing_copy"] = int(any(p in text for p in STARTUP_LANDING_PHRASES))
+    hosted_fp = 0
+    html_low = (html_content or "").lower()
+    for fp in HOSTED_PLATFORM_FOOTPRINTS:
+        if fp in html_low:
+            hosted_fp = 1
+            break
+    feats["hosted_platform_fp"] = hosted_fp
 
     # Keywords
     keyword_count = sum(text.count(kw) for kw in PHISHING_KEYWORDS)
@@ -307,6 +331,7 @@ def extract_features(url: str, html_content: str | None = None) -> dict:
     if OCR_AVAILABLE:
         suspicious_img_keywords = ["credit alert", "₦", "bvn", "debit", "payment", "congratulations"]
         for img in soup.find_all("img"):
+            # ---- FIX: split into two lines (no inline 'if' compound) ----
             src = img.get("src", "")
             if not src:
                 continue
@@ -342,9 +367,36 @@ def extract_features(url: str, html_content: str | None = None) -> dict:
 
     # WHOIS (respects self-hosted mode)
     feats.update(extract_whois_features(url))
+
+    # --- Red-flag counters for conditional weighting --------------------------
+    content_flags = 0
+    link_flags = 0
+
+    content_flags += int(feats.get("suspicious_keyword_found", 0) == 1)
+    content_flags += int(feats.get("has_password_field", 0) == 1)
+    content_flags += int(feats.get("form_with_suspicious_keywords", 0) == 1)
+    content_flags += int(feats.get("keyword_density", 0) > 0.02)
+    content_flags += int(feats.get("duplicate_phrases", 0) > 1)
+    content_flags += int(feats.get("has_js_timer", 0) == 1 or feats.get("has_html_timer", 0) == 1)
+    content_flags += int(feats.get("ocr_alert_text_detected", 0) == 1)
+
+    # Conservative link thresholds to avoid benign trips
+    link_flags += int(feats.get("mismatched_anchor_ratio", 0) > 0.6)
+    link_flags += int(feats.get("link_density", 0) > 0.8)
+    link_flags += int(feats.get("external_link_ratio", 0) > 0.8)
+
+    feats["content_red_flags"] = content_flags
+    feats["link_red_flags"] = link_flags
+    feats["non_surface_red_flags"] = content_flags + link_flags
+    feats["startup_like"] = int(
+        feats.get("startup_like_tld", 0) == 1 or
+        feats.get("startup_landing_copy", 0) == 1 or
+        feats.get("hosted_platform_fp", 0) == 1
+    )
+
     return feats
 
-# Utility used by any batch pipeline you might have
+# Batch utility
 def safe_extract(url: str, label: str) -> dict | None:
     try:
         d = extract_features(url)

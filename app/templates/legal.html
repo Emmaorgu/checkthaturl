@@ -4,19 +4,29 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Legal — CheckThatURL</title>
+
+  <link rel="preconnect" href="https://cdn.tailwindcss.com" crossorigin>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+
+  <link rel="canonical" href="{{ request.url }}" />
+  <meta name="robots" content="index,follow" />
+
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="{{ request.url }}" />
+  <meta property="og:title" content="Legal — CheckThatURL" />
+  <meta property="og:description" content="Terms, disclaimers, and acceptable use for CheckThatURL." />
+  <meta property="og:image" content="{{ request.url_root.rstrip('/') }}/static/og.png" />
+
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Legal — CheckThatURL" />
+  <meta name="twitter:description" content="Terms, disclaimers, and acceptable use for CheckThatURL." />
+  <meta name="twitter:image" content="{{ request.url_root.rstrip('/') }}/static/og.png" />
+
   <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = { theme: { extend: {
-      colors:{brand:{50:"#eefaff",100:"#d6f1ff",200:"#aee2ff",300:"#7dd0ff",400:"#41b4ff",500:"#1799ff",600:"#0c7be0",700:"#0a65b6",800:"#0b5495",900:"#0c477b"}},
-    } } }
-  </script>
-  <style>
-    .glass{backdrop-filter:blur(10px);background:rgba(255,255,255,.08)}
-    @media (max-width:640px){ .glass{backdrop-filter:blur(6px)} }
-  </style>
+  <script>tailwind.config={theme:{extend:{colors:{brand:{50:"#eefaff",100:"#d6f1ff",200:"#aee2ff",300:"#7dd0ff",400:"#41b4ff",500:"#1799ff",600:"#0c7be0",700:"#0a65b6",800:"#0b5495",900:"#0c477b"}}}}}</script>
+  <style>.glass{backdrop-filter:blur(10px);background:rgba(255,255,255,.08)}@media (max-width:640px){.glass{backdrop-filter:blur(6px)}}</style>
 </head>
 <body class="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-white">
-  <!-- Nav -->
   <header class="max-w-7xl mx-auto px-4 py-5 flex items-center justify-between">
     <a class="flex items-center gap-2 font-semibold tracking-tight" href="/"><span class="text-brand-400">●</span> CheckThatURL</a>
     <nav class="hidden sm:flex items-center gap-6 text-sm text-slate-300">
@@ -78,5 +88,16 @@
       </div>
     </div>
   </footer>
+
+  <!-- JSON-LD: WebPage + Breadcrumbs -->
+  <script type="application/ld+json">
+  {"@context":"https://schema.org","@type":"WebPage","name":"Legal — CheckThatURL","url":"{{ request.url }}"}
+  </script>
+  <script type="application/ld+json">
+  {"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[
+    {"@type":"ListItem","position":1,"name":"Home","item":"{{ request.url_root }}"},
+    {"@type":"ListItem","position":2,"name":"Legal","item":"{{ request.url }}"}
+  ]}
+  </script>
 </body>
 </html>
