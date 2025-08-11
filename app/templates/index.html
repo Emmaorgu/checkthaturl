@@ -5,19 +5,36 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>CheckThatURL — Scan before you click</title>
 
+  <!-- Hints -->
+  <link rel="preconnect" href="https://cdn.tailwindcss.com" crossorigin>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+
+  <!-- Canonical + robots -->
+  <link rel="canonical" href="{{ request.url }}" />
+  <meta name="robots" content="index,follow" />
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="{{ request.url }}" />
+  <meta property="og:title" content="CheckThatURL — Scan before you click" />
+  <meta property="og:description" content="Instant AI phishing checks. Paste a link, get a verdict, and see why." />
+  <meta property="og:image" content="{{ request.url_root.rstrip('/') }}/static/og.png" />
+
+  <!-- Twitter -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="CheckThatURL — Scan before you click" />
+  <meta name="twitter:description" content="Instant AI phishing checks. Paste a link, get a verdict, and see why." />
+  <meta name="twitter:image" content="{{ request.url_root.rstrip('/') }}/static/og.png" />
+
   <!-- Tailwind -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          colors: {
-            brand: {50:"#eefaff",100:"#d6f1ff",200:"#aee2ff",300:"#7dd0ff",400:"#41b4ff",500:"#1799ff",600:"#0c7be0",700:"#0a65b6",800:"#0b5495",900:"#0c477b"},
-            success:"#16a34a", warning:"#f59e0b", danger:"#ef4444"
-          }
-        }
+    tailwind.config = { theme: { extend: {
+      colors: {
+        brand:{50:"#eefaff",100:"#d6f1ff",200:"#aee2ff",300:"#7dd0ff",400:"#41b4ff",500:"#1799ff",600:"#0c7be0",700:"#0a65b6",800:"#0b5495",900:"#0c477b"},
+        success:"#16a34a", warning:"#f59e0b", danger:"#ef4444"
       }
-    }
+    } } }
   </script>
   <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -26,24 +43,45 @@
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔍</text></svg>">
 
   <style>
-    .glass { backdrop-filter: blur(10px); background: rgba(255,255,255,.08); }
-    .dark .glass { background: rgba(0,0,0,.25); }
-    .pulse-ring { box-shadow: 0 0 0 0 rgba(23,153,255,.6); animation: pulse 2s infinite; }
-    @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(23,153,255,.6)}70%{box-shadow:0 0 0 12px rgba(23,153,255,0)}100%{box-shadow:0 0 0 0 rgba(23,153,255,0)} }
+    .glass{backdrop-filter:blur(10px);background:rgba(255,255,255,.08)}
+    .dark .glass{background:rgba(0,0,0,.25)}
+    .pulse-ring{box-shadow:0 0 0 0 rgba(23,153,255,.6);animation:pulse 2s infinite}
+    @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(23,153,255,.6)}70%{box-shadow:0 0 0 12px rgba(23,153,255,0)}100%{box-shadow:0 0 0 0 rgba(23,153,255,0)}}
     .tooltip{position:relative}
     .tooltip:hover .tooltip-card{opacity:1;transform:translateY(0);pointer-events:auto}
-    /* mobile perf: reduce blur a bit */
-    @media (max-width:640px){ .glass{ backdrop-filter: blur(6px); } }
+    @media (max-width:640px){ .glass{ backdrop-filter: blur(6px) } }
   </style>
+
+  <!-- JSON-LD: Organization + WebSite -->
+  <script type="application/ld+json">
+  {
+    "@context":"https://schema.org",
+    "@type":"Organization",
+    "name":"CheckThatURL",
+    "url":"{{ request.url_root }}",
+    "logo":"{{ request.url_root.rstrip('/') }}/static/og.png",
+    "sameAs":[]
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context":"https://schema.org",
+    "@type":"WebSite",
+    "url":"{{ request.url_root }}",
+    "name":"CheckThatURL",
+    "potentialAction":{
+      "@type":"SearchAction",
+      "target":"{{ request.url_root }}?q={search_term_string}",
+      "query-input":"required name=search_term_string"
+    }
+  }
+  </script>
 </head>
 
 <body class="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-white selection:bg-brand-500 selection:text-white pt-[env(safe-area-inset-top)]">
   <!-- Nav -->
   <header class="max-w-7xl mx-auto px-4 py-5 flex items-center justify-between">
-    <a class="flex items-center gap-2 font-semibold tracking-tight" href="/">
-      <span class="text-brand-400">●</span> CheckThatURL
-    </a>
-    <!-- cleaner nav on mobile -->
+    <a class="flex items-center gap-2 font-semibold tracking-tight" href="/"><span class="text-brand-400">●</span> CheckThatURL</a>
     <nav class="hidden sm:flex items-center gap-6 text-sm text-slate-300">
       <a href="#how" class="hover:text-white">How it works</a>
       <a href="/privacy" class="hover:text-white">Privacy</a>
@@ -52,14 +90,21 @@
     </nav>
   </header>
 
-  <!-- Self-hosted banner (rendered by Flask if CTU_SELF_HOSTED=1) -->
   {% if SELF_HOSTED %}
   <div class="max-w-7xl mx-auto px-4">
     <div class="glass rounded-xl ring-1 ring-white/10 p-3 text-sm text-slate-200">
-      🔒 <span class="font-medium">Self‑hosted mode:</span> scans run locally; optional external lookups are disabled.
+      🔒 <span class="font-medium">Self-hosted mode:</span> scans run locally; optional external lookups are disabled.
     </div>
   </div>
   {% endif %}
+
+  <!-- Privacy banner -->
+  <div class="max-w-7xl mx-auto px-4 mt-2">
+    <div class="glass rounded-xl ring-1 ring-white/10 p-3 text-sm text-slate-200">
+      🔐 <strong>Privacy:</strong> We <strong>don’t store</strong> your URLs or page content. Scans are ephemeral and processed in-memory.
+      <a href="/privacy" class="underline">Learn more</a>.
+    </div>
+  </div>
 
   <!-- Hero -->
   <section class="max-w-7xl mx-auto px-4 pt-6 sm:pt-8 pb-3 sm:pb-4">
@@ -76,17 +121,11 @@
         <form id="check-form" class="mt-5 sm:mt-6 glass rounded-2xl p-2 ring-1 ring-white/10">
           <div class="flex flex-col md:flex-row gap-2 md:items-center">
             <div class="relative flex-1">
-              <input id="url-input"
-                     type="text"
-                     placeholder="Paste a URL (e.g. https://bank.example/login)"
-                     autocomplete="off"
+              <input id="url-input" type="text" placeholder="Paste a URL (e.g. https://bank.example/login)" autocomplete="off"
                      class="w-full bg-transparent placeholder-slate-400 focus:outline-none px-4 py-3 text-base" />
               <div id="suggestions" class="absolute left-2 right-2 top-full mt-2 hidden rounded-xl bg-slate-900/95 ring-1 ring-white/10 shadow-xl overflow-hidden z-50"></div>
             </div>
-            <button type="submit"
-                    class="w-full md:w-auto px-4 py-3 rounded-xl bg-brand-500 hover:bg-brand-400 transition font-semibold">
-              Check
-            </button>
+            <button type="submit" class="w-full md:w-auto px-4 py-3 rounded-xl bg-brand-500 hover:bg-brand-400 transition font-semibold">Check</button>
           </div>
           <div id="url-feedback" class="text-xs sm:text-sm mt-2 text-slate-400"></div>
         </form>
@@ -104,16 +143,16 @@
 
         <h2 id="verdict-title" class="mt-2 text-2xl font-bold">—</h2>
         <p id="explanation" class="mt-2 text-sm text-slate-300">—</p>
+        <p id="summary-line" class="mt-1 text-xs text-slate-400"></p>
 
         <!-- Risk groups -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mt-4 sm:mt-6">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mt-4 sm:mt-6">
           <div class="glass rounded-xl p-3 sm:p-4 ring-1 ring-white/10">
             <div class="flex items-center justify-between">
               <span class="text-sm font-semibold">🌐 Domain Risks</span>
               <span class="tooltip text-[11px] text-slate-400 underline decoration-dotted cursor-help">
                 why?
-                <span class="tooltip-card absolute right-0 mt-2 opacity-0 pointer-events-none transition
-                             bg-slate-900/95 text-white text-[11px] w-52 p-3 rounded-xl ring-1 ring-white/10">
+                <span class="tooltip-card absolute right-0 mt-2 opacity-0 pointer-events-none transition bg-slate-900/95 text-white text-[11px] w-56 p-3 rounded-xl ring-1 ring-white/10">
                   New domains or odd TLDs aren’t bad alone — we only weigh them with other red flags.
                 </span>
               </span>
@@ -126,8 +165,7 @@
               <span class="text-sm font-semibold">📝 Content Risks</span>
               <span class="tooltip text-[11px] text-slate-400 underline decoration-dotted cursor-help">
                 why?
-                <span class="tooltip-card absolute right-0 mt-2 opacity-0 pointer-events-none transition
-                             bg-slate-900/95 text-white text-[11px] w-52 p-3 rounded-xl ring-1 ring-white/10">
+                <span class="tooltip-card absolute right-0 mt-2 opacity-0 pointer-events-none transition bg-slate-900/95 text-white text-[11px] w-56 p-3 rounded-xl ring-1 ring-white/10">
                   Urgency, credential prompts, or repeated phishing phrases increase risk.
                 </span>
               </span>
@@ -140,24 +178,89 @@
               <span class="text-sm font-semibold">🔗 Link Risks</span>
               <span class="tooltip text-[11px] text-slate-400 underline decoration-dotted cursor-help">
                 why?
-                <span class="tooltip-card absolute right-0 mt-2 opacity-0 pointer-events-none transition
-                             bg-slate-900/95 text-white text-[11px] w-52 p-3 rounded-xl ring-1 ring-white/10">
+                <span class="tooltip-card absolute right-0 mt-2 opacity-0 pointer-events-none transition bg-slate-900/95 text-white text-[11px] w-56 p-3 rounded-xl ring-1 ring-white/10">
                   Mismatched anchors, excessive external links, and redirect chains can be malicious.
                 </span>
               </span>
             </div>
             <ul id="link-risks" class="mt-2 text-xs space-y-1 max-h-40 overflow-auto md:max-h-none"></ul>
           </div>
+
+          <div class="glass rounded-xl p-3 sm:p-4 ring-1 ring-white/10">
+            <div class="flex items-center justify-between">
+              <span class="text-sm font-semibold">🧪 Behavior Signals</span>
+              <span class="tooltip text-[11px] text-slate-400 underline decoration-dotted cursor-help">
+                why?
+                <span class="tooltip-card absolute right-0 mt-2 opacity-0 pointer-events-none transition bg-slate-900/95 text-white text-[11px] w-56 p-3 rounded-xl ring-1 ring-white/10">
+                  Redirects after actions, JS-driven navigation, hidden content reveals, and DOM mutations are suspicious behaviors.
+                </span>
+              </span>
+            </div>
+            <ul id="behavior-risks" class="mt-2 text-xs space-y-1 max-h-40 overflow-auto md:max-h-none"></ul>
+          </div>
         </div>
 
-        <!-- Chart (responsive square) -->
+        <!-- Category scores -->
+        <div class="mt-4 sm:mt-6">
+          <h3 class="text-sm font-semibold mb-2">Category Scores</h3>
+          <div class="space-y-2 text-xs">
+            <div>
+              <div class="flex justify-between"><span>Domain</span><span id="score-domain-text">0%</span></div>
+              <div class="w-full bg-white/10 h-2 rounded-full overflow-hidden">
+                <div id="score-domain-bar" class="h-2 bg-brand-500 rounded-full" style="width:0%"></div>
+              </div>
+            </div>
+            <div>
+              <div class="flex justify-between"><span>Content</span><span id="score-content-text">0%</span></div>
+              <div class="w-full bg-white/10 h-2 rounded-full overflow-hidden">
+                <div id="score-content-bar" class="h-2 bg-brand-500 rounded-full" style="width:0%"></div>
+              </div>
+            </div>
+            <div>
+              <div class="flex justify-between"><span>Link</span><span id="score-link-text">0%</span></div>
+              <div class="w-full bg-white/10 h-2 rounded-full overflow-hidden">
+                <div id="score-link-bar" class="h-2 bg-brand-500 rounded-full" style="width:0%"></div>
+              </div>
+            </div>
+            <div>
+              <div class="flex justify-between"><span>Behavior</span><span id="score-behavior-text">0%</span></div>
+              <div class="w-full bg-white/10 h-2 rounded-full overflow-hidden">
+                <div id="score-behavior-bar" class="h-2 bg-brand-500 rounded-full" style="width:0%"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Structural & Visual similarity quick view -->
+        <div class="mt-4 sm:mt-6 grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div class="glass rounded-xl p-3 sm:p-4 ring-1 ring-white/10">
+            <div class="flex items-center justify-between">
+              <span class="text-sm font-semibold">🧩 Structural Similarity</span>
+            </div>
+            <div class="mt-2 text-xs text-slate-300">
+              <div>Match score: <span id="domScoreText">—</span></div>
+              <div>Closest template: <span id="domTemplateText">—</span></div>
+            </div>
+          </div>
+          <div class="glass rounded-xl p-3 sm:p-4 ring-1 ring-white/10">
+            <div class="flex items-center justify-between">
+              <span class="text-sm font-semibold">🖼️ Visual Similarity</span>
+            </div>
+            <div class="mt-2 text-xs text-slate-300">
+              <div>Match score: <span id="visualScoreText">—</span></div>
+              <div>Closest template: <span id="visualClosestText">—</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Chart -->
         <div class="mt-4 sm:mt-6">
           <div class="relative w-full" style="aspect-ratio: 1 / 1;">
             <canvas id="confidenceChart"></canvas>
           </div>
         </div>
 
-        <!-- Raw list for accessibility -->
+        <!-- Raw list -->
         <details class="mt-4 sm:mt-6 text-xs text-slate-400">
           <summary class="cursor-pointer">See raw checks</summary>
           <ul id="raw-list" class="mt-2 space-y-1"></ul>
@@ -195,11 +298,7 @@
         <h4 class="text-lg sm:text-xl font-bold">Don’t click blind.</h4>
         <p class="text-slate-300 text-sm mt-1">Scan links in seconds — no login, no tracking.</p>
       </div>
-      <a href="#"
-         onclick="document.getElementById('url-input').focus();"
-         class="w-full sm:w-auto px-5 py-3 bg-brand-500 hover:bg-brand-400 rounded-xl font-semibold text-center">
-        Scan a link
-      </a>
+      <a href="#" onclick="document.getElementById('url-input').focus();" class="w-full sm:w-auto px-5 py-3 bg-brand-500 hover:bg-brand-400 rounded-xl font-semibold text-center">Scan a link</a>
     </div>
   </section>
 
@@ -208,10 +307,8 @@
     <div class="max-w-7xl mx-auto px-4 py-6 sm:py-8 text-xs sm:text-sm text-slate-400 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 sm:gap-4">
       <p>© 2025 CheckThatURL. Built by Emmanuel Orgu.</p>
       <div class="flex flex-wrap items-center gap-3 sm:gap-4">
-        <a href="/privacy" class="hover:text-white">Privacy</a>
-        <span class="text-slate-600">•</span>
-        <a href="/legal" class="hover:text-white">Legal</a>
-        <span class="text-slate-600">•</span>
+        <a href="/privacy" class="hover:text-white">Privacy</a><span class="text-slate-600">•</span>
+        <a href="/legal" class="hover:text-white">Legal</a><span class="text-slate-600">•</span>
         <a href="/faq" class="hover:text-white">FAQ</a>
         <span class="text-slate-600 hidden md:inline">•</span>
         <span>No data stored. No cookies. No tracking.</span>
@@ -229,24 +326,52 @@ document.addEventListener("DOMContentLoaded", () => {
   const verdictTitle = document.getElementById("verdict-title");
   const badge = document.getElementById("badge");
   const explanation = document.getElementById("explanation");
+  const summaryLine = document.getElementById("summary-line");
+
   const domainList = document.getElementById("domain-risks");
   const contentList = document.getElementById("content-risks");
   const linkList = document.getElementById("link-risks");
+  const behaviorList = document.getElementById("behavior-risks");
+
   const rawList = document.getElementById("raw-list");
   const chartCanvas = document.getElementById("confidenceChart");
   const historyBox = document.getElementById("history");
   let chartInstance;
 
+  // Category bars
+  const scoreEls = {
+    domain:   { bar: document.getElementById("score-domain-bar"),   text: document.getElementById("score-domain-text") },
+    content:  { bar: document.getElementById("score-content-bar"),  text: document.getElementById("score-content-text") },
+    link:     { bar: document.getElementById("score-link-bar"),     text: document.getElementById("score-link-text") },
+    behavior: { bar: document.getElementById("score-behavior-bar"), text: document.getElementById("score-behavior-text") },
+  };
+
+  // Structural/visual text spans
+  const domScoreText = document.getElementById("domScoreText");
+  const domTemplateText = document.getElementById("domTemplateText");
+  const visualScoreText = document.getElementById("visualScoreText");
+  const visualClosestText = document.getElementById("visualClosestText");
+
   const suffixes = [".com", ".ng", ".org", ".bank", ".io", ".app"];
 
-  function chip(url) {
-    return `<button data-url="${url}" class="px-2.5 py-1 rounded-full text-[11px] bg-white/5 hover:bg-white/10 ring-1 ring-white/10">${url}</button>`;
+  const escapeHtml = (s) => String(s || "")
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+    .replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+
+  function chip(u) {
+    return '<button data-url="' + u + '" class="px-2.5 py-1 rounded-full text-[11px] bg-white/5 hover:bg-white/10 ring-1 ring-white/10">' + escapeHtml(u) + '</button>';
   }
 
   function loadHistory() {
-    const history = JSON.parse(localStorage.getItem("scanHistory") || "[]").slice(0, 10);
+    let history = JSON.parse(localStorage.getItem("scanHistory") || "[]");
+    history = history.filter(u => u && typeof u === "string" && u.indexOf("${") === -1);
+    localStorage.setItem("scanHistory", JSON.stringify(history.slice(0, 10)));
+
     if (!history.length) { historyBox.innerHTML = ""; return; }
-    historyBox.innerHTML = `<div class="flex flex-wrap gap-2 items-center"><span class="text-slate-400">Recent:</span>${history.map(chip).join("")}</div>`;
+    historyBox.innerHTML =
+      '<div class="flex flex-wrap gap-2 items-center"><span class="text-slate-400">Recent:</span>' +
+      history.map(chip).join("") +
+      '</div>';
   }
   loadHistory();
 
@@ -261,7 +386,7 @@ document.addEventListener("DOMContentLoaded", () => {
     feedback.className = v ? "text-xs sm:text-sm mt-2 text-brand-200" : "text-xs sm:text-sm mt-2 text-slate-400";
 
     if (v && !v.includes(".")) {
-      suggestionsBox.innerHTML = suffixes.map(ext => `<div class="px-3 py-2 hover:bg-white/10 cursor-pointer">${v}${ext}</div>`).join("");
+      suggestionsBox.innerHTML = suffixes.map(ext => `<div class="px-3 py-2 hover:bg-white/10 cursor-pointer">${escapeHtml(v)}${ext}</div>`).join("");
       suggestionsBox.classList.remove("hidden");
     } else {
       suggestionsBox.classList.add("hidden");
@@ -278,7 +403,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function setBadge(verdict) {
     const map = {
-      "Phishing": { text: "Phishing", cls: "bg-danger/20 text-danger ring-1 ring-danger/30" },
+      "Phishing":   { text: "Phishing",   cls: "bg-danger/20 text-danger ring-1 ring-danger/30" },
       "Suspicious": { text: "Suspicious", cls: "bg-warning/20 text-warning ring-1 ring-warning/30" },
       "Legitimate": { text: "Legitimate", cls: "bg-success/20 text-success ring-1 ring-success/30" },
     };
@@ -288,9 +413,23 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function renderList(el, items) {
-    el.innerHTML = items && items.length
-      ? items.map(i => `<li class="leading-relaxed">${i}</li>`).join("")
-      : `<li class="text-slate-500">No notable issues.</li>`;
+    const safe = (items || []).filter(Boolean).map(i => `<li class="leading-relaxed">• ${escapeHtml(i)}</li>`);
+    el.innerHTML = safe.length ? safe.join("") : `<li class="text-slate-500">No notable issues.</li>`;
+  }
+
+  function renderCategoryScores(scores) {
+    const s = scores || {};
+    ["domain","content","link","behavior"].forEach(k => {
+      const v = Math.max(0, Math.min(1, Number(s[k] || 0)));
+      const pct = Math.round(v * 100);
+      scoreEls[k].text.textContent = pct + "%";
+      scoreEls[k].bar.style.width = pct + "%";
+    });
+  }
+
+  function pct(x) {
+    const n = Number(x || 0);
+    return (Math.round(n * 1000) / 10) + "%";
   }
 
   form.addEventListener("submit", async (e) => {
@@ -301,6 +440,7 @@ document.addEventListener("DOMContentLoaded", () => {
     resultsCard.classList.remove("hidden");
     verdictTitle.textContent = "Checking…";
     explanation.textContent = "Running static & behavioral checks.";
+    summaryLine.textContent = "";
     setBadge("Suspicious");
 
     try {
@@ -318,49 +458,66 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
 
-      // verdict + bands
       const v = data.verdict || "Suspicious";
       setBadge(v);
       verdictTitle.textContent = v;
       explanation.textContent = data.explanation || "We’ve grouped risk signals below.";
 
-      // grouped risks (backend-native or fallback)
+      // v2 summary (if present)
+      const summary = (data.explanations && data.explanations.summary) ? data.explanations.summary : "";
+      summaryLine.textContent = summary;
+
+      // Render risk groups (support legacy + v2)
       const groups = {
-        domain_risks: data.domain_risks || [],
-        content_risks: data.content_risks || [],
-        link_risks: data.link_risks || []
+        domain_risks:    data.domain_risks    || (data.explanations && data.explanations.domain)    || [],
+        content_risks:   data.content_risks   || (data.explanations && data.explanations.content)   || [],
+        link_risks:      data.link_risks      || (data.explanations && data.explanations.link)      || [],
+        behavior_risks:  data.behavior_risks  || (data.explanations && data.explanations.behavior)  || (data.behavior && data.behavior.events) || []
       };
       if ((!groups.domain_risks.length && !groups.content_risks.length && !groups.link_risks.length) && Array.isArray(data.features_triggered)) {
         groups.content_risks = data.features_triggered;
       }
-
       renderList(domainList, groups.domain_risks);
       renderList(contentList, groups.content_risks);
       renderList(linkList, groups.link_risks);
+      renderList(behaviorList, groups.behavior_risks);
 
-      // doughnut chart (responsive)
+      // Category scores
+      renderCategoryScores(data.category_scores || {});
+
+      // Structural & visual quick view
+      const s = data.structure || {};
+      const vis = data.visual || {};
+      if (domScoreText) domScoreText.textContent = s.score !== undefined ? pct(s.score) : "—";
+      if (domTemplateText) domTemplateText.textContent = s.template || "—";
+      if (visualScoreText) visualScoreText.textContent = vis.score !== undefined ? pct(vis.score) : "—";
+      if (visualClosestText) visualClosestText.textContent = vis.closest || "—";
+
+      // Donut chart
       const phishing = Number(data.phishing_score || 0);
       const legit    = Number(data.legit_score || 0);
-
       if (chartInstance) chartInstance.destroy();
       chartInstance = new Chart(chartCanvas, {
         type: "doughnut",
         data: { labels: ["Phishing", "Legitimate"], datasets: [{ data: [phishing, legit], backgroundColor: ["#ef4444", "#16a34a"] }] },
-        options: {
-          responsive: true,
-          maintainAspectRatio: true,
-          plugins: { legend: { position: "bottom", labels: { color: "#cbd5e1" } } }
-        }
+        options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { position: "bottom", labels: { color: "#cbd5e1" } } } }
       });
 
-      // raw list
+      // Raw list
+      const behavior = data.behavior || {};
       rawList.innerHTML = [
         `Confidence: ${data.confidence ?? "-"}`,
         `Phishing score: ${phishing}`,
-        `Legit score: ${legit}`
-      ].map(x => `<li>${x}</li>`).join("");
+        `Legit score: ${legit}`,
+        `Behavior mode: ${escapeHtml(behavior.mode || "-")}`,
+        `Behavior score: ${pct(behavior.score || 0)}`,
+        `Redirects: ${Array.isArray(behavior.redirect_chain) ? behavior.redirect_chain.length - 1 : 0}`,
+        `DOM mutation score: ${pct(behavior.dom_mutation_score || 0)}`,
+        `Structure match: ${pct((data.structure || {}).score || 0)} (${escapeHtml((data.structure || {}).template || "—")})`,
+        `Visual match: ${pct((data.visual || {}).score || 0)} (${escapeHtml((data.visual || {}).closest || "—")})`
+      ].map(x => `<li>${escapeHtml(x)}</li>`).join("");
 
-      // history
+      // History
       let history = JSON.parse(localStorage.getItem("scanHistory") || "[]");
       if (!history.includes(url)) {
         history.unshift(url); history = history.slice(0, 10);
