@@ -5,9 +5,22 @@ services:
     plan: free
     region: oregon
     buildCommand: |
-      pip install -r requirements.txt
-      # Playwright is optional on Render; keep off by default to avoid build failures.
-      # To enable later, set CTU_PLAYWRIGHT=1 and add install step.
+      # Normalize requirements.txt to UTF-8 on the build machine (idempotent)
+      python - <<'PY'
+import pathlib
+p=pathlib.Path("requirements.txt")
+b=p.read_bytes()
+for enc in ("utf-8","utf-8-sig","utf-16","utf-16-le","utf-16-be"):
+    try:
+        t=b.decode(enc)
+        p.write_text(t, encoding="utf-8")
+        break
+    except Exception:
+        pass
+PY
+      pip install --no-cache-dir -r requirements.txt
+      # Playwright optional; keep off by default on Render
+      # (enable later by adding install and setting CTU_PLAYWRIGHT=1)
     startCommand: gunicorn app.app:app -w 2 -k gthread -b 0.0.0.0:$PORT --timeout 180
     envVars:
       - key: PYTHON_VERSION
@@ -25,4 +38,4 @@ services:
       - key: CTU_FEEDBACK
         value: "1"
       - key: CTU_FEEDBACK_SALT
-        sync: false   # set this secret in Render dashboard
+        sync: false
