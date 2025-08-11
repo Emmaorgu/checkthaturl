@@ -5,6 +5,10 @@ services:
     plan: free
     region: oregon
     buildCommand: |
+      # Show runtime being used (must be Python 3.10.14)
+      python -V
+      pip --version
+
       # Normalize requirements.txt to UTF-8 on the build machine (idempotent)
       python - <<'PY'
 import pathlib
@@ -18,13 +22,12 @@ for enc in ("utf-8","utf-8-sig","utf-16","utf-16-le","utf-16-be"):
     except Exception:
         pass
 PY
+
+      # Install deps
       pip install --no-cache-dir -r requirements.txt
-      # Playwright optional; keep off by default on Render
-      # (enable later by adding install and setting CTU_PLAYWRIGHT=1)
+
     startCommand: gunicorn app.app:app -w 2 -k gthread -b 0.0.0.0:$PORT --timeout 180
     envVars:
-      - key: PYTHON_VERSION
-        value: 3.10.14
       - key: CTU_SELF_HOSTED
         value: "0"
       - key: CTU_BEHAVIOR
