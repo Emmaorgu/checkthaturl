@@ -56,11 +56,11 @@ if feedback_bp:
 # ------------------------------------------------------------------------------
 # Tunables / policy
 # ------------------------------------------------------------------------------
-PHISHING_THRESHOLD = 0.70   # >= -> Phishing
-LEGIT_THRESHOLD    = 0.30   # <= -> Legitimate
+PHISHING_THRESHOLD = 0.70
+LEGIT_THRESHOLD    = 0.30
 STRICT_SURFACE_GUARD = True
 STARTUP_EXCEPTION_GUARD = True
-DOMAIN_ONLY_CAN_PHISH = False  # domain-only signals won't produce "Phishing"
+DOMAIN_ONLY_CAN_PHISH = False
 
 CTU_SOFT_WHITELIST_SELF = os.getenv("CTU_SOFT_WHITELIST_SELF", "1") == "1"
 OUR_HOSTS = {"checkthaturl.com", "www.checkthaturl.com"}
@@ -76,7 +76,6 @@ DEFAULT_HEADERS = {
     "Connection": "keep-alive",
 }
 
-# Short URL services we can expand
 KNOWN_SHORTENERS = {"is.gd", "v.gd", "bit.ly", "t.co", "tinyurl.com", "goo.gl", "ow.ly", "buff.ly"}
 
 # ------------------------------------------------------------------------------
@@ -128,19 +127,17 @@ def resolve_url(raw_url: str | None) -> str | None:
     if not raw_url:
         return None
     u = raw_url.strip()
-    if u.startswith(("http://","https://")):
-        return u
-    if u.startswith("//"):
-        return "https:" + u
+    if u.startswith(("http://","https://")): return u
+    if u.startswith("//"): return "https:" + u
     return "https://" + u
 
 def to_http(u: str) -> str:
     p = urlparse(u)
     return urlunparse(("http", p.netloc, p.path, p.params, p.query, p.fragment)) if p.scheme=="https" else u
 
-def choose_verdict(p_phish: float) -> str:
-    if p_phish >= PHISHING_THRESHOLD: return "Phishing"
-    if p_phish <= LEGIT_THRESHOLD:    return "Legitimate"
+def choose_verdict(p: float) -> str:
+    if p >= PHISHING_THRESHOLD: return "Phishing"
+    if p <= LEGIT_THRESHOLD:    return "Legitimate"
     return "Suspicious"
 
 def align_to_model(df: pd.DataFrame, mdl) -> pd.DataFrame:
@@ -185,7 +182,6 @@ def guarded_verdict(p_phish: float, feats: dict, behavior_score: float = 0.0) ->
     link_sig     = int(feats.get("link_red_flags",0)) or float(feats.get("mismatched_anchor_ratio",0))>0.30 \
                    or float(feats.get("external_link_ratio",0))>0.50
     behavior_sig = float(behavior_score)>=0.25
-
     if not DOMAIN_ONLY_CAN_PHISH and base=="Phishing" and not (content_sig or link_sig or behavior_sig or non_surface):
         return "Suspicious"
     if STRICT_SURFACE_GUARD and base=="Phishing" and non_surface==0 and surface>0:
@@ -200,17 +196,48 @@ def compute_category_scores(feats: dict, behavior_score: float) -> dict:
     domain += 0.35 * int(feats.get("suspicious_tld",0)==1)
     domain += 0.35 * int(feats.get("is_new_domain",0)==1)
     domain += 0.30 * min(1.0, float(feats.get("domain_entropy",0))/4.5)
-
     link = clip01(int(feats.get("link_red_flags",0))/3.0)
-
     nlp = float(feats.get("phish_context_score",0.0))
     content_flags = int(feats.get("content_red_flags",0))
     content = clip01(0.6*nlp + 0.4*(content_flags/7.0))
-
     behavior = clip01(behavior_score)
+    return {"domain": round(domain,3), "link": round(link,3), "content": round(content,3), "behavior": round(behavior,3)}
 
-    return {"domain": round(domain,3), "link": round(link,3),
-            "content": round(content,3), "behavior": round(behavior,3)}
+# ---------- Timer detector (robust) ----------
+def detect_timer_signals(html: str) -> dict:
+    """
+    Return dict with strong/weak/meta_refresh booleans based on HTML & script patterns.
+    Strong = safe to claim timer without behavior evidence (e.g., meta refresh or clear countdown JS).
+    Weak   = UI/markup hints that look like a timer (requires behavior evidence).
+    """
+    if not html:
+        return {"strong": False, "weak": False, "meta_refresh": False}
+
+    low = html.lower()
+
+    # Meta refresh is a very strong urgency/redirect signal
+    meta_refresh = bool(re.search(r'<meta[^>]+http-equiv=["\']?\s*refresh', low))
+
+    # JS-based countdown cues: setInterval/setTimeout with countdown words or decrement patterns
+    js_interval = bool(re.search(r'setinterval\s*\(', low) or re.search(r'settimeout\s*\(', low))
+    js_count_words = bool(re.search(r'countdown|timer|expire|expiry|deadline|seconds?|mins?|minutes?', low))
+    js_decrement = bool(re.search(r'(--|-=|-=1|\b\-=\s*1)', low) or re.search(r'inner(?:text|html)\s*=', low))
+    js_strong = js_interval and (js_count_words or js_decrement)
+
+    # Data attributes that usually back a countdown
+    data_attr = bool(re.search(r'data-(?:countdown|timer|expiry|deadline)\s*=\s*["\']?\d', low))
+
+    # Class/ID names (weak)
+    cls_id = bool(re.search(r'(?:id|class)\s*=\s*["\'][^"\']*(?:countdown|timer|clock)[^"\']*["\']', low))
+
+    # Clock-like textual pattern (weak): 12:34 or 01:23:45 or "30 sec", "5 minutes"
+    clock_text = bool(re.search(r'\b\d{1,2}:\d{2}(?::\d{2})?\b', low) or
+                      re.search(r'\b\d{1,3}\s*(?:sec|secs|seconds|mins?|minutes?)\b', low))
+
+    strong = meta_refresh or js_strong or data_attr
+    weak = cls_id or clock_text
+
+    return {"strong": strong, "weak": weak, "meta_refresh": meta_refresh}
 
 # ---------- Shorteners ----------
 def expand_short_url(u: str) -> str | None:
@@ -221,13 +248,11 @@ def expand_short_url(u: str) -> str | None:
             r = requests.get(api, timeout=6)
             if r.ok:
                 dst = (r.text or "").strip()
-                if dst.startswith(("http://","https://")):
-                    return dst
+                if dst.startswith(("http://","https://")): return dst
         r = requests.head(u, allow_redirects=False, timeout=6)
         if 300 <= r.status_code < 400 and "Location" in r.headers:
             dst = r.headers["Location"].strip()
-            if dst.startswith(("http://","https://")):
-                return dst
+            if dst.startswith(("http://","https://")): return dst
     except requests.RequestException:
         pass
     return None
@@ -269,8 +294,8 @@ def neutral_response(url: str, verdict: str, msg: str, diag: dict | None = None)
         "category_scores": {"domain":0,"content":0,"link":0,"behavior":0},
         "explanations": {"domain":[], "link":[], "content":[], "behavior":[], "summary": msg},
         "behavior": {"mode":"disabled","score":0.0,"events":[]},
-        "structure": {"score":0.0,"template":None},
-        "visual": {"score":0.0,"closest":None},
+        "structure": {"score":0.0, "template":None},
+        "visual": {"score":0.0, "closest":None},
         "policy": {"strict_surface_guard": STRICT_SURFACE_GUARD,
                    "startup_exception_guard": STARTUP_EXCEPTION_GUARD,
                    "domain_only_can_phish": DOMAIN_ONLY_CAN_PHISH},
@@ -284,7 +309,7 @@ def unreachable_response(url: str, diag_label: str | None = None):
         {"label": diag_label} if diag_label else None
     )
 
-# ---------- Content quality gate (used for 'lite mode', not to abort) ----------
+# ---------- Content quality (for lite mode only) ----------
 def meaningful_html_metrics(html: str) -> dict:
     if not html:
         return {"ok": False, "bytes": 0, "words": 0}
@@ -310,13 +335,11 @@ def check_url():
         if not url:
             return unreachable_response("", "Invalid URL")
 
-        # Expand shorteners
         host0 = urlparse(url).netloc.lower().split(":")[0]
         if host0 in KNOWN_SHORTENERS:
             expanded = expand_short_url(url)
             if expanded: url = expanded
 
-        # DNS preflight
         pre = dns_preflight(url)
         if not pre.get("ok"):
             return unreachable_response(url, pre.get("label") or "DNS error")
@@ -356,7 +379,6 @@ def check_url():
                 ctype = (r.headers or {}).get("Content-Type","").lower()
                 html_content = r.text or ""
                 metrics = meaningful_html_metrics(html_content)
-                # We DO NOT abort on non-HTML or thin HTML; we classify in lite mode.
                 if ctype and "text/html" not in ctype:
                     lite_mode, lite_reason = True, f"Non-HTML ({ctype})"
                 elif not metrics["ok"]:
@@ -384,10 +406,9 @@ def check_url():
                     return neutral_response(url, "Server Error",
                         f"The site responded with a server error (HTTP {status}).", {"label": label})
 
-        # Feature extraction (works even if lite_mode / empty html)
+        # Feature extraction
         features = extract_features(url, html_content)
         features.pop("registrar_name", None)
-
         if OUR_SCAN and CTU_SOFT_WHITELIST_SELF:
             for k in ("is_new_domain","suspicious_tld"): features[k] = 0
 
@@ -425,7 +446,7 @@ def check_url():
         except Exception:
             pass
 
-        # DOM / Visual (best-effort)
+        # DOM / Visual
         structure = {"score": 0.0, "template": None}
         try: structure = structure_similarity(html_content or "")
         except Exception: pass
@@ -438,23 +459,23 @@ def check_url():
         behavior_score = float(behavior.get("score", 0.0))
         category_scores = compute_category_scores(features, behavior_score)
         if lite_mode:
-            # make it explicit that content/link are not used
             category_scores["content"] = 0.0
             category_scores["link"] = 0.0
         verdict = guarded_verdict(p_phish, features, behavior_score)
 
-        # ---------------- Reasons (timer gated; suppress content/link in lite mode) ----------------
+        # ---------------- Reasons (with robust timer detector) ----------------
         reasons = []
         metrics = meaningful_html_metrics(html_content)
+        timer = detect_timer_signals(html_content)
 
         if verdict in ("Phishing", "Suspicious"):
-            # Domain cues always okay
+            # Domain cues always OK
             if features.get("suspicious_keyword_found"): reasons.append("🔑 Suspicious keywords present.")
             if features.get("suspicious_tld"):           reasons.append("🌐 Suspicious TLD.")
             if features.get("domain_entropy", 0) > 4.0:  reasons.append("🎲 Domain name has high entropy.")
 
+            # Content/link cues only if not lite and content looks meaningful
             if not lite_mode and metrics["ok"]:
-                # Only when we had meaningful HTML
                 if features.get("num_forms", 0) > 0:         reasons.append("📝 Form(s) found; potential credential capture.")
                 if features.get("has_password_field"):       reasons.append("🔒 Password field present.")
                 if features.get("keyword_density", 0) > 0.02: reasons.append("📌 Elevated phishing keyword density.")
@@ -465,18 +486,24 @@ def check_url():
                 if sum([features.get(f"tfidf_{i}", 0) for i in range(20)]) < 0.1 and not OUR_SCAN:
                     reasons.append("📉 Low informational content.")
 
-                # STRICT TIMER GATING — only if timer markup AND behavior evidence
-                has_meta_refresh = bool(re.search(r'<meta[^>]+http-equiv=["\']?\s*refresh', html_content or "", re.I))
-                timer_flag = bool(features.get("has_js_timer") or features.get("has_html_timer") or has_meta_refresh)
+                # TIMER RULES
+                has_meta_refresh = timer["meta_refresh"]
+                feature_timer_flag = bool(features.get("has_js_timer") or features.get("has_html_timer"))
+                strong_timer = timer["strong"] or has_meta_refresh or feature_timer_flag and not lite_mode
+                weak_timer = timer["weak"] or feature_timer_flag
+
                 behavior_evidence = (
                     int(behavior.get("js_redirects_detected", 0)) > 0 or
                     int(behavior.get("post_action_redirects", 0)) > 0 or
                     int(behavior.get("client_redirects", 0) or 0) > 0
                 )
-                if timer_flag and behavior_evidence:
+
+                if strong_timer:
+                    reasons.append("⏳ Urgency timer detected.")
+                elif weak_timer and behavior_evidence:
                     reasons.append("⏳ Urgency timer detected (confirmed by behavior).")
 
-            # Behavior-driven (independent of content)
+            # Behavior-driven
             if int(behavior.get("post_action_redirects", 0)) > 0: reasons.append("➡️ Redirect occurred after CTA/form action (behavior).")
             if int(behavior.get("js_redirects_detected", 0)) > 0: reasons.append("↪ JS-driven redirect detected (behavior).")
             if float(behavior.get("dom_mutation_score", 0)) >= 0.05: reasons.append("🧪 Significant DOM mutation after load (behavior).")
@@ -501,8 +528,7 @@ def check_url():
             f"{confidence}% confidence • {verdict}{summary_tail}. {base_msg}"
             if verdict != "Legitimate"
             else ("Looks legitimate based on current checks."
-                  + (" Content-lite mode; we avoid penalizing pages with little content." if lite_mode else "")
-            )
+                  + (" Content-lite mode; we avoid penalizing pages with little content." if lite_mode else ""))
         )
 
         v2_summary = (
