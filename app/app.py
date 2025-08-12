@@ -3,6 +3,7 @@ import os
 import sys
 import glob
 import math
+import re
 import socket
 import requests
 import pandas as pd
@@ -265,7 +266,7 @@ def expand_short_url(u: str) -> str | None:
     """Resolve popular shorteners without heavy fetching; fallback to HEAD-only for first hop."""
     host = urlparse(u).netloc.lower().split(":")[0]
     try:
-        # is.gd / v.gd provide a simple resolver API
+        # is.gd / v.gd simple resolver API
         if host in {"is.gd", "v.gd"}:
             api = f"https://is.gd/forward.php?format=simple&shorturl={quote_plus(u)}"
             r = requests.get(api, timeout=6)
@@ -274,7 +275,7 @@ def expand_short_url(u: str) -> str | None:
                 if dst.startswith(("http://", "https://")):
                     return dst
 
-        # generic single-hop expand via HEAD (many shorteners allow this)
+        # generic single-hop expand via HEAD
         r = requests.head(u, allow_redirects=False, timeout=6)
         if 300 <= r.status_code < 400 and "Location" in r.headers:
             dst = r.headers["Location"].strip()
@@ -362,6 +363,7 @@ def check_url():
                 html_content = ""
 
         # Fetch (with http fallback for TLS/connect problems)
+        r = None
         if not html_content:
             headers = {
                 "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -442,6 +444,37 @@ def check_url():
                 behavior = simulate_behavior(url)
         except Exception as e:
             behavior = {"mode": "error", "score": 0.0, "events": [f"behavior engine unavailable: {type(e).__name__}"]}
+
+        # Merge server-side (HTTP) redirects from requests history
+        try:
+            if r is not None:
+                http_history   = list(getattr(r, "history", []) or [])
+                http_redirects = len(http_history)
+                http_chain     = [resp.headers.get("Location") or resp.url for resp in http_history] + [r.url]
+                if http_redirects > 0:
+                    behavior.setdefault("events", [])
+                    behavior["http_redirects"] = http_redirects
+                    # Only set redirect_chain if behavior engine didn't already provide one
+                    if not behavior.get("redirect_chain"):
+                        behavior["redirect_chain"] = http_chain
+                    behavior["events"].append(f"↪ HTTP redirect chain length {http_redirects}.")
+        except Exception:
+            pass
+
+        # Detect client-side redirects in HTML (meta refresh / JS assignment)
+        try:
+            if html_content:
+                meta = re.search(
+                    r'<meta[^>]+http-equiv=["\']?refresh["\']?[^>]*content=["\']?\s*\d+\s*;\s*url=([^"\'>]+)',
+                    html_content, re.I)
+                if meta:
+                    behavior["client_redirects"] = behavior.get("client_redirects", 0) + 1
+                    behavior.setdefault("events", []).append("↪ Meta refresh redirect in HTML.")
+                if re.search(r'(?:window\.)?location\.(?:href|replace|assign)\s*=', html_content, re.I):
+                    behavior.setdefault("events", []).append("↪ JavaScript redirect pattern in HTML.")
+        except Exception:
+            pass
+
         behavior_score = float(behavior.get("score", 0.0))
 
         # ---------- DOM/Visual ----------

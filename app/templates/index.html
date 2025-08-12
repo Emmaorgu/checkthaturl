@@ -576,14 +576,20 @@ document.addEventListener("DOMContentLoaded", () => {
         options: { responsive: true, maintainAspectRatio: false, cutout: "70%", plugins: { legend: { position: "bottom", labels: { color: "#cbd5e1" } }, tooltip: { callbacks: { label: (ctx)=> `${ctx.label}: ${ctx.raw}%` } } } }
       });
 
+      // Build redirect count without double-counting when behavior engine already has a chain
+      const behavior = data.behavior || {};
+      const hasBehChain = Array.isArray(behavior.redirect_chain);
+      const behRedirects = hasBehChain ? (behavior.redirect_chain.length - 1) : 0;
+      const httpRedirects = hasBehChain ? 0 : Number(behavior.http_redirects || 0);
+
       rawList.innerHTML = [
         `Confidence: ${data.confidence ?? "-"}`,
         `Phishing score: ${phishing}`,
         `Legit score: ${legit}`,
-        `Behavior mode: ${escapeHtml((data.behavior||{}).mode || "-")}`,
-        `Behavior score: ${pct((data.behavior||{}).score || 0)}`,
-        `Redirects: ${Array.isArray((data.behavior||{}).redirect_chain) ? (data.behavior.redirect_chain.length - 1) : 0}`,
-        `DOM mutation score: ${pct((data.behavior||{}).dom_mutation_score || 0)}`,
+        `Behavior mode: ${escapeHtml(behavior.mode || "-")}`,
+        `Behavior score: ${pct(behavior.score || 0)}`,
+        `Redirects: ${httpRedirects + behRedirects}`,
+        `DOM mutation score: ${pct(behavior.dom_mutation_score || 0)}`,
         `Structure match: ${pct((data.structure || {}).score || 0)} (${escapeHtml((data.structure || {}).template || "—")})`,
         `Visual match: ${pct((data.visual || {}).score || 0)} (${escapeHtml((data.visual || {}).closest || "—")})`
       ].map(x => `<li>${escapeHtml(x)}</li>`).join("");
