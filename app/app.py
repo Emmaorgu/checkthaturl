@@ -4,18 +4,18 @@ import sys
 import glob
 import math
 import re
-import base64
 import socket
-import requests
-import pandas as pd
+from datetime import datetime
+from urllib.parse import urlparse, urlunparse, quote_plus
+
 import joblib
+import pandas as pd
+import requests
 from flask import Flask, render_template, request, jsonify
 from flask_cors import CORS
-from datetime import datetime
-from urllib.parse import urlparse, urlunparse, urljoin, quote_plus
 
 # ------------------------------------------------------------------------------
-# Import project modules (works as script or package)
+# Local imports (work both as a script and as a package)
 # ------------------------------------------------------------------------------
 if __package__ in (None, "",):
     sys.path.insert(0, os.path.dirname(__file__))
@@ -56,16 +56,18 @@ if feedback_bp:
 # ------------------------------------------------------------------------------
 # Tunables / policy
 # ------------------------------------------------------------------------------
-PHISHING_THRESHOLD = 0.70
-LEGIT_THRESHOLD    = 0.30
+PHISHING_THRESHOLD = 0.70   # >= -> Phishing
+LEGIT_THRESHOLD    = 0.30   # <= -> Legitimate
 STRICT_SURFACE_GUARD = True
 STARTUP_EXCEPTION_GUARD = True
-DOMAIN_ONLY_CAN_PHISH = False
+DOMAIN_ONLY_CAN_PHISH = False  # domain-only signals won't produce "Phishing"
 
+# Our own domain bias guards
 CTU_SOFT_WHITELIST_SELF = os.getenv("CTU_SOFT_WHITELIST_SELF", "1") == "1"
 OUR_HOSTS = {"checkthaturl.com", "www.checkthaturl.com"}
 LOCAL_TEMPLATE_INDEX = os.path.join(os.path.dirname(__file__), "templates", "index.html")
 
+# Behavior mode (auto/requests/off) used by replay_engine
 CTU_BEHAVIOR_MODE = os.getenv("CTU_BEHAVIOR_MODE", "auto")
 
 DEFAULT_HEADERS = {
@@ -76,8 +78,11 @@ DEFAULT_HEADERS = {
     "Connection": "keep-alive",
 }
 
+# Short URL services we can expand quickly
+KNOWN_SHORTENERS = {"is.gd", "v.gd", "bit.ly", "t.co", "tinyurl.com", "goo.gl", "ow.ly", "buff.ly"}
+
 # ------------------------------------------------------------------------------
-# Model
+# Model loading (pick latest timestamped)
 # ------------------------------------------------------------------------------
 def _latest_model_path():
     model_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'model'))
@@ -123,14 +128,8 @@ def _is_our_domain(u: str) -> bool:
     except Exception:
         return False
 
-def to_http(u: str) -> str:
-    p = urlparse(u)
-    if p.scheme == "https":
-        return urlunparse(("http", p.netloc, p.path, p.params, p.query, p.fragment))
-    return u
-
 def resolve_url(raw_url: str | None) -> str | None:
-    """Normalize user text to a URL. Prefer https:// and support bare domains/ //host."""
+    """Ensure we have an absolute URL; default to https:// when only a domain is given."""
     if not raw_url:
         return None
     u = raw_url.strip()
@@ -139,6 +138,12 @@ def resolve_url(raw_url: str | None) -> str | None:
     if u.startswith("//"):
         return "https:" + u
     return "https://" + u
+
+def to_http(u: str) -> str:
+    p = urlparse(u)
+    if p.scheme == "https":
+        return urlunparse(("http", p.netloc, p.path, p.params, p.query, p.fragment))
+    return u
 
 def choose_verdict(p_phish: float) -> str:
     if p_phish >= PHISHING_THRESHOLD: return "Phishing"
@@ -184,6 +189,7 @@ def _group_reasons(reasons):
 def guarded_verdict(p_phish: float, feats: dict, behavior_score: float = 0.0) -> str:
     base = choose_verdict(p_phish)
 
+    # Count signals
     surface = (
         int(feats.get("is_new_domain", 0) == 1) +
         int(feats.get("has_https", 1) == 0) +
@@ -196,12 +202,15 @@ def guarded_verdict(p_phish: float, feats: dict, behavior_score: float = 0.0) ->
                    or float(feats.get("external_link_ratio", 0)) > 0.50
     behavior_sig = float(behavior_score) >= 0.25
 
+    # Domain-only demotion
     if not DOMAIN_ONLY_CAN_PHISH and base == "Phishing" and not (content_sig or link_sig or behavior_sig or non_surface):
         return "Suspicious"
 
+    # Surface guard
     if STRICT_SURFACE_GUARD and base == "Phishing" and non_surface == 0 and surface > 0:
         return "Suspicious" if p_phish >= 0.45 else "Legitimate"
 
+    # Startup exception guard
     if STARTUP_EXCEPTION_GUARD and base == "Phishing" and feats.get("startup_like", 0) == 1 \
        and feats.get("is_new_domain", 0) == 1 and non_surface <= 1 and p_phish < 0.85:
         return "Suspicious"
@@ -222,13 +231,39 @@ def compute_category_scores(feats: dict, behavior_score: float) -> dict:
 
     behavior = clip01(behavior_score)
 
-    return {"domain": round(domain, 3), "link": round(link, 3), "content": round(content, 3), "behavior": round(behavior, 3)}
+    return {
+        "domain": round(domain, 3),
+        "link": round(link, 3),
+        "content": round(content, 3),
+        "behavior": round(behavior, 3),
+    }
 
-# --------------------------- Diagnostics & utilities --------------------------
-KNOWN_SHORTENERS = {"is.gd", "v.gd", "bit.ly", "t.co", "tinyurl.com", "goo.gl", "ow.ly", "buff.ly"}
+# ---------- Shorteners ----------
+def expand_short_url(u: str) -> str | None:
+    """Expand well-known short URLs quickly."""
+    host = urlparse(u).netloc.lower().split(":")[0]
+    try:
+        # is.gd / v.gd API is reliable
+        if host in {"is.gd", "v.gd"}:
+            api = f"https://is.gd/forward.php?format=simple&shorturl={quote_plus(u)}"
+            r = requests.get(api, timeout=6)
+            if r.ok:
+                dst = (r.text or "").strip()
+                if dst.startswith(("http://", "https://")):
+                    return dst
+        # generic HEAD (no redirects) to read Location
+        r = requests.head(u, allow_redirects=False, timeout=6)
+        if 300 <= r.status_code < 400 and "Location" in r.headers:
+            dst = r.headers["Location"].strip()
+            if dst.startswith(("http://", "https://")):
+                return dst
+    except requests.RequestException:
+        pass
+    return None
 
+# ---------- Diagnostics ----------
 def dns_preflight(u: str) -> dict:
-    """Resolve host before fetching; tell user if DNS is the problem."""
+    """Quick DNS sanity check to separate DNS failures from HTTP failures."""
     try:
         host = urlparse(u).netloc.split(":")[0]
         socket.getaddrinfo(host, 443)
@@ -240,16 +275,12 @@ def dns_preflight(u: str) -> dict:
         return {"ok": False, "label": "DNS error"}
 
 def diag_label_from_exception(e: Exception) -> str:
-    if isinstance(e, requests.exceptions.Timeout):
-        return "Connection timed out"
-    if isinstance(e, requests.exceptions.SSLError):
-        return "TLS handshake failed"
-    if isinstance(e, requests.exceptions.ConnectionError):
-        return "Connection error"
+    if isinstance(e, requests.exceptions.Timeout):          return "Connection timed out"
+    if isinstance(e, requests.exceptions.SSLError):         return "TLS handshake failed"
+    if isinstance(e, requests.exceptions.ConnectionError):  return "Connection error"
     return "Network error"
 
 def waf_hint(headers: dict, status: int) -> str | None:
-    """Best-effort hint about who blocked us (403/401)."""
     if not headers:
         return None
     h = {str(k).lower(): str(v).lower() for k, v in headers.items()}
@@ -262,27 +293,7 @@ def waf_hint(headers: dict, status: int) -> str | None:
             return "Blocked by site firewall (Sucuri)"
     return None
 
-def expand_short_url(u: str) -> str | None:
-    """Resolve popular shorteners first (is.gd/v.gd API or single-hop HEAD)."""
-    host = urlparse(u).netloc.lower().split(":")[0]
-    try:
-        if host in {"is.gd", "v.gd"}:
-            api = f"https://is.gd/forward.php?format=simple&shorturl={quote_plus(u)}"
-            r = requests.get(api, timeout=6)
-            if r.ok:
-                dst = r.text.strip()
-                if dst.startswith(("http://", "https://")):
-                    return dst
-        r = requests.head(u, allow_redirects=False, timeout=6)
-        if 300 <= r.status_code < 400 and "Location" in r.headers:
-            dst = r.headers["Location"].strip()
-            if dst.startswith(("http://", "https://")):
-                return dst
-    except requests.RequestException:
-        pass
-    return None
-
-# ------------------------- Neutral/Unreachable responses ----------------------
+# ---------- Neutral responses ----------
 def neutral_response(url: str, verdict: str, msg: str, diag: dict | None = None):
     return jsonify({
         "url": url,
@@ -297,11 +308,11 @@ def neutral_response(url: str, verdict: str, msg: str, diag: dict | None = None)
         "link_risks": [],
         "behavior_risks": [],
         "features_triggered": [],
-        "category_scores": {"domain":0,"content":0,"link":0,"behavior":0},
+        "category_scores": {"domain": 0, "content": 0, "link": 0, "behavior": 0},
         "explanations": {"domain": [], "link": [], "content": [], "behavior": [], "summary": msg},
-        "behavior": {"mode":"disabled","score":0.0,"events":[]},
-        "structure": {"score":0.0, "template":None},
-        "visual": {"score":0.0, "closest":None},
+        "behavior": {"mode": "disabled", "score": 0.0, "events": []},
+        "structure": {"score": 0.0, "template": None},
+        "visual": {"score": 0.0, "closest": None},
         "policy": {
             "strict_surface_guard": STRICT_SURFACE_GUARD,
             "startup_exception_guard": STARTUP_EXCEPTION_GUARD,
@@ -312,63 +323,27 @@ def neutral_response(url: str, verdict: str, msg: str, diag: dict | None = None)
 
 def unreachable_response(url: str, diag_label: str | None = None):
     return neutral_response(
-        url,
-        "Unreachable",
+        url, "Unreachable",
         "We couldn’t reach this site (DNS/host/timeout). No phishing verdict given because content wasn’t available.",
         {"label": diag_label} if diag_label else None
     )
 
-# ----------------------------- JS redirect scanners ---------------------------
-# Broad patterns (inline & external)
-JS_LOCATION_RE = re.compile(
-    r"(?:window|document|self|top)?\s*\.?\s*location\.(?:href|assign|replace)\s*=",
-    re.I,
-)
-JS_TIMEOUT_REDIRECT_RE = re.compile(
-    r"setTimeout\s*\(\s*function\s*\([^)]*\)\s*{[^}]*location\.(?:href|assign|replace)\s*=",
-    re.I | re.S,
-)
-ATOB_RE = re.compile(r"atob\(['\"]([A-Za-z0-9+/=]{12,})['\"]\)", re.I)
-
-def scan_external_scripts_for_redirects(base_url: str, html: str, headers: dict) -> int:
+# ---------- Content quality gate ----------
+def meaningful_html_metrics(html: str) -> dict:
     """
-    Fetch up to 3 external scripts (size <= 150 KB each) and scan for redirect patterns.
-    Return number of client-side redirect hints found.
+    Return {ok, bytes, words}. ok=True if HTML looks substantial enough to analyze.
+    This avoids misleading content/link reasons on tiny placeholders.
     """
-    found = 0
     if not html:
-        return 0
-    try:
-        srcs = re.findall(r'<script[^>]+src=["\']([^"\']+)["\']', html, re.I)
-        checked = 0
-        for src in srcs:
-            if checked >= 3:
-                break
-            js_url = urljoin(base_url, src)
-            try:
-                jr = requests.get(js_url, timeout=6, headers=headers)
-                if not jr.ok:
-                    continue
-                if int(jr.headers.get("Content-Length", "0") or 0) > 150_000:
-                    continue
-                js = jr.text or ""
-                if JS_LOCATION_RE.search(js) or JS_TIMEOUT_REDIRECT_RE.search(js):
-                    found += 1
-                else:
-                    for m in ATOB_RE.findall(js):
-                        try:
-                            decoded = base64.b64decode(m + "==").decode("utf-8", "ignore")
-                            if decoded.strip().startswith(("http://", "https://")):
-                                found += 1
-                                break
-                        except Exception:
-                            pass
-                checked += 1
-            except requests.RequestException:
-                continue
-    except Exception:
-        pass
-    return found
+        return {"ok": False, "bytes": 0, "words": 0}
+    # remove scripts/styles, then strip tags
+    stripped = re.sub(r"(?is)<(script|style)[^>]*>.*?</\1>", " ", html)
+    stripped = re.sub(r"(?s)<[^>]+>", " ", stripped)
+    words = re.findall(r"[A-Za-z]{3,}", stripped)
+    b = len(html or "")
+    w = len(words)
+    ok = (b >= 600 and w >= 80)  # conservative threshold
+    return {"ok": ok, "bytes": b, "words": w}
 
 # ------------------------------------------------------------------------------
 # API
@@ -377,15 +352,15 @@ def scan_external_scripts_for_redirects(base_url: str, html: str, headers: dict)
 def check_url():
     try:
         data = request.json or {}
-        url = (data.get("url") or "").strip()
-        if not url:
+        raw = (data.get("url") or "").strip()
+        if not raw:
             return jsonify({"error": "No URL provided"}), 400
 
-        # Normalize & expand shorteners
-        url = resolve_url(url)
+        url = resolve_url(raw)
         if not url:
             return unreachable_response("", "Invalid URL")
 
+        # Expand obvious shorteners
         host0 = urlparse(url).netloc.lower().split(":")[0]
         if host0 in KNOWN_SHORTENERS:
             expanded = expand_short_url(url)
@@ -398,10 +373,9 @@ def check_url():
             return unreachable_response(url, pre.get("label") or "DNS error")
 
         html_content = ""
-        reasons: list[str] = []
         OUR_SCAN = _is_our_domain(url)
 
-        # Self-scan shortcut
+        # Use local template for our own domain (no penalty if missing)
         if OUR_SCAN:
             try:
                 with open(LOCAL_TEMPLATE_INDEX, "r", encoding="utf-8") as f:
@@ -409,19 +383,18 @@ def check_url():
             except Exception:
                 html_content = ""
 
-        # Fetch
+        # Network fetch if still empty
         r = None
         if not html_content:
             try:
                 r = requests.get(url, headers=DEFAULT_HEADERS, timeout=10, allow_redirects=True)
-                status = r.status_code
             except (requests.exceptions.SSLError,
                     requests.exceptions.ConnectionError,
                     requests.exceptions.Timeout) as e:
+                # Try HTTP fallback if https fails
                 if url.startswith("https://"):
                     try:
                         r = requests.get(to_http(url), headers=DEFAULT_HEADERS, timeout=10, allow_redirects=True)
-                        status = r.status_code
                         url = r.url
                     except requests.RequestException:
                         return unreachable_response(url, diag_label_from_exception(e) + " (https and http)")
@@ -430,11 +403,22 @@ def check_url():
             except requests.RequestException as e:
                 return unreachable_response(url, diag_label_from_exception(e))
 
+            status = r.status_code
             if 200 <= status < 300:
-                html_content = r.text
-                url = r.url
+                ctype = (r.headers or {}).get("Content-Type", "").lower()
+                html_content = r.text or ""
+                metrics = meaningful_html_metrics(html_content)
+                if ctype and "text/html" not in ctype:
+                    return neutral_response(url, "Unreachable",
+                        "The site responded with a non-HTML content type, so we couldn’t analyze it.",
+                        {"label": f"Content-Type: {ctype}"})
+                if not metrics["ok"]:
+                    return neutral_response(url, "Unreachable",
+                        "The site responded but no meaningful page content was available (blank/placeholder). No phishing verdict given.",
+                        {"label": f"{metrics['bytes']} bytes / {metrics['words']} words"})
+                url = r.url  # final URL after redirects
             else:
-                label = f"HTTP {status} {r.reason or ''}".strip()
+                label = f"HTTP {status} {(r.reason or '').strip()}"
                 hint = waf_hint(getattr(r, "headers", {}), status)
                 if status in (401, 403):
                     return neutral_response(url, "Blocked",
@@ -450,31 +434,30 @@ def check_url():
                         {"label": "HTTP 429 Too Many Requests"})
                 if 400 <= status < 500:
                     return neutral_response(url, "Blocked",
-                        f"The site refused analysis (HTTP {status}).",
-                        {"label": label})
+                        f"The site refused analysis (HTTP {status}).", {"label": label})
                 if 500 <= status < 600:
                     return neutral_response(url, "Server Error",
-                        f"The site responded with a server error (HTTP {status}).",
-                        {"label": label})
+                        f"The site responded with a server error (HTTP {status}).", {"label": label})
 
-        # ---------- Feature extraction ----------
+        # Feature extraction
         features = extract_features(url, html_content)
         features.pop("registrar_name", None)
 
+        # Neutralize surface-only bias on our own domain
         if OUR_SCAN and CTU_SOFT_WHITELIST_SELF:
             for k in ("is_new_domain", "suspicious_tld"):
                 features[k] = 0
 
         df = align_to_model(pd.DataFrame([features]), model)
 
-        # ---------- Model inference ----------
+        # Model inference
         proba = model.predict_proba(df)[0]
         p_phish = float(dict(zip(model.classes_, proba)).get(1, 0.0))
         phishing_score = round(p_phish * 100.0, 2)
         legit_score    = round((1.0 - p_phish) * 100.0, 2)
         confidence     = round(100 * (1 - math.exp(-4 * abs(p_phish - 0.5))), 1)
 
-        # ---------- Behavior ----------
+        # Behavior (guarded)
         behavior = {"mode": "disabled", "score": 0.0, "events": []}
         try:
             if CTU_BEHAVIOR_MODE != "off":
@@ -482,19 +465,16 @@ def check_url():
         except Exception as e:
             behavior = {"mode": "error", "score": 0.0, "events": [f"behavior engine unavailable: {type(e).__name__}"]}
 
-        # Merge HTTP redirects from requests history
+        # Merge network-level redirects into behavior diagnostics
         try:
             if r is not None:
-                http_history   = list(getattr(r, "history", []) or [])
-                http_redirects = len(http_history)
-                http_chain     = [resp.headers.get("Location") or resp.url for resp in http_history] + [r.url]
+                hist = list(getattr(r, "history", []) or [])
+                http_redirects = len(hist)
+                chain = [resp.headers.get("Location") or resp.url for resp in hist] + [r.url]
                 if http_redirects > 0:
-                    behavior.setdefault("events", [])
+                    behavior.setdefault("events", []).append(f"↪ HTTP redirect chain length {http_redirects}.")
                     behavior["http_redirects"] = http_redirects
-                    if not behavior.get("redirect_chain"):
-                        behavior["redirect_chain"] = http_chain
-                    behavior["events"].append(f"↪ HTTP redirect chain length {http_redirects}.")
-                # Header-based refresh (rare)
+                    behavior.setdefault("redirect_chain", chain)
                 refresh = (r.headers or {}).get("Refresh") or (r.headers or {}).get("refresh")
                 if refresh and re.search(r'url\s*=\s*', refresh, re.I):
                     behavior["client_redirects"] = behavior.get("client_redirects", 0) + 1
@@ -502,96 +482,73 @@ def check_url():
         except Exception:
             pass
 
-        # Detect client-side redirects in HTML (meta refresh / JS patterns)
-        try:
-            if html_content:
-                # meta refresh (URL or url forms)
-                if re.search(r'<meta[^>]+http-equiv=["\']?\s*refresh\s*["\']?[^>]*content=["\']?\s*\d+\s*;\s*url\s*=', html_content, re.I):
-                    behavior["client_redirects"] = behavior.get("client_redirects", 0) + 1
-                    behavior.setdefault("events", []).append("↪ Meta refresh redirect in HTML.")
-                # JS location patterns
-                if JS_LOCATION_RE.search(html_content) or JS_TIMEOUT_REDIRECT_RE.search(html_content):
-                    behavior["client_redirects"] = behavior.get("client_redirects", 0) + 1
-                    behavior.setdefault("events", []).append("↪ JavaScript redirect pattern in HTML.")
-                # atob(...) inline
-                for m in ATOB_RE.findall(html_content):
-                    try:
-                        decoded = base64.b64decode(m + "==").decode("utf-8", "ignore")
-                        if decoded.strip().startswith(("http://","https://")):
-                            behavior["client_redirects"] = behavior.get("client_redirects", 0) + 1
-                            behavior.setdefault("events", []).append("↪ Redirect target (decoded from atob) in HTML.")
-                            break
-                    except Exception:
-                        pass
-                # external scripts (limited)
-                ext_hits = scan_external_scripts_for_redirects(url, html_content, DEFAULT_HEADERS)
-                if ext_hits > 0:
-                    behavior["client_redirects"] = behavior.get("client_redirects", 0) + ext_hits
-                    behavior.setdefault("events", []).append("↪ Redirect pattern found in external script(s).")
-        except Exception:
-            pass
-
-        behavior_score = float(behavior.get("score", 0.0))
-
-        # ---------- DOM/Visual ----------
+        # DOM similarity (guarded)
         structure = {"score": 0.0, "template": None}
         try:
             structure = structure_similarity(html_content or "")
-            if float(structure.get("score", 0.0)) >= 0.85 and structure.get("template"):
-                reasons.append(f"🧩 DOM layout highly similar to template '{structure.get('template')}'.")
         except Exception:
-            structure = {"score": 0.0, "template": None}
+            pass
 
+        # Visual similarity (guarded)
         visual = {"score": 0.0, "closest": None}
         try:
             visual = visual_similarity(url)
-            if float(visual.get("score", 0.0)) >= 0.90 and visual.get("closest"):
-                reasons.append(f"🖼️ Visual appearance matches known template '{visual.get('closest')}'.")
         except Exception:
-            visual = {"score": 0.0, "closest": None}
+            pass
 
-        # ---------- Score + verdict ----------
+        # Category + verdict with guard rails
+        behavior_score = float(behavior.get("score", 0.0))
         category_scores = compute_category_scores(features, behavior_score)
         verdict = guarded_verdict(p_phish, features, behavior_score)
 
-        human_reasons = []
-        if verdict in ("Phishing", "Suspicious"):
-            if features.get("suspicious_keyword_found"): human_reasons.append("🔑 Suspicious keywords present.")
-            if features.get("suspicious_tld"):           human_reasons.append("🌐 Suspicious TLD.")
-            if features.get("domain_entropy", 0) > 4.0:  human_reasons.append("🎲 Domain name has high entropy.")
-            if features.get("num_forms", 0) > 0:         human_reasons.append("📝 Form(s) found; potential credential capture.")
-            if features.get("has_password_field"):       human_reasons.append("🔒 Password field present.")
-            if features.get("keyword_density", 0) > 0.02: human_reasons.append("📌 Elevated phishing keyword density.")
-            if features.get("duplicate_phrases", 0) > 1: human_reasons.append("📋 Repeating suspicious phrases.")
-            if features.get("mismatched_anchor_ratio", 0) > 0.3: human_reasons.append("🔗 Anchor text vs link mismatch.")
-            if features.get("link_density", 0) > 0.4:    human_reasons.append("🌐 Link density is unusually high.")
-            if features.get("external_link_ratio", 0) > 0.5: human_reasons.append("🌍 Too many external links.")
-            if sum([features.get(f"tfidf_{i}", 0) for i in range(20)]) < 0.1 and not _is_our_domain(url):
-                human_reasons.append("📉 Low informational content.")
-            if features.get("has_js_timer") or features.get("has_html_timer"):
-                human_reasons.append("⏳ Urgency timer detected.")
+        # ---------------- Human-readable reasons ----------------
+        reasons = []
+        metrics = meaningful_html_metrics(html_content)
+
+        if verdict in ("Phishing", "Suspicious") and metrics["ok"]:
+            # Domain/content/link cues
+            if features.get("suspicious_keyword_found"): reasons.append("🔑 Suspicious keywords present.")
+            if features.get("suspicious_tld"):           reasons.append("🌐 Suspicious TLD.")
+            if features.get("domain_entropy", 0) > 4.0:  reasons.append("🎲 Domain name has high entropy.")
+            if features.get("num_forms", 0) > 0:         reasons.append("📝 Form(s) found; potential credential capture.")
+            if features.get("has_password_field"):       reasons.append("🔒 Password field present.")
+            if features.get("keyword_density", 0) > 0.02: reasons.append("📌 Elevated phishing keyword density.")
+            if features.get("duplicate_phrases", 0) > 1: reasons.append("📋 Repeating suspicious phrases.")
+            if features.get("mismatched_anchor_ratio", 0) > 0.3: reasons.append("🔗 Anchor text vs link mismatch.")
+            if features.get("link_density", 0) > 0.4:    reasons.append("🌐 Link density is unusually high.")
+            if features.get("external_link_ratio", 0) > 0.5: reasons.append("🌍 Too many external links.")
+            if sum([features.get(f"tfidf_{i}", 0) for i in range(20)]) < 0.1 and not OUR_SCAN:
+                reasons.append("📉 Low informational content.")
+
+            # STRICT TIMER GATING:
+            # Only show "Urgency timer" when there is timer-like markup AND behavior evidence.
+            has_meta_refresh = bool(re.search(r'<meta[^>]+http-equiv=["\']?\s*refresh', html_content or "", re.I))
+            timer_flag = bool(features.get("has_js_timer") or features.get("has_html_timer") or has_meta_refresh)
+
+            behavior_evidence = (
+                int(behavior.get("js_redirects_detected", 0)) > 0 or
+                int(behavior.get("post_action_redirects", 0)) > 0 or
+                int(behavior.get("client_redirects", 0) or 0) > 0
+            )
+            if timer_flag and behavior_evidence:
+                reasons.append("⏳ Urgency timer detected (confirmed by behavior).")
+
+            # Behavior-driven extras
             if int(behavior.get("post_action_redirects", 0)) > 0:
-                human_reasons.append("➡️ Redirect occurred after CTA/form action (behavior).")
+                reasons.append("➡️ Redirect occurred after CTA/form action (behavior).")
             if int(behavior.get("js_redirects_detected", 0)) > 0:
-                human_reasons.append("↪ JS-driven redirect detected (behavior).")
+                reasons.append("↪ JS-driven redirect detected (behavior).")
             if float(behavior.get("dom_mutation_score", 0)) >= 0.05:
-                human_reasons.append("🧪 Significant DOM mutation after load (behavior).")
+                reasons.append("🧪 Significant DOM mutation after load (behavior).")
 
-        domain_risks, content_risks, link_risks, behavior_risks, _ = _group_reasons(human_reasons)
+        # Group reasons
+        domain_risks, content_risks, link_risks, behavior_risks, _ = _group_reasons(reasons)
 
-        if verdict in ("Phishing", "Suspicious") and not (domain_risks or content_risks or link_risks or behavior_risks):
-            if features.get("is_new_domain"):          domain_risks.append("🆕 Recently-registered domain.")
-            if features.get("suspicious_tld"):         domain_risks.append("🌐 Suspicious/rare TLD.")
-            if features.get("domain_entropy", 0) > 4:  domain_risks.append("🎲 Unnatural/complex domain pattern.")
-            if float(features.get("phish_context_score", 0)) >= 0.35:
-                content_risks.append("🧠 NLP flagged phishing-like phrasing.")
-            if not (domain_risks or content_risks or link_risks or behavior_risks):
-                domain_risks.append("⚠ Model confidence came primarily from domain-only signals; content/link/behavior had no red flags.")
-
+        # Explanation text
         summary_bits = []
         if features.get("startup_like"):                 summary_bits.append("startup-like pattern detected")
         if features.get("is_new_domain"):                summary_bits.append("young domain")
-        if features.get("non_surface_red_flags", 0) > 0: summary_bits.append(f"{int(features.get('non_surface_red_flags', 0))} non-surface signal(s)")
+        if int(features.get("non_surface_red_flags", 0)) > 0: summary_bits.append(f"{int(features.get('non_surface_red_flags', 0))} non-surface signal(s)")
         if behavior_score >= 0.35:                       summary_bits.append("dynamic behavior observed")
         summary_tail = (" • " + ", ".join(summary_bits)) if summary_bits else ""
 
@@ -646,10 +603,8 @@ def check_url():
         })
 
     except Exception as e:
-        return unreachable_response(
-            request.json.get("url") if request.is_json else "",
-            f"Scanner error: {type(e).__name__}"
-        )
+        # Last-resort safety: never 500 the UI
+        return unreachable_response(request.json.get("url") if request.is_json else "", f"Scanner error: {type(e).__name__}")
 
 # ------------------------------------------------------------------------------
 # Pages
