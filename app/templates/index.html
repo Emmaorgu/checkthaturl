@@ -5,28 +5,23 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>CheckThatURL — Scan before you click</title>
 
-  <!-- Hints -->
   <link rel="preconnect" href="https://cdn.tailwindcss.com" crossorigin>
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 
-  <!-- Canonical + robots -->
   <link rel="canonical" href="{{ request.url }}" />
   <meta name="robots" content="index,follow" />
 
-  <!-- Open Graph -->
   <meta property="og:type" content="website" />
   <meta property="og:url" content="{{ request.url }}" />
   <meta property="og:title" content="CheckThatURL — Scan before you click" />
   <meta property="og:description" content="Instant AI phishing checks. Paste a link, get a verdict, and see why." />
   <meta property="og:image" content="{{ request.url_root.rstrip('/') }}/static/og.png" />
 
-  <!-- Twitter -->
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="CheckThatURL — Scan before you click" />
   <meta name="twitter:description" content="Instant AI phishing checks. Paste a link, get a verdict, and see why." />
   <meta name="twitter:image" content="{{ request.url_root.rstrip('/') }}/static/og.png" />
 
-  <!-- Tailwind -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = { theme: { extend: {
@@ -36,7 +31,6 @@
       }
     } } }
   </script>
-  <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <meta name="description" content="Instant AI phishing checks. Paste a link, get a verdict, and see why." />
@@ -52,7 +46,6 @@
     @media (max-width:640px){ .glass{ backdrop-filter: blur(6px) } }
   </style>
 
-  <!-- JSON-LD -->
   <script type="application/ld+json">
   {"@context":"https://schema.org","@type":"Organization","name":"CheckThatURL","url":"{{ request.url_root }}","logo":"{{ request.url_root.rstrip('/') }}/static/og.png","sameAs":[]}
   </script>
@@ -62,7 +55,6 @@
 </head>
 
 <body class="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-white selection:bg-brand-500 selection:text-white pt-[env(safe-area-inset-top)]">
-  <!-- Nav -->
   <header class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
     <a class="flex items-center gap-2 font-semibold tracking-tight" href="/"><span class="text-brand-400">●</span> CheckThatURL</a>
     <nav class="hidden sm:flex items-center gap-5 text-sm text-slate-300">
@@ -81,7 +73,6 @@
   </div>
   {% endif %}
 
-  <!-- Privacy banner -->
   <div class="max-w-7xl mx-auto px-4 mt-2">
     <div class="glass rounded-xl ring-1 ring-white/10 p-2.5 text-xs sm:text-sm text-slate-200">
       🔐 <strong>Privacy:</strong> We <strong>don’t store</strong> your URLs or page content. Scans are ephemeral and processed in-memory.
@@ -89,7 +80,6 @@
     </div>
   </div>
 
-  <!-- Hero -->
   <section class="max-w-7xl mx-auto px-4 pt-5 pb-2">
     <div class="grid md:grid-cols-2 gap-5 items-start">
       <div>
@@ -97,10 +87,9 @@
           Scan any link. <span class="text-brand-400">Instant</span> verdicts. Clear reasons.
         </h1>
         <p class="mt-2.5 text-slate-300 text-sm sm:text-base">
-          AI-powered phishing detection for people who refuse to get scammed.
+          AI-powered phishing detection system to protect you from fraud, scams, and suspicious links.
         </p>
 
-        <!-- Form -->
         <form id="check-form" class="mt-4 glass rounded-2xl p-2 ring-1 ring-white/10">
           <div class="flex flex-col md:flex-row gap-2 md:items-center">
             <div class="relative flex-1">
@@ -113,7 +102,6 @@
           <div id="url-feedback" class="text-xs sm:text-sm mt-2 text-slate-400"></div>
         </form>
 
-        <!-- Recent -->
         <div id="history" class="mt-3 text-xs sm:text-sm text-slate-400"></div>
       </div>
 
@@ -126,6 +114,7 @@
 
         <h2 id="verdict-title" class="mt-1.5 text-xl sm:text-2xl font-bold">—</h2>
         <p id="explanation" class="mt-1.5 text-[13px] text-slate-300">—</p>
+        <p id="diag-line" class="mt-1 text-[12px] text-slate-400 hidden"></p>  <!-- NEW: diagnostic hint -->
         <p id="summary-line" class="mt-1 text-[12px] text-slate-400"></p>
 
         <!-- Risk groups (compact) -->
@@ -214,7 +203,7 @@
           </div>
         </div>
 
-        <!-- Structural & Visual similarity quick view -->
+        <!-- Structural & Visual -->
         <div class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-2">
           <div class="glass rounded-lg p-2.5 ring-1 ring-white/10">
             <div class="flex items-center justify-between">
@@ -236,20 +225,19 @@
           </div>
         </div>
 
-        <!-- Chart (compact height to keep everything in view) -->
+        <!-- Chart -->
         <div id="chart-wrap" class="mt-3">
           <div class="relative w-full h-44 sm:h-56">
             <canvas id="confidenceChart"></canvas>
           </div>
         </div>
 
-        <!-- Raw list -->
         <details class="mt-3 text-xs text-slate-400">
           <summary class="cursor-pointer">See raw checks</summary>
           <ul id="raw-list" class="mt-1.5 space-y-1"></ul>
         </details>
 
-        <!-- Feedback row (moved to bottom; shown only after scan completes) -->
+        <!-- Feedback (bottom, after scan) -->
         <div id="feedback-row" class="mt-3 hidden">
           <div class="flex flex-wrap items-center gap-2 text-sm">
             <span class="text-slate-300">Was this result helpful?</span>
@@ -265,7 +253,6 @@
     </div>
   </section>
 
-  <!-- How it works -->
   <section id="how" class="max-w-7xl mx-auto px-4 py-8">
     <h3 class="text-2xl font-bold mb-5">How it works</h3>
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -287,7 +274,6 @@
     </div>
   </section>
 
-  <!-- CTA -->
   <section class="max-w-7xl mx-auto px-4 pb-10">
     <div class="glass rounded-2xl p-5 ring-1 ring-white/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
       <div>
@@ -298,7 +284,6 @@
     </div>
   </section>
 
-  <!-- Footer -->
   <footer class="border-t border-white/10">
     <div class="max-w-7xl mx-auto px-4 py-6 text-xs sm:text-sm text-slate-400 flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
       <p>© 2025 CheckThatURL. Built by Emmanuel Orgu.</p>
@@ -322,6 +307,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const verdictTitle = document.getElementById("verdict-title");
   const badge = document.getElementById("badge");
   const explanation = document.getElementById("explanation");
+  const diagLine = document.getElementById("diag-line");   // NEW
   const summaryLine = document.getElementById("summary-line");
 
   const domainList = document.getElementById("domain-risks");
@@ -336,7 +322,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const feedbackRow = document.getElementById("feedback-row");
   let chartInstance;
 
-  // Feedback controls
   const fbYes = document.getElementById("fb-yes");
   const fbNo  = document.getElementById("fb-no");
   const reportFP = document.getElementById("report-fp");
@@ -344,7 +329,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const fbToast = document.getElementById("fb-toast");
   let lastScan = { url: "", verdict: "" };
 
-  // Category bars
   const scoreEls = {
     domain:   { bar: document.getElementById("score-domain-bar"),   text: document.getElementById("score-domain-text") },
     content:  { bar: document.getElementById("score-content-bar"),  text: document.getElementById("score-content-text") },
@@ -352,7 +336,6 @@ document.addEventListener("DOMContentLoaded", () => {
     behavior: { bar: document.getElementById("score-behavior-bar"), text: document.getElementById("score-behavior-text") },
   };
 
-  // Structural/visual text spans
   const domScoreText = document.getElementById("domScoreText");
   const domTemplateText = document.getElementById("domTemplateText");
   const visualScoreText = document.getElementById("visualScoreText");
@@ -381,7 +364,6 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   loadHistory();
 
-  // DO NOT auto-submit on history click (user must press Check)
   historyBox.addEventListener("click", (e) => {
     const u = e.target.getAttribute("data-url");
     if (u) { urlInput.value = u; urlInput.focus(); }
@@ -404,7 +386,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (e.target && e.target.textContent) {
       urlInput.value = e.target.textContent;
       suggestionsBox.classList.add("hidden");
-      urlInput.focus(); // user must still press Check/Enter
+      urlInput.focus();
     }
   });
 
@@ -467,7 +449,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // Hook up feedback buttons
   fbYes.addEventListener("click", ()=>sendFeedback("yes"));
   fbNo.addEventListener("click",  ()=>sendFeedback("no"));
   reportFP.addEventListener("click",()=>sendFeedback("fp"));
@@ -485,8 +466,8 @@ document.addEventListener("DOMContentLoaded", () => {
     setBadgeState("Checking");
     verdictTitle.textContent = "Checking…";
     explanation.textContent = "Running static & behavioral checks.";
+    diagLine.classList.add("hidden");
     summaryLine.textContent = "";
-    feedbackRow.classList.add("hidden");
     renderList(domainList, []); renderList(contentList, []); renderList(linkList, []); renderList(behaviorList, []);
     resetCategoryScores();
     if (domScoreText) domScoreText.textContent = "—";
@@ -496,7 +477,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
     rawList.innerHTML = "";
     chartWrap.classList.remove("hidden");
-    // bring results into view immediately
+    feedbackRow.classList.add("hidden");
     smoothScrollTo(resultsCard);
   }
 
@@ -515,28 +496,26 @@ document.addEventListener("DOMContentLoaded", () => {
       });
       const data = await res.json();
 
-      // Remember for feedback (show at the end)
       lastScan = { url: data.url || url, verdict: data.verdict || "" };
 
-      // Handle unreachable verdict cleanly
-      if (data.verdict === "Unreachable") {
-        setBadgeState("Unreachable");
-        verdictTitle.textContent = "Unreachable";
-        explanation.textContent = data.explanation || "We couldn’t reach this site (DNS/host issue). No phishing verdict given.";
+      // Neutral: Unreachable & friends
+      if (["Unreachable","Blocked","Not Found","Rate Limited","Server Error"].includes(data.verdict)) {
+        setBadgeState(data.verdict);
+        verdictTitle.textContent = data.verdict;
+        explanation.textContent = data.explanation || "We couldn’t fetch the site.";
+        const label = data.diagnostic && data.diagnostic.label;
+        if (label) { diagLine.textContent = label; diagLine.classList.remove("hidden"); } else { diagLine.classList.add("hidden"); }
         summaryLine.textContent = "";
-        renderList(domainList, []);
-        renderList(contentList, data.content_risks || ["Site unreachable. No page content to analyze."]);
-        renderList(linkList, []);
-        renderList(behaviorList, []);
+        renderList(domainList, []); renderList(contentList, []); renderList(linkList, []); renderList(behaviorList, []);
         resetCategoryScores();
         if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
         chartWrap.classList.add("hidden");
         rawList.innerHTML = "";
-        feedbackRow.classList.remove("hidden");
-        // Save history
+        // history
         let history = JSON.parse(localStorage.getItem("scanHistory") || "[]");
         if (!history.includes(url)) { history.unshift(url); localStorage.setItem("scanHistory", JSON.stringify(history.slice(0,10))); }
         loadHistory();
+        feedbackRow.classList.remove("hidden");
         return;
       }
 
@@ -544,6 +523,7 @@ document.addEventListener("DOMContentLoaded", () => {
         setBadgeState("Suspicious");
         verdictTitle.textContent = "Error";
         explanation.textContent = data.error;
+        diagLine.classList.add("hidden");
         chartWrap.classList.add("hidden");
         feedbackRow.classList.remove("hidden");
         return;
@@ -553,12 +533,11 @@ document.addEventListener("DOMContentLoaded", () => {
       setBadgeState(v);
       verdictTitle.textContent = v;
       explanation.textContent = data.explanation || "We’ve grouped risk signals below.";
+      diagLine.classList.add("hidden");
 
-      // v2 summary (if present)
       const summary = (data.explanations && data.explanations.summary) ? data.explanations.summary : "";
       summaryLine.textContent = summary;
 
-      // Render risk groups (support legacy + v2)
       const groups = {
         domain_risks:    data.domain_risks    || (data.explanations && data.explanations.domain)    || [],
         content_risks:   data.content_risks   || (data.explanations && data.explanations.content)   || [],
@@ -573,72 +552,54 @@ document.addEventListener("DOMContentLoaded", () => {
       renderList(linkList, groups.link_risks);
       renderList(behaviorList, groups.behavior_risks);
 
-      // Category scores
       renderCategoryScores(data.category_scores || {});
 
-      // Structural & visual quick view
       const s = data.structure || {};
       const vis = data.visual || {};
+      const phishing = Number(data.phishing_score || 0);
+      const legit    = Number(data.legit_score || 0);
+
       if (domScoreText) domScoreText.textContent = s.score !== undefined ? pct(s.score) : "—";
       if (domTemplateText) domTemplateText.textContent = s.template || "—";
       if (visualScoreText) visualScoreText.textContent = vis.score !== undefined ? pct(vis.score) : "—";
       if (visualClosestText) visualClosestText.textContent = vis.closest || "—";
 
-      // Donut chart (red for phishing, green for legit)
-      const phishing = Number(data.phishing_score || 0);
-      const legit    = Number(data.legit_score || 0);
       if (chartInstance) chartInstance.destroy();
-      chartInstance = new Chart(chartCanvas, {
+      const ctx = chartCanvas.getContext("2d");
+      chartInstance = new Chart(ctx, {
         type: "doughnut",
         data: {
           labels: ["Phishing", "Legitimate"],
-          datasets: [{
-            data: [phishing, legit],
-            backgroundColor: ["#ef4444", "#16a34a"],
-            hoverBackgroundColor: ["#dc2626", "#15803d"],
-            borderWidth: 0
-          }]
+          datasets: [{ data: [phishing, legit], backgroundColor: ["#ef4444", "#16a34a"], hoverBackgroundColor: ["#dc2626", "#15803d"], borderWidth: 0 }]
         },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          cutout: "70%",
-          plugins: {
-            legend: { position: "bottom", labels: { color: "#cbd5e1" } },
-            tooltip: { callbacks: { label: (ctx)=> `${ctx.label}: ${ctx.raw}%` } }
-          }
-        }
+        options: { responsive: true, maintainAspectRatio: false, cutout: "70%",
+          plugins: { legend: { position: "bottom", labels: { color: "#cbd5e1" } },
+                     tooltip: { callbacks: { label: (ctx)=> `${ctx.label}: ${ctx.raw}%` } } } }
       });
 
-      // Raw list
-      const behavior = data.behavior || {};
       rawList.innerHTML = [
         `Confidence: ${data.confidence ?? "-"}`,
         `Phishing score: ${phishing}`,
         `Legit score: ${legit}`,
-        `Behavior mode: ${escapeHtml(behavior.mode || "-")}`,
-        `Behavior score: ${pct(behavior.score || 0)}`,
-        `Redirects: ${Array.isArray(behavior.redirect_chain) ? behavior.redirect_chain.length - 1 : 0}`,
-        `DOM mutation score: ${pct(behavior.dom_mutation_score || 0)}`,
+        `Behavior mode: ${escapeHtml((data.behavior||{}).mode || "-")}`,
+        `Behavior score: ${pct((data.behavior||{}).score || 0)}`,
+        `Redirects: ${Array.isArray((data.behavior||{}).redirect_chain) ? (data.behavior.redirect_chain.length - 1) : 0}`,
+        `DOM mutation score: ${pct((data.behavior||{}).dom_mutation_score || 0)}`,
         `Structure match: ${pct((data.structure || {}).score || 0)} (${escapeHtml((data.structure || {}).template || "—")})`,
         `Visual match: ${pct((data.visual || {}).score || 0)} (${escapeHtml((data.visual || {}).closest || "—")})`
       ].map(x => `<li>${escapeHtml(x)}</li>`).join("");
 
-      // History
+      // History + feedback
       let history = JSON.parse(localStorage.getItem("scanHistory") || "[]");
-      if (!history.includes(url)) {
-        history.unshift(url); history = history.slice(0, 10);
-        localStorage.setItem("scanHistory", JSON.stringify(history));
-      }
+      if (!history.includes(url)) { history.unshift(url); localStorage.setItem("scanHistory", JSON.stringify(history.slice(0,10))); }
       loadHistory();
-
-      // Show feedback only after scan completes
       feedbackRow.classList.remove("hidden");
 
     } catch (err) {
       setBadgeState("Unreachable");
       verdictTitle.textContent = "Connection error";
       explanation.textContent = "We couldn’t reach the scanner. Please try again.";
+      diagLine.classList.add("hidden");
       chartWrap.classList.add("hidden");
       feedbackRow.classList.remove("hidden");
     }

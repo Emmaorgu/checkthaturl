@@ -3,6 +3,7 @@ import os
 import sys
 import glob
 import math
+import socket
 import requests
 import pandas as pd
 import joblib
@@ -58,15 +59,12 @@ LEGIT_THRESHOLD    = 0.30   # <= -> Legitimate
 STRICT_SURFACE_GUARD = True
 STARTUP_EXCEPTION_GUARD = True
 
-# Domain-only predictions cannot produce "Phishing"
 DOMAIN_ONLY_CAN_PHISH = False
 
-# Our own domain bias guards
 CTU_SOFT_WHITELIST_SELF = os.getenv("CTU_SOFT_WHITELIST_SELF", "1") == "1"
 OUR_HOSTS = {"checkthaturl.com", "www.checkthaturl.com"}
 LOCAL_TEMPLATE_INDEX = os.path.join(os.path.dirname(__file__), "templates", "index.html")
 
-# Behavior mode (auto/requests/off) used by replay_engine
 CTU_BEHAVIOR_MODE = os.getenv("CTU_BEHAVIOR_MODE", "auto")
 
 # ------------------------------------------------------------------------------
@@ -124,10 +122,8 @@ def to_http(u: str) -> str:
 
 def resolve_url(raw_url: str | None) -> str | None:
     """
-    Always normalize bare domains/hosts to a URL.
-    - Prefer https://
-    - Support protocol-relative //example.com
-    - Do NOT probe with HEAD (some sites block it and we'd misclassify as unreachable)
+    Normalize bare domains/hosts to a URL.
+    Prefer https://, support //example.com, no HEAD probe.
     """
     if not raw_url:
         return None
@@ -136,7 +132,6 @@ def resolve_url(raw_url: str | None) -> str | None:
         return u
     if u.startswith("//"):
         return "https:" + u
-    # If it looks like a domain/host, prepend https://
     return "https://" + u
 
 def choose_verdict(p_phish: float) -> str:
@@ -228,10 +223,30 @@ def compute_category_scores(feats: dict, behavior_score: float) -> dict:
         "behavior": round(behavior, 3),
     }
 
-# ------------------------------------------------------------------------------
-# Neutral/Unreachable responses
-# ------------------------------------------------------------------------------
-def neutral_response(url: str, verdict: str, msg: str):
+# --------------------------- Diagnostics helpers ------------------------------
+def dns_preflight(u: str) -> dict:
+    """Resolve host before fetching; tell user if DNS is the problem."""
+    try:
+        host = urlparse(u).netloc.split(":")[0]
+        socket.getaddrinfo(host, 443)
+        socket.getaddrinfo(host, 80)
+        return {"ok": True, "label": ""}
+    except socket.gaierror:
+        return {"ok": False, "label": "DNS didn’t resolve (NXDOMAIN)"}
+    except Exception:
+        return {"ok": False, "label": "DNS error"}
+
+def diag_label_from_exception(e: Exception) -> str:
+    if isinstance(e, requests.exceptions.Timeout):
+        return "Connection timed out"
+    if isinstance(e, requests.exceptions.SSLError):
+        return "TLS handshake failed"
+    if isinstance(e, requests.exceptions.ConnectionError):
+        return "Connection error"
+    return "Network error"
+
+# ------------------------- Neutral/Unreachable responses ----------------------
+def neutral_response(url: str, verdict: str, msg: str, diag: dict | None = None):
     """Neutral (non-phishing) verdict for reachable-but-not-analyzable or unreachable states."""
     return jsonify({
         "url": url,
@@ -240,6 +255,7 @@ def neutral_response(url: str, verdict: str, msg: str):
         "phishing_score": 0.0,
         "legit_score": 0.0,
         "explanation": msg,
+        "diagnostic": diag or {},     # <-- small, optional hint for the UI
         "domain_risks": [],
         "content_risks": [],
         "link_risks": [],
@@ -258,11 +274,12 @@ def neutral_response(url: str, verdict: str, msg: str):
         "startup_like": 0
     }), 200
 
-def unreachable_response(url: str, _detail: str = ""):
+def unreachable_response(url: str, diag_label: str | None = None):
     return neutral_response(
         url,
         "Unreachable",
-        "We couldn’t reach this site (DNS/host/timeout). No phishing verdict given because content wasn’t available."
+        "We couldn’t reach this site (DNS/host/timeout). No phishing verdict given because content wasn’t available.",
+        {"label": diag_label} if diag_label else None
     )
 
 # ------------------------------------------------------------------------------
@@ -276,16 +293,21 @@ def check_url():
         if not url:
             return jsonify({"error": "No URL provided"}), 400
 
-        # Normalize bare domains/hosts to a URL (prefer https)
+        # Normalize URL
         url = resolve_url(url)
         if not url:
             return unreachable_response("", "Invalid URL")
+
+        # DNS preflight for clearer Unreachable reasons
+        pre = dns_preflight(url)
+        if not pre.get("ok"):
+            return unreachable_response(url, pre.get("label") or "DNS error")
 
         html_content = ""
         reasons: list[str] = []
         OUR_SCAN = _is_our_domain(url)
 
-        # Use local template for our own domain (no penalty if missing)
+        # Use local template for our own domain
         if OUR_SCAN:
             try:
                 with open(LOCAL_TEMPLATE_INDEX, "r", encoding="utf-8") as f:
@@ -293,7 +315,7 @@ def check_url():
             except Exception:
                 html_content = ""
 
-        # Network fetch if still empty (with http fallback on TLS/connect errors)
+        # Fetch (with http fallback for TLS/connect problems)
         if not html_content:
             headers = {
                 "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -307,46 +329,50 @@ def check_url():
                 status = r.status_code
             except (requests.exceptions.SSLError,
                     requests.exceptions.ConnectionError,
-                    requests.exceptions.Timeout):
-                # Try http:// fallback if https:// failed at the transport level
+                    requests.exceptions.Timeout) as e:
+                # try http:// fallback
                 if url.startswith("https://"):
                     try:
                         r = requests.get(to_http(url), headers=headers, timeout=10, allow_redirects=True)
                         status = r.status_code
-                        url = r.url  # keep final URL for reporting
+                        url = r.url
                     except requests.RequestException:
-                        return unreachable_response(url, "Network failure on both https and http")
+                        return unreachable_response(url, diag_label_from_exception(e) + " (https and http)")
                 else:
-                    return unreachable_response(url, "Network failure")
-            except requests.RequestException:
-                return unreachable_response(url, "Network failure")
+                    return unreachable_response(url, diag_label_from_exception(e))
+            except requests.RequestException as e:
+                return unreachable_response(url, diag_label_from_exception(e))
 
-            # Reached the server — map HTTP classes to neutral verdicts
             if 200 <= status < 300:
                 html_content = r.text
-                url = r.url  # final URL after redirects
+                url = r.url
             else:
+                # Map HTTP to neutral with diagnostic
                 if status in (401, 403):
                     return neutral_response(url, "Blocked",
-                        f"Access forbidden by host (HTTP {status}). The site is online but blocked our scanner.")
+                        f"Access forbidden by host (HTTP {status}). The site is online but blocked our scanner.",
+                        {"label": f"HTTP {status} {r.reason or ''}".strip()})
                 if status == 404:
                     return neutral_response(url, "Not Found",
-                        "The site is online but the page path was not found (HTTP 404).")
+                        "The site is online but the page path was not found (HTTP 404).",
+                        {"label": "HTTP 404 Not Found"})
                 if status == 429:
                     return neutral_response(url, "Rate Limited",
-                        "The site is online but rate-limited our request (HTTP 429). Try again later.")
+                        "The site is online but rate-limited our request (HTTP 429). Try again later.",
+                        {"label": "HTTP 429 Too Many Requests"})
                 if 400 <= status < 500:
                     return neutral_response(url, "Blocked",
-                        f"Client-side denial from host (HTTP {status}). The site refused analysis.")
+                        f"Client-side denial from host (HTTP {status}). The site refused analysis.",
+                        {"label": f"HTTP {status} {r.reason or ''}".strip()})
                 if 500 <= status < 600:
                     return neutral_response(url, "Server Error",
-                        f"The site responded with a server error (HTTP {status}).")
+                        f"The site responded with a server error (HTTP {status}).",
+                        {"label": f"HTTP {status} {r.reason or ''}".strip()})
 
         # ---------- Feature extraction ----------
         features = extract_features(url, html_content)
         features.pop("registrar_name", None)
 
-        # Neutralize surface-only bias on our own domain
         if OUR_SCAN and CTU_SOFT_WHITELIST_SELF:
             for k in ("is_new_domain", "suspicious_tld"):
                 features[k] = 0
@@ -360,7 +386,7 @@ def check_url():
         legit_score    = round((1.0 - p_phish) * 100.0, 2)
         confidence     = round(100 * (1 - math.exp(-4 * abs(p_phish - 0.5))), 1)
 
-        # ---------- Behavior (guarded) ----------
+        # ---------- Behavior ----------
         behavior = {"mode": "disabled", "score": 0.0, "events": []}
         try:
             if CTU_BEHAVIOR_MODE != "off":
@@ -369,7 +395,7 @@ def check_url():
             behavior = {"mode": "error", "score": 0.0, "events": [f"behavior engine unavailable: {type(e).__name__}"]}
         behavior_score = float(behavior.get("score", 0.0))
 
-        # ---------- DOM similarity (guarded) ----------
+        # ---------- DOM/Visual ----------
         structure = {"score": 0.0, "template": None}
         try:
             structure = structure_similarity(html_content or "")
@@ -378,7 +404,6 @@ def check_url():
         except Exception:
             structure = {"score": 0.0, "template": None}
 
-        # ---------- Visual similarity (guarded) ----------
         visual = {"score": 0.0, "closest": None}
         try:
             visual = visual_similarity(url)
@@ -387,11 +412,10 @@ def check_url():
         except Exception:
             visual = {"score": 0.0, "closest": None}
 
-        # ---------- Category + verdict with guard rails ----------
+        # ---------- Score + verdict ----------
         category_scores = compute_category_scores(features, behavior_score)
         verdict = guarded_verdict(p_phish, features, behavior_score)
 
-        # Human-readable reasons
         human_reasons = []
         if verdict in ("Phishing", "Suspicious"):
             if features.get("suspicious_keyword_found"): human_reasons.append("🔑 Suspicious keywords present.")
@@ -415,10 +439,8 @@ def check_url():
             if float(behavior.get("dom_mutation_score", 0)) >= 0.05:
                 human_reasons.append("🧪 Significant DOM mutation after load (behavior).")
 
-        # Group reasons
         domain_risks, content_risks, link_risks, behavior_risks, _ = _group_reasons(human_reasons)
 
-        # Fallback reasons if model flags but no grouped reasons
         if verdict in ("Phishing", "Suspicious") and not (domain_risks or content_risks or link_risks or behavior_risks):
             if features.get("is_new_domain"):          domain_risks.append("🆕 Recently-registered domain.")
             if features.get("suspicious_tld"):         domain_risks.append("🌐 Suspicious/rare TLD.")
@@ -428,7 +450,6 @@ def check_url():
             if not (domain_risks or content_risks or link_risks or behavior_risks):
                 domain_risks.append("⚠ Model confidence came primarily from domain-only signals; content/link/behavior had no red flags.")
 
-        # Explanations
         summary_bits = []
         if features.get("startup_like"):                 summary_bits.append("startup-like pattern detected")
         if features.get("is_new_domain"):                summary_bits.append("young domain")
@@ -487,10 +508,8 @@ def check_url():
         })
 
     except Exception as e:
-        # Keep UI stable with a neutral response
-        return neutral_response(
+        return unreachable_response(
             request.json.get("url") if request.is_json else "",
-            "Unreachable",
             f"Scanner error: {type(e).__name__}"
         )
 
