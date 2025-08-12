@@ -10,7 +10,7 @@ import joblib
 from flask import Flask, render_template, request, jsonify
 from flask_cors import CORS
 from datetime import datetime
-from urllib.parse import urlparse, urlunparse
+from urllib.parse import urlparse, urlunparse, quote_plus
 
 # ------------------------------------------------------------------------------
 # Import project modules (works as script or package)
@@ -223,7 +223,9 @@ def compute_category_scores(feats: dict, behavior_score: float) -> dict:
         "behavior": round(behavior, 3),
     }
 
-# --------------------------- Diagnostics helpers ------------------------------
+# --------------------------- Diagnostics & utilities --------------------------
+KNOWN_SHORTENERS = {"is.gd", "v.gd", "bit.ly", "t.co", "tinyurl.com", "goo.gl", "ow.ly", "buff.ly"}
+
 def dns_preflight(u: str) -> dict:
     """Resolve host before fetching; tell user if DNS is the problem."""
     try:
@@ -245,6 +247,43 @@ def diag_label_from_exception(e: Exception) -> str:
         return "Connection error"
     return "Network error"
 
+def waf_hint(headers: dict, status: int) -> str | None:
+    """Best-effort hint about who blocked us (403/401)."""
+    if not headers:
+        return None
+    h = {str(k).lower(): str(v).lower() for k, v in headers.items()}
+    if status in (401, 403):
+        if "cf-ray" in h or ("server" in h and "cloudflare" in h["server"]):
+            return "Blocked by site firewall (Cloudflare)"
+        if any("akamai" in v for v in h.values()):
+            return "Blocked by site firewall (Akamai)"
+        if "x-sucuri-id" in h or "x-sucuri-cache" in h:
+            return "Blocked by site firewall (Sucuri)"
+    return None
+
+def expand_short_url(u: str) -> str | None:
+    """Resolve popular shorteners without heavy fetching; fallback to HEAD-only for first hop."""
+    host = urlparse(u).netloc.lower().split(":")[0]
+    try:
+        # is.gd / v.gd provide a simple resolver API
+        if host in {"is.gd", "v.gd"}:
+            api = f"https://is.gd/forward.php?format=simple&shorturl={quote_plus(u)}"
+            r = requests.get(api, timeout=6)
+            if r.ok:
+                dst = r.text.strip()
+                if dst.startswith(("http://", "https://")):
+                    return dst
+
+        # generic single-hop expand via HEAD (many shorteners allow this)
+        r = requests.head(u, allow_redirects=False, timeout=6)
+        if 300 <= r.status_code < 400 and "Location" in r.headers:
+            dst = r.headers["Location"].strip()
+            if dst.startswith(("http://", "https://")):
+                return dst
+    except requests.RequestException:
+        pass
+    return None
+
 # ------------------------- Neutral/Unreachable responses ----------------------
 def neutral_response(url: str, verdict: str, msg: str, diag: dict | None = None):
     """Neutral (non-phishing) verdict for reachable-but-not-analyzable or unreachable states."""
@@ -255,7 +294,7 @@ def neutral_response(url: str, verdict: str, msg: str, diag: dict | None = None)
         "phishing_score": 0.0,
         "legit_score": 0.0,
         "explanation": msg,
-        "diagnostic": diag or {},     # <-- small, optional hint for the UI
+        "diagnostic": diag or {},
         "domain_risks": [],
         "content_risks": [],
         "link_risks": [],
@@ -293,12 +332,19 @@ def check_url():
         if not url:
             return jsonify({"error": "No URL provided"}), 400
 
-        # Normalize URL
+        # Normalize
         url = resolve_url(url)
         if not url:
             return unreachable_response("", "Invalid URL")
 
-        # DNS preflight for clearer Unreachable reasons
+        # Expand shorteners first
+        host0 = urlparse(url).netloc.lower().split(":")[0]
+        if host0 in KNOWN_SHORTENERS:
+            expanded = expand_short_url(url)
+            if expanded:
+                url = expanded
+
+        # DNS preflight for clearer Unreachable reasons (on the final URL)
         pre = dns_preflight(url)
         if not pre.get("ok"):
             return unreachable_response(url, pre.get("label") or "DNS error")
@@ -330,7 +376,6 @@ def check_url():
             except (requests.exceptions.SSLError,
                     requests.exceptions.ConnectionError,
                     requests.exceptions.Timeout) as e:
-                # try http:// fallback
                 if url.startswith("https://"):
                     try:
                         r = requests.get(to_http(url), headers=headers, timeout=10, allow_redirects=True)
@@ -347,11 +392,15 @@ def check_url():
                 html_content = r.text
                 url = r.url
             else:
-                # Map HTTP to neutral with diagnostic
+                label = f"HTTP {status} {r.reason or ''}".strip()
+                hint = waf_hint(getattr(r, "headers", {}), status)
                 if status in (401, 403):
-                    return neutral_response(url, "Blocked",
-                        f"Access forbidden by host (HTTP {status}). The site is online but blocked our scanner.",
-                        {"label": f"HTTP {status} {r.reason or ''}".strip()})
+                    return neutral_response(
+                        url,
+                        "Blocked",
+                        "The site is online but refused automated requests.",
+                        {"label": hint or label}
+                    )
                 if status == 404:
                     return neutral_response(url, "Not Found",
                         "The site is online but the page path was not found (HTTP 404).",
@@ -362,12 +411,12 @@ def check_url():
                         {"label": "HTTP 429 Too Many Requests"})
                 if 400 <= status < 500:
                     return neutral_response(url, "Blocked",
-                        f"Client-side denial from host (HTTP {status}). The site refused analysis.",
-                        {"label": f"HTTP {status} {r.reason or ''}".strip()})
+                        f"The site refused analysis (HTTP {status}).",
+                        {"label": label})
                 if 500 <= status < 600:
                     return neutral_response(url, "Server Error",
                         f"The site responded with a server error (HTTP {status}).",
-                        {"label": f"HTTP {status} {r.reason or ''}".strip()})
+                        {"label": label})
 
         # ---------- Feature extraction ----------
         features = extract_features(url, html_content)
