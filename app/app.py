@@ -76,6 +76,11 @@ DEFAULT_HEADERS = {
     "Connection": "keep-alive",
 }
 
+# Optional runtime timer probe
+RUNTIME_TIMER_ON = os.getenv("CTU_RUNTIME_TIMER", "1") != "0"
+RUNTIME_TIMER_SECONDS = max(3, int(os.getenv("CTU_TIMER_SECS", "6")))
+
+# Short URL services we can expand
 KNOWN_SHORTENERS = {"is.gd", "v.gd", "bit.ly", "t.co", "tinyurl.com", "goo.gl", "ow.ly", "buff.ly"}
 
 # ------------------------------------------------------------------------------
@@ -203,41 +208,126 @@ def compute_category_scores(feats: dict, behavior_score: float) -> dict:
     behavior = clip01(behavior_score)
     return {"domain": round(domain,3), "link": round(link,3), "content": round(content,3), "behavior": round(behavior,3)}
 
-# ---------- Timer detector (robust) ----------
+# ---------- Timer detector (static analysis) ----------
 def detect_timer_signals(html: str) -> dict:
-    """
-    Return dict with strong/weak/meta_refresh booleans based on HTML & script patterns.
-    Strong = safe to claim timer without behavior evidence (e.g., meta refresh or clear countdown JS).
-    Weak   = UI/markup hints that look like a timer (requires behavior evidence).
-    """
+    """Return dict with strong/weak/meta_refresh booleans based on HTML & script patterns."""
     if not html:
         return {"strong": False, "weak": False, "meta_refresh": False}
 
     low = html.lower()
-
-    # Meta refresh is a very strong urgency/redirect signal
     meta_refresh = bool(re.search(r'<meta[^>]+http-equiv=["\']?\s*refresh', low))
-
-    # JS-based countdown cues: setInterval/setTimeout with countdown words or decrement patterns
     js_interval = bool(re.search(r'setinterval\s*\(', low) or re.search(r'settimeout\s*\(', low))
     js_count_words = bool(re.search(r'countdown|timer|expire|expiry|deadline|seconds?|mins?|minutes?', low))
     js_decrement = bool(re.search(r'(--|-=|-=1|\b\-=\s*1)', low) or re.search(r'inner(?:text|html)\s*=', low))
     js_strong = js_interval and (js_count_words or js_decrement)
-
-    # Data attributes that usually back a countdown
     data_attr = bool(re.search(r'data-(?:countdown|timer|expiry|deadline)\s*=\s*["\']?\d', low))
-
-    # Class/ID names (weak)
     cls_id = bool(re.search(r'(?:id|class)\s*=\s*["\'][^"\']*(?:countdown|timer|clock)[^"\']*["\']', low))
-
-    # Clock-like textual pattern (weak): 12:34 or 01:23:45 or "30 sec", "5 minutes"
     clock_text = bool(re.search(r'\b\d{1,2}:\d{2}(?::\d{2})?\b', low) or
                       re.search(r'\b\d{1,3}\s*(?:sec|secs|seconds|mins?|minutes?)\b', low))
-
     strong = meta_refresh or js_strong or data_attr
     weak = cls_id or clock_text
-
     return {"strong": strong, "weak": weak, "meta_refresh": meta_refresh}
+
+# ---------- Timer detector (runtime via Playwright) ----------
+def runtime_timer_probe(url: str, wait_secs: int = RUNTIME_TIMER_SECONDS) -> dict:
+    """
+    Try to observe a countdown in the live DOM by sampling candidate elements and
+    verifying that a time-like number decreases over a few seconds.
+    Requires 'playwright' installed; otherwise returns {available: False}.
+    """
+    if not RUNTIME_TIMER_ON:
+        return {"available": False, "detected": False}
+
+    try:
+        from playwright.sync_api import sync_playwright
+    except Exception:
+        return {"available": False, "detected": False}
+
+    def extract_numbers(text: str):
+        # Pull mm:ss or hh:mm:ss or integer seconds/minutes mentions
+        parts = []
+        for m in re.findall(r'\b(\d{1,2}):(\d{2})(?::(\d{2}))?\b', text):
+            h, m1, s = m[0], m[1], (m[2] or "0")
+            total = int(h) * 3600 + int(m1) * 60 + int(s)
+            parts.append(total)
+        for m in re.findall(r'\b(\d{1,3})\s*(sec|secs|seconds|mins?|minutes?)\b', text, flags=re.I):
+            n, unit = int(m[0]), m[1].lower()
+            total = n * (60 if unit.startswith("min") else 1)
+            parts.append(total)
+        return parts
+
+    detected = False
+    evidence = ""
+    ticks = 0
+
+    with sync_playwright() as p:
+        try:
+            browser = p.chromium.launch(headless=True)
+            ctx = browser.new_context()
+            page = ctx.new_page()
+            page.goto(url, timeout=15000, wait_until="domcontentloaded")
+
+            # candidate selectors commonly used for timers
+            CANDIDATES = [
+                "[data-countdown],[data-timer],[data-expiry],[data-deadline]",
+                ".countdown,.timer,.clock,#countdown,#timer,#clock",
+                "span,div,strong,b,p,h1,h2,h3,h4"
+            ]
+            # First snapshot
+            elements = []
+            for sel in CANDIDATES:
+                try:
+                    for el in page.locator(sel).all()[:50]:
+                        txt = (el.inner_text() or "").strip()
+                        if not txt:
+                            continue
+                        nums = extract_numbers(txt)
+                        if nums:
+                            elements.append({"selector": sel, "text": txt, "nums": nums})
+                except Exception:
+                    pass
+
+            if not elements:
+                browser.close()
+                return {"available": True, "detected": False, "ticks": 0, "evidence": ""}
+
+            page.wait_for_timeout(wait_secs * 1000)
+
+            # Second snapshot and compare
+            for sel in CANDIDATES:
+                try:
+                    for el in page.locator(sel).all()[:50]:
+                        txt2 = (el.inner_text() or "").strip()
+                        nums2 = extract_numbers(txt2)
+                        if not nums2:
+                            continue
+                        # find any earlier element with overlap of numbers then decreasing
+                        for e in elements:
+                            if e["selector"] != sel:
+                                continue
+                            if not e["nums"]:
+                                continue
+                            # compare smallest numbers as proxy
+                            before = min(e["nums"])
+                            after = min(nums2)
+                            if after < before:
+                                detected = True
+                                ticks = max(ticks, before - after)
+                                evidence = f"{before}s→{after}s"
+                                break
+                    if detected:
+                        break
+                except Exception:
+                    pass
+
+            browser.close()
+        except Exception:
+            try:
+                browser.close()
+            except Exception:
+                pass
+
+    return {"available": True, "detected": detected, "ticks": ticks, "evidence": evidence}
 
 # ---------- Shorteners ----------
 def expand_short_url(u: str) -> str | None:
@@ -335,11 +425,13 @@ def check_url():
         if not url:
             return unreachable_response("", "Invalid URL")
 
+        # Expand shorteners
         host0 = urlparse(url).netloc.lower().split(":")[0]
         if host0 in KNOWN_SHORTENERS:
             expanded = expand_short_url(url)
             if expanded: url = expanded
 
+        # DNS preflight
         pre = dns_preflight(url)
         if not pre.get("ok"):
             return unreachable_response(url, pre.get("label") or "DNS error")
@@ -446,6 +538,17 @@ def check_url():
         except Exception:
             pass
 
+        # Runtime timer probe (Playwright)
+        timer_runtime = {"available": False, "detected": False}
+        try:
+            timer_runtime = runtime_timer_probe(url)
+            if timer_runtime.get("detected"):
+                behavior.setdefault("events", []).append(
+                    f"⏱ Runtime countdown observed ({timer_runtime.get('evidence','')}).")
+                behavior["timer_ticks_detected"] = timer_runtime.get("ticks", 0)
+        except Exception:
+            pass
+
         # DOM / Visual
         structure = {"score": 0.0, "template": None}
         try: structure = structure_similarity(html_content or "")
@@ -463,10 +566,10 @@ def check_url():
             category_scores["link"] = 0.0
         verdict = guarded_verdict(p_phish, features, behavior_score)
 
-        # ---------------- Reasons (with robust timer detector) ----------------
+        # ---------------- Reasons (with robust + runtime timer detection) ----------------
         reasons = []
         metrics = meaningful_html_metrics(html_content)
-        timer = detect_timer_signals(html_content)
+        timer_static = detect_timer_signals(html_content)
 
         if verdict in ("Phishing", "Suspicious"):
             # Domain cues always OK
@@ -487,10 +590,8 @@ def check_url():
                     reasons.append("📉 Low informational content.")
 
                 # TIMER RULES
-                has_meta_refresh = timer["meta_refresh"]
-                feature_timer_flag = bool(features.get("has_js_timer") or features.get("has_html_timer"))
-                strong_timer = timer["strong"] or has_meta_refresh or feature_timer_flag and not lite_mode
-                weak_timer = timer["weak"] or feature_timer_flag
+                strong_timer_static = timer_static["strong"] or timer_static["meta_refresh"]
+                weak_timer_static = timer_static["weak"] or bool(features.get("has_js_timer") or features.get("has_html_timer"))
 
                 behavior_evidence = (
                     int(behavior.get("js_redirects_detected", 0)) > 0 or
@@ -498,9 +599,11 @@ def check_url():
                     int(behavior.get("client_redirects", 0) or 0) > 0
                 )
 
-                if strong_timer:
+                if timer_runtime.get("detected"):
+                    reasons.append("⏳ Urgency timer detected (runtime).")
+                elif strong_timer_static:
                     reasons.append("⏳ Urgency timer detected.")
-                elif weak_timer and behavior_evidence:
+                elif weak_timer_static and behavior_evidence:
                     reasons.append("⏳ Urgency timer detected (confirmed by behavior).")
 
             # Behavior-driven
@@ -518,6 +621,7 @@ def check_url():
         if features.get("is_new_domain"): summary_bits.append("young domain")
         if int(features.get("non_surface_red_flags",0))>0: summary_bits.append(f"{int(features.get('non_surface_red_flags',0))} non-surface signal(s)")
         if behavior_score >= 0.35: summary_bits.append("dynamic behavior observed")
+        if timer_runtime.get("detected"): summary_bits.append("runtime timer observed")
         summary_tail = (" • " + ", ".join(summary_bits)) if summary_bits else ""
 
         base_msg = "See grouped risk signals below."
