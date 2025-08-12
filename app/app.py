@@ -4,6 +4,7 @@ import sys
 import glob
 import math
 import re
+import base64
 import socket
 import requests
 import pandas as pd
@@ -11,7 +12,7 @@ import joblib
 from flask import Flask, render_template, request, jsonify
 from flask_cors import CORS
 from datetime import datetime
-from urllib.parse import urlparse, urlunparse, quote_plus
+from urllib.parse import urlparse, urlunparse, urljoin, quote_plus
 
 # ------------------------------------------------------------------------------
 # Import project modules (works as script or package)
@@ -55,11 +56,10 @@ if feedback_bp:
 # ------------------------------------------------------------------------------
 # Tunables / policy
 # ------------------------------------------------------------------------------
-PHISHING_THRESHOLD = 0.70   # >= -> Phishing
-LEGIT_THRESHOLD    = 0.30   # <= -> Legitimate
+PHISHING_THRESHOLD = 0.70
+LEGIT_THRESHOLD    = 0.30
 STRICT_SURFACE_GUARD = True
 STARTUP_EXCEPTION_GUARD = True
-
 DOMAIN_ONLY_CAN_PHISH = False
 
 CTU_SOFT_WHITELIST_SELF = os.getenv("CTU_SOFT_WHITELIST_SELF", "1") == "1"
@@ -68,8 +68,16 @@ LOCAL_TEMPLATE_INDEX = os.path.join(os.path.dirname(__file__), "templates", "ind
 
 CTU_BEHAVIOR_MODE = os.getenv("CTU_BEHAVIOR_MODE", "auto")
 
+DEFAULT_HEADERS = {
+    "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                   "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"),
+    "Accept": "text/html,application/xhtml+xml",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Connection": "keep-alive",
+}
+
 # ------------------------------------------------------------------------------
-# Model loading (pick latest timestamped)
+# Model
 # ------------------------------------------------------------------------------
 def _latest_model_path():
     model_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'model'))
@@ -122,10 +130,7 @@ def to_http(u: str) -> str:
     return u
 
 def resolve_url(raw_url: str | None) -> str | None:
-    """
-    Normalize bare domains/hosts to a URL.
-    Prefer https://, support //example.com, no HEAD probe.
-    """
+    """Normalize user text to a URL. Prefer https:// and support bare domains/ //host."""
     if not raw_url:
         return None
     u = raw_url.strip()
@@ -217,12 +222,7 @@ def compute_category_scores(feats: dict, behavior_score: float) -> dict:
 
     behavior = clip01(behavior_score)
 
-    return {
-        "domain": round(domain, 3),
-        "link": round(link, 3),
-        "content": round(content, 3),
-        "behavior": round(behavior, 3),
-    }
+    return {"domain": round(domain, 3), "link": round(link, 3), "content": round(content, 3), "behavior": round(behavior, 3)}
 
 # --------------------------- Diagnostics & utilities --------------------------
 KNOWN_SHORTENERS = {"is.gd", "v.gd", "bit.ly", "t.co", "tinyurl.com", "goo.gl", "ow.ly", "buff.ly"}
@@ -263,10 +263,9 @@ def waf_hint(headers: dict, status: int) -> str | None:
     return None
 
 def expand_short_url(u: str) -> str | None:
-    """Resolve popular shorteners without heavy fetching; fallback to HEAD-only for first hop."""
+    """Resolve popular shorteners first (is.gd/v.gd API or single-hop HEAD)."""
     host = urlparse(u).netloc.lower().split(":")[0]
     try:
-        # is.gd / v.gd simple resolver API
         if host in {"is.gd", "v.gd"}:
             api = f"https://is.gd/forward.php?format=simple&shorturl={quote_plus(u)}"
             r = requests.get(api, timeout=6)
@@ -274,8 +273,6 @@ def expand_short_url(u: str) -> str | None:
                 dst = r.text.strip()
                 if dst.startswith(("http://", "https://")):
                     return dst
-
-        # generic single-hop expand via HEAD
         r = requests.head(u, allow_redirects=False, timeout=6)
         if 300 <= r.status_code < 400 and "Location" in r.headers:
             dst = r.headers["Location"].strip()
@@ -287,10 +284,9 @@ def expand_short_url(u: str) -> str | None:
 
 # ------------------------- Neutral/Unreachable responses ----------------------
 def neutral_response(url: str, verdict: str, msg: str, diag: dict | None = None):
-    """Neutral (non-phishing) verdict for reachable-but-not-analyzable or unreachable states."""
     return jsonify({
         "url": url,
-        "verdict": verdict,  # "Blocked" | "Not Found" | "Rate Limited" | "Server Error" | "Unreachable"
+        "verdict": verdict,
         "confidence": 0.0,
         "phishing_score": 0.0,
         "legit_score": 0.0,
@@ -304,8 +300,8 @@ def neutral_response(url: str, verdict: str, msg: str, diag: dict | None = None)
         "category_scores": {"domain":0,"content":0,"link":0,"behavior":0},
         "explanations": {"domain": [], "link": [], "content": [], "behavior": [], "summary": msg},
         "behavior": {"mode":"disabled","score":0.0,"events":[]},
-        "structure": {"score":0.0,"template":None},
-        "visual": {"score":0.0,"closest":None},
+        "structure": {"score":0.0, "template":None},
+        "visual": {"score":0.0, "closest":None},
         "policy": {
             "strict_surface_guard": STRICT_SURFACE_GUARD,
             "startup_exception_guard": STARTUP_EXCEPTION_GUARD,
@@ -322,6 +318,58 @@ def unreachable_response(url: str, diag_label: str | None = None):
         {"label": diag_label} if diag_label else None
     )
 
+# ----------------------------- JS redirect scanners ---------------------------
+# Broad patterns (inline & external)
+JS_LOCATION_RE = re.compile(
+    r"(?:window|document|self|top)?\s*\.?\s*location\.(?:href|assign|replace)\s*=",
+    re.I,
+)
+JS_TIMEOUT_REDIRECT_RE = re.compile(
+    r"setTimeout\s*\(\s*function\s*\([^)]*\)\s*{[^}]*location\.(?:href|assign|replace)\s*=",
+    re.I | re.S,
+)
+ATOB_RE = re.compile(r"atob\(['\"]([A-Za-z0-9+/=]{12,})['\"]\)", re.I)
+
+def scan_external_scripts_for_redirects(base_url: str, html: str, headers: dict) -> int:
+    """
+    Fetch up to 3 external scripts (size <= 150 KB each) and scan for redirect patterns.
+    Return number of client-side redirect hints found.
+    """
+    found = 0
+    if not html:
+        return 0
+    try:
+        srcs = re.findall(r'<script[^>]+src=["\']([^"\']+)["\']', html, re.I)
+        checked = 0
+        for src in srcs:
+            if checked >= 3:
+                break
+            js_url = urljoin(base_url, src)
+            try:
+                jr = requests.get(js_url, timeout=6, headers=headers)
+                if not jr.ok:
+                    continue
+                if int(jr.headers.get("Content-Length", "0") or 0) > 150_000:
+                    continue
+                js = jr.text or ""
+                if JS_LOCATION_RE.search(js) or JS_TIMEOUT_REDIRECT_RE.search(js):
+                    found += 1
+                else:
+                    for m in ATOB_RE.findall(js):
+                        try:
+                            decoded = base64.b64decode(m + "==").decode("utf-8", "ignore")
+                            if decoded.strip().startswith(("http://", "https://")):
+                                found += 1
+                                break
+                        except Exception:
+                            pass
+                checked += 1
+            except requests.RequestException:
+                continue
+    except Exception:
+        pass
+    return found
+
 # ------------------------------------------------------------------------------
 # API
 # ------------------------------------------------------------------------------
@@ -333,19 +381,18 @@ def check_url():
         if not url:
             return jsonify({"error": "No URL provided"}), 400
 
-        # Normalize
+        # Normalize & expand shorteners
         url = resolve_url(url)
         if not url:
             return unreachable_response("", "Invalid URL")
 
-        # Expand shorteners first
         host0 = urlparse(url).netloc.lower().split(":")[0]
         if host0 in KNOWN_SHORTENERS:
             expanded = expand_short_url(url)
             if expanded:
                 url = expanded
 
-        # DNS preflight for clearer Unreachable reasons (on the final URL)
+        # DNS preflight
         pre = dns_preflight(url)
         if not pre.get("ok"):
             return unreachable_response(url, pre.get("label") or "DNS error")
@@ -354,7 +401,7 @@ def check_url():
         reasons: list[str] = []
         OUR_SCAN = _is_our_domain(url)
 
-        # Use local template for our own domain
+        # Self-scan shortcut
         if OUR_SCAN:
             try:
                 with open(LOCAL_TEMPLATE_INDEX, "r", encoding="utf-8") as f:
@@ -362,25 +409,18 @@ def check_url():
             except Exception:
                 html_content = ""
 
-        # Fetch (with http fallback for TLS/connect problems)
+        # Fetch
         r = None
         if not html_content:
-            headers = {
-                "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                               "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"),
-                "Accept": "text/html,application/xhtml+xml",
-                "Accept-Language": "en-US,en;q=0.9",
-                "Connection": "keep-alive",
-            }
             try:
-                r = requests.get(url, headers=headers, timeout=10, allow_redirects=True)
+                r = requests.get(url, headers=DEFAULT_HEADERS, timeout=10, allow_redirects=True)
                 status = r.status_code
             except (requests.exceptions.SSLError,
                     requests.exceptions.ConnectionError,
                     requests.exceptions.Timeout) as e:
                 if url.startswith("https://"):
                     try:
-                        r = requests.get(to_http(url), headers=headers, timeout=10, allow_redirects=True)
+                        r = requests.get(to_http(url), headers=DEFAULT_HEADERS, timeout=10, allow_redirects=True)
                         status = r.status_code
                         url = r.url
                     except requests.RequestException:
@@ -397,12 +437,9 @@ def check_url():
                 label = f"HTTP {status} {r.reason or ''}".strip()
                 hint = waf_hint(getattr(r, "headers", {}), status)
                 if status in (401, 403):
-                    return neutral_response(
-                        url,
-                        "Blocked",
+                    return neutral_response(url, "Blocked",
                         "The site is online but refused automated requests.",
-                        {"label": hint or label}
-                    )
+                        {"label": hint or label})
                 if status == 404:
                     return neutral_response(url, "Not Found",
                         "The site is online but the page path was not found (HTTP 404).",
@@ -445,7 +482,7 @@ def check_url():
         except Exception as e:
             behavior = {"mode": "error", "score": 0.0, "events": [f"behavior engine unavailable: {type(e).__name__}"]}
 
-        # Merge server-side (HTTP) redirects from requests history
+        # Merge HTTP redirects from requests history
         try:
             if r is not None:
                 http_history   = list(getattr(r, "history", []) or [])
@@ -454,24 +491,43 @@ def check_url():
                 if http_redirects > 0:
                     behavior.setdefault("events", [])
                     behavior["http_redirects"] = http_redirects
-                    # Only set redirect_chain if behavior engine didn't already provide one
                     if not behavior.get("redirect_chain"):
                         behavior["redirect_chain"] = http_chain
                     behavior["events"].append(f"↪ HTTP redirect chain length {http_redirects}.")
+                # Header-based refresh (rare)
+                refresh = (r.headers or {}).get("Refresh") or (r.headers or {}).get("refresh")
+                if refresh and re.search(r'url\s*=\s*', refresh, re.I):
+                    behavior["client_redirects"] = behavior.get("client_redirects", 0) + 1
+                    behavior.setdefault("events", []).append("↪ HTTP Refresh header redirect.")
         except Exception:
             pass
 
-        # Detect client-side redirects in HTML (meta refresh / JS assignment)
+        # Detect client-side redirects in HTML (meta refresh / JS patterns)
         try:
             if html_content:
-                meta = re.search(
-                    r'<meta[^>]+http-equiv=["\']?refresh["\']?[^>]*content=["\']?\s*\d+\s*;\s*url=([^"\'>]+)',
-                    html_content, re.I)
-                if meta:
+                # meta refresh (URL or url forms)
+                if re.search(r'<meta[^>]+http-equiv=["\']?\s*refresh\s*["\']?[^>]*content=["\']?\s*\d+\s*;\s*url\s*=', html_content, re.I):
                     behavior["client_redirects"] = behavior.get("client_redirects", 0) + 1
                     behavior.setdefault("events", []).append("↪ Meta refresh redirect in HTML.")
-                if re.search(r'(?:window\.)?location\.(?:href|replace|assign)\s*=', html_content, re.I):
+                # JS location patterns
+                if JS_LOCATION_RE.search(html_content) or JS_TIMEOUT_REDIRECT_RE.search(html_content):
+                    behavior["client_redirects"] = behavior.get("client_redirects", 0) + 1
                     behavior.setdefault("events", []).append("↪ JavaScript redirect pattern in HTML.")
+                # atob(...) inline
+                for m in ATOB_RE.findall(html_content):
+                    try:
+                        decoded = base64.b64decode(m + "==").decode("utf-8", "ignore")
+                        if decoded.strip().startswith(("http://","https://")):
+                            behavior["client_redirects"] = behavior.get("client_redirects", 0) + 1
+                            behavior.setdefault("events", []).append("↪ Redirect target (decoded from atob) in HTML.")
+                            break
+                    except Exception:
+                        pass
+                # external scripts (limited)
+                ext_hits = scan_external_scripts_for_redirects(url, html_content, DEFAULT_HEADERS)
+                if ext_hits > 0:
+                    behavior["client_redirects"] = behavior.get("client_redirects", 0) + ext_hits
+                    behavior.setdefault("events", []).append("↪ Redirect pattern found in external script(s).")
         except Exception:
             pass
 

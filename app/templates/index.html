@@ -114,7 +114,7 @@
 
         <h2 id="verdict-title" class="mt-1.5 text-xl sm:text-2xl font-bold">—</h2>
         <p id="explanation" class="mt-1.5 text-[13px] text-slate-300">—</p>
-        <p id="diag-line" class="mt-1 text-[12px] text-slate-400 hidden"></p>  <!-- Diagnostic hint -->
+        <p id="diag-line" class="mt-1 text-[12px] text-slate-400 hidden"></p>
         <p id="summary-line" class="mt-1 text-[12px] text-slate-400"></p>
 
         <!-- Risk groups -->
@@ -237,7 +237,7 @@
           <ul id="raw-list" class="mt-1.5 space-y-1"></ul>
         </details>
 
-        <!-- Feedback row at bottom -->
+        <!-- Feedback row -->
         <div id="feedback-row" class="mt-3 hidden">
           <div class="flex flex-wrap items-center gap-2 text-sm">
             <span class="text-slate-300">Was this result helpful?</span>
@@ -502,7 +502,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
       lastScan = { url: data.url || url, verdict: data.verdict || "" };
 
-      // Neutral verdicts
       if (["Unreachable","Blocked","Not Found","Rate Limited","Server Error"].includes(data.verdict)) {
         setBadgeState(data.verdict);
         verdictTitle.textContent = data.verdict;
@@ -515,7 +514,6 @@ document.addEventListener("DOMContentLoaded", () => {
         if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
         chartWrap.classList.add("hidden");
         rawList.innerHTML = "";
-        // Save to history
         let history = JSON.parse(localStorage.getItem("scanHistory") || "[]");
         if (!history.includes(url)) { history.unshift(url); localStorage.setItem("scanHistory", JSON.stringify(history.slice(0,10))); }
         loadHistory();
@@ -533,7 +531,6 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
 
-      // Normal path
       const v = data.verdict || "Suspicious";
       setBadgeState(v);
       verdictTitle.textContent = v;
@@ -576,11 +573,12 @@ document.addEventListener("DOMContentLoaded", () => {
         options: { responsive: true, maintainAspectRatio: false, cutout: "70%", plugins: { legend: { position: "bottom", labels: { color: "#cbd5e1" } }, tooltip: { callbacks: { label: (ctx)=> `${ctx.label}: ${ctx.raw}%` } } } }
       });
 
-      // Build redirect count without double-counting when behavior engine already has a chain
+      // Redirect count: HTTP + behavior-chain + client-side flags
       const behavior = data.behavior || {};
       const hasBehChain = Array.isArray(behavior.redirect_chain);
       const behRedirects = hasBehChain ? (behavior.redirect_chain.length - 1) : 0;
       const httpRedirects = hasBehChain ? 0 : Number(behavior.http_redirects || 0);
+      const clientRedirects = Number(behavior.client_redirects || 0);
 
       rawList.innerHTML = [
         `Confidence: ${data.confidence ?? "-"}`,
@@ -588,13 +586,12 @@ document.addEventListener("DOMContentLoaded", () => {
         `Legit score: ${legit}`,
         `Behavior mode: ${escapeHtml(behavior.mode || "-")}`,
         `Behavior score: ${pct(behavior.score || 0)}`,
-        `Redirects: ${httpRedirects + behRedirects}`,
+        `Redirects: ${httpRedirects + behRedirects + clientRedirects}`,
         `DOM mutation score: ${pct(behavior.dom_mutation_score || 0)}`,
         `Structure match: ${pct((data.structure || {}).score || 0)} (${escapeHtml((data.structure || {}).template || "—")})`,
         `Visual match: ${pct((data.visual || {}).score || 0)} (${escapeHtml((data.visual || {}).closest || "—")})`
       ].map(x => `<li>${escapeHtml(x)}</li>`).join("");
 
-      // History + feedback
       let history = JSON.parse(localStorage.getItem("scanHistory") || "[]");
       if (!history.includes(url)) { history.unshift(url); localStorage.setItem("scanHistory", JSON.stringify(history.slice(0,10))); }
       loadHistory();
