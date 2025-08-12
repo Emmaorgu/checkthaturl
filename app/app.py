@@ -9,7 +9,7 @@ import joblib
 from flask import Flask, render_template, request, jsonify
 from flask_cors import CORS
 from datetime import datetime
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlunparse
 
 # ------------------------------------------------------------------------------
 # Import project modules (works as script or package)
@@ -116,21 +116,28 @@ def _is_our_domain(u: str) -> bool:
     except Exception:
         return False
 
+def to_http(u: str) -> str:
+    p = urlparse(u)
+    if p.scheme == "https":
+        return urlunparse(("http", p.netloc, p.path, p.params, p.query, p.fragment))
+    return u
+
 def resolve_url(raw_url: str | None) -> str | None:
+    """
+    Always normalize bare domains/hosts to a URL.
+    - Prefer https://
+    - Support protocol-relative //example.com
+    - Do NOT probe with HEAD (some sites block it and we'd misclassify as unreachable)
+    """
     if not raw_url:
         return None
-    raw_url = raw_url.strip()
-    if raw_url.startswith(("http://", "https://")):
-        return raw_url
-    for scheme in ("https://", "http://"):
-        try:
-            t = scheme + raw_url
-            r = requests.head(t, timeout=5, allow_redirects=True)
-            if r.status_code < 400:
-                return t
-        except Exception:
-            pass
-    return None
+    u = raw_url.strip()
+    if u.startswith(("http://", "https://")):
+        return u
+    if u.startswith("//"):
+        return "https:" + u
+    # If it looks like a domain/host, prepend https://
+    return "https://" + u
 
 def choose_verdict(p_phish: float) -> str:
     if p_phish >= PHISHING_THRESHOLD: return "Phishing"
@@ -188,15 +195,12 @@ def guarded_verdict(p_phish: float, feats: dict, behavior_score: float = 0.0) ->
                    or float(feats.get("external_link_ratio", 0)) > 0.50
     behavior_sig = float(behavior_score) >= 0.25
 
-    # Domain-only demotion
     if not DOMAIN_ONLY_CAN_PHISH and base == "Phishing" and not (content_sig or link_sig or behavior_sig or non_surface):
         return "Suspicious"
 
-    # Surface guard
     if STRICT_SURFACE_GUARD and base == "Phishing" and non_surface == 0 and surface > 0:
         return "Suspicious" if p_phish >= 0.45 else "Legitimate"
 
-    # Startup exception guard
     if STARTUP_EXCEPTION_GUARD and base == "Phishing" and feats.get("startup_like", 0) == 1 \
        and feats.get("is_new_domain", 0) == 1 and non_surface <= 1 and p_phish < 0.85:
         return "Suspicious"
@@ -228,10 +232,7 @@ def compute_category_scores(feats: dict, behavior_score: float) -> dict:
 # Neutral/Unreachable responses
 # ------------------------------------------------------------------------------
 def neutral_response(url: str, verdict: str, msg: str):
-    """
-    Return a neutral (non-phishing) verdict when the site is reachable but not analyzable,
-    or truly unreachable. Risk cards and scores are empty by design.
-    """
+    """Neutral (non-phishing) verdict for reachable-but-not-analyzable or unreachable states."""
     return jsonify({
         "url": url,
         "verdict": verdict,  # "Blocked" | "Not Found" | "Rate Limited" | "Server Error" | "Unreachable"
@@ -257,7 +258,7 @@ def neutral_response(url: str, verdict: str, msg: str):
         "startup_like": 0
     }), 200
 
-def unreachable_response(url: str, err_msg: str):
+def unreachable_response(url: str, _detail: str = ""):
     return neutral_response(
         url,
         "Unreachable",
@@ -275,11 +276,10 @@ def check_url():
         if not url:
             return jsonify({"error": "No URL provided"}), 400
 
-        # Resolve URL; if no scheme works → Unreachable (neutral)
-        resolved = resolve_url(url)
-        if not resolved:
-            return unreachable_response(url, "Could not resolve host via HTTP/HTTPS.")
-        url = resolved
+        # Normalize bare domains/hosts to a URL (prefer https)
+        url = resolve_url(url)
+        if not url:
+            return unreachable_response("", "Invalid URL")
 
         html_content = ""
         reasons: list[str] = []
@@ -293,36 +293,54 @@ def check_url():
             except Exception:
                 html_content = ""
 
-        # Network fetch if still empty
+        # Network fetch if still empty (with http fallback on TLS/connect errors)
         if not html_content:
+            headers = {
+                "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                               "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"),
+                "Accept": "text/html,application/xhtml+xml",
+                "Accept-Language": "en-US,en;q=0.9",
+                "Connection": "keep-alive",
+            }
             try:
-                headers = {
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
-                    "Accept": "text/html,application/xhtml+xml",
-                    "Accept-Language": "en-US,en;q=0.9",
-                    "Connection": "keep-alive",
-                }
                 r = requests.get(url, headers=headers, timeout=10, allow_redirects=True)
                 status = r.status_code
-
-                if 200 <= status < 300:
-                    html_content = r.text
+            except (requests.exceptions.SSLError,
+                    requests.exceptions.ConnectionError,
+                    requests.exceptions.Timeout):
+                # Try http:// fallback if https:// failed at the transport level
+                if url.startswith("https://"):
+                    try:
+                        r = requests.get(to_http(url), headers=headers, timeout=10, allow_redirects=True)
+                        status = r.status_code
+                        url = r.url  # keep final URL for reporting
+                    except requests.RequestException:
+                        return unreachable_response(url, "Network failure on both https and http")
                 else:
-                    # Map HTTP codes to neutral verdicts (site is reachable but not analyzable)
-                    if status in (401, 403):
-                        return neutral_response(url, "Blocked", f"Access forbidden by host (HTTP {status}). The site is online but blocked our scanner.")
-                    if status == 404:
-                        return neutral_response(url, "Not Found", "The site is online but the page path was not found (HTTP 404).")
-                    if status == 429:
-                        return neutral_response(url, "Rate Limited", "The site is online but rate-limited our request (HTTP 429). Try again later.")
-                    if 400 <= status < 500:
-                        return neutral_response(url, "Blocked", f"Client-side denial from host (HTTP {status}). The site refused analysis.")
-                    if 500 <= status < 600:
-                        return neutral_response(url, "Server Error", f"The site responded with a server error (HTTP {status}).")
-
+                    return unreachable_response(url, "Network failure")
             except requests.RequestException:
-                # DNS/timeout/connection → truly unreachable
                 return unreachable_response(url, "Network failure")
+
+            # Reached the server — map HTTP classes to neutral verdicts
+            if 200 <= status < 300:
+                html_content = r.text
+                url = r.url  # final URL after redirects
+            else:
+                if status in (401, 403):
+                    return neutral_response(url, "Blocked",
+                        f"Access forbidden by host (HTTP {status}). The site is online but blocked our scanner.")
+                if status == 404:
+                    return neutral_response(url, "Not Found",
+                        "The site is online but the page path was not found (HTTP 404).")
+                if status == 429:
+                    return neutral_response(url, "Rate Limited",
+                        "The site is online but rate-limited our request (HTTP 429). Try again later.")
+                if 400 <= status < 500:
+                    return neutral_response(url, "Blocked",
+                        f"Client-side denial from host (HTTP {status}). The site refused analysis.")
+                if 500 <= status < 600:
+                    return neutral_response(url, "Server Error",
+                        f"The site responded with a server error (HTTP {status}).")
 
         # ---------- Feature extraction ----------
         features = extract_features(url, html_content)
@@ -374,35 +392,33 @@ def check_url():
         verdict = guarded_verdict(p_phish, features, behavior_score)
 
         # Human-readable reasons
+        human_reasons = []
         if verdict in ("Phishing", "Suspicious"):
-            if features.get("suspicious_keyword_found"): reasons.append("🔑 Suspicious keywords present.")
-            if features.get("suspicious_tld"):           reasons.append("🌐 Suspicious TLD.")
-            if features.get("domain_entropy", 0) > 4.0:  reasons.append("🎲 Domain name has high entropy.")
-            if features.get("num_forms", 0) > 0:         reasons.append("📝 Form(s) found; potential credential capture.")
-            if features.get("has_password_field"):       reasons.append("🔒 Password field present.")
-            if features.get("keyword_density", 0) > 0.02: reasons.append("📌 Elevated phishing keyword density.")
-            if features.get("duplicate_phrases", 0) > 1: reasons.append("📋 Repeating suspicious phrases.")
-            if features.get("mismatched_anchor_ratio", 0) > 0.3: reasons.append("🔗 Anchor text vs link mismatch.")
-            if features.get("link_density", 0) > 0.4:    reasons.append("🌐 Link density is unusually high.")
-            if features.get("external_link_ratio", 0) > 0.5: reasons.append("🌍 Too many external links.")
+            if features.get("suspicious_keyword_found"): human_reasons.append("🔑 Suspicious keywords present.")
+            if features.get("suspicious_tld"):           human_reasons.append("🌐 Suspicious TLD.")
+            if features.get("domain_entropy", 0) > 4.0:  human_reasons.append("🎲 Domain name has high entropy.")
+            if features.get("num_forms", 0) > 0:         human_reasons.append("📝 Form(s) found; potential credential capture.")
+            if features.get("has_password_field"):       human_reasons.append("🔒 Password field present.")
+            if features.get("keyword_density", 0) > 0.02: human_reasons.append("📌 Elevated phishing keyword density.")
+            if features.get("duplicate_phrases", 0) > 1: human_reasons.append("📋 Repeating suspicious phrases.")
+            if features.get("mismatched_anchor_ratio", 0) > 0.3: human_reasons.append("🔗 Anchor text vs link mismatch.")
+            if features.get("link_density", 0) > 0.4:    human_reasons.append("🌐 Link density is unusually high.")
+            if features.get("external_link_ratio", 0) > 0.5: human_reasons.append("🌍 Too many external links.")
             if sum([features.get(f"tfidf_{i}", 0) for i in range(20)]) < 0.1 and not _is_our_domain(url):
-                reasons.append("📉 Low informational content.")
+                human_reasons.append("📉 Low informational content.")
             if features.get("has_js_timer") or features.get("has_html_timer"):
-                reasons.append("⏳ Urgency timer detected.")
-            # Behavior-driven
+                human_reasons.append("⏳ Urgency timer detected.")
             if int(behavior.get("post_action_redirects", 0)) > 0:
-                reasons.append("➡️ Redirect occurred after CTA/form action (behavior).")
+                human_reasons.append("➡️ Redirect occurred after CTA/form action (behavior).")
             if int(behavior.get("js_redirects_detected", 0)) > 0:
-                reasons.append("↪ JS-driven redirect detected (behavior).")
+                human_reasons.append("↪ JS-driven redirect detected (behavior).")
             if float(behavior.get("dom_mutation_score", 0)) >= 0.05:
-                reasons.append("🧪 Significant DOM mutation after load (behavior).")
-        else:
-            reasons = []  # keep risk cards empty for Legitimate
+                human_reasons.append("🧪 Significant DOM mutation after load (behavior).")
 
         # Group reasons
-        domain_risks, content_risks, link_risks, behavior_risks, _ = _group_reasons(reasons)
+        domain_risks, content_risks, link_risks, behavior_risks, _ = _group_reasons(human_reasons)
 
-        # Fallback reasons: never empty on non-Legit
+        # Fallback reasons if model flags but no grouped reasons
         if verdict in ("Phishing", "Suspicious") and not (domain_risks or content_risks or link_risks or behavior_risks):
             if features.get("is_new_domain"):          domain_risks.append("🆕 Recently-registered domain.")
             if features.get("suspicious_tld"):         domain_risks.append("🌐 Suspicious/rare TLD.")
