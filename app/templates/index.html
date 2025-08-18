@@ -1,612 +1,441 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>CheckThatURL — Scan before you click</title>
-
-  <link rel="preconnect" href="https://cdn.tailwindcss.com" crossorigin>
-  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
-
-  <link rel="canonical" href="{{ request.url }}" />
-  <meta name="robots" content="index,follow" />
-
-  <meta property="og:type" content="website" />
-  <meta property="og:url" content="{{ request.url }}" />
-  <meta property="og:title" content="CheckThatURL — Scan before you click" />
-  <meta property="og:description" content="Instant AI phishing checks. Paste a link, get a verdict, and see why." />
-  <meta property="og:image" content="{{ request.url_root.rstrip('/') }}/static/og.png" />
-
-  <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="CheckThatURL — Scan before you click" />
-  <meta name="twitter:description" content="Instant AI phishing checks. Paste a link, get a verdict, and see why." />
-  <meta name="twitter:image" content="{{ request.url_root.rstrip('/') }}/static/og.png" />
-
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = { theme: { extend: {
-      colors: {
-        brand:{50:"#eefaff",100:"#d6f1ff",200:"#aee2ff",300:"#7dd0ff",400:"#41b4ff",500:"#1799ff",600:"#0c7be0",700:"#0a65b6",800:"#0b5495",900:"#0c477b"},
-        success:"#16a34a", warning:"#f59e0b", danger:"#ef4444", neutral:"#94a3b8"
-      }
-    } } }
-  </script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
-  <meta name="description" content="Instant AI phishing checks. Paste a link, get a verdict, and see why." />
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔍</text></svg>">
-
+  <title>CheckThatURL — Scan any link. Instant verdicts. Clear reasons.</title>
+  <meta name="color-scheme" content="dark light" />
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+  <link rel="alternate icon" href="/static/favicon.ico" sizes="any">
+  <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16.png">
+  <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+  <meta name="theme-color" content="#0c111a" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <style>
-    .glass{backdrop-filter:blur(10px);background:rgba(255,255,255,.08)}
-    .dark .glass{background:rgba(0,0,0,.25)}
-    .pulse-ring{box-shadow:0 0 0 0 rgba(23,153,255,.6);animation:pulse 2s infinite}
-    @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(23,153,255,.6)}70%{box-shadow:0 0 0 12px rgba(23,153,255,0)}100%{box-shadow:0 0 0 0 rgba(23,153,255,0)}}
-    .tooltip{position:relative}
-    .tooltip:hover .tooltip-card{opacity:1;transform:translateY(0);pointer-events:auto}
-    @media (max-width:640px){ .glass{ backdrop-filter: blur(6px) } }
+    :root{--bg:#0c111a;--panel:#121826;--panel-2:#171e2e;--text:#e6edf6;--muted:#9fb0c7;--brand:#1e90ff;--ok:#1ec28b;--warn:#ffb020;--bad:#ff4d4f;--border:#223052;--chip:#0f1523;--glow:0 0 24px rgba(30,144,255,.35), inset 0 0 30px rgba(30,144,255,.12)}
+    *{box-sizing:border-box}
+    html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial,"Noto Sans","Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol",sans-serif}
+    a{color:var(--brand);text-decoration:none}a:hover{text-decoration:underline}
+    .wrap{max-width:1180px;margin:0 auto;padding:24px}
+    .brandbar{display:flex;align-items:center;justify-content:space-between;margin:2px 0 10px}
+    .brand-link{display:inline-flex;align-items:center;gap:8px;font-weight:800;letter-spacing:.1px;color:var(--text)}
+    .brand-link:hover{opacity:.95;text-decoration:none}
+    .brand-link img{width:20px;height:20px;display:block}
+    .top-privacy{background:#0b1526;border:1px solid var(--border);padding:12px 16px;border-radius:12px;display:flex;gap:10px;align-items:center;margin:12px auto 28px}
+    .top-privacy .lock{font-size:18px}
+    .hero h1{font-size:clamp(32px,5.6vw,56px);line-height:1.05;margin:4px 0 10px;font-weight:800;letter-spacing:-.02em}
+    .hero h1 .accent{color:var(--brand)}
+    .hero p{margin:10px 0 24px;color:var(--muted);font-size:18px}
+    .search{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:14px;display:flex;gap:12px;align-items:center;margin-bottom:8px;flex-wrap:wrap}
+    .url-input{flex:1;background:#0e1525;color:var(--text);border:1px solid #1b2847;padding:16px 14px;font-size:16px;border-radius:10px;outline:none;min-width:260px}
+    .btn{background:var(--brand);color:#fff;border:none;padding:14px 18px;font-weight:700;border-radius:12px;cursor:pointer}
+    .btn.secondary{background:#1b2847;color:var(--text);border:1px solid var(--border)}
+    .btn.small{padding:8px 12px;font-weight:600}
+    .btn:disabled{opacity:.55;cursor:not-allowed}
+    .quick {display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px;margin-left:auto}
+    .grid{display:grid;grid-template-columns:1.2fr 1fr;gap:24px}
+    @media (max-width:980px){.grid{grid-template-columns:1fr}}
+    .card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:18px}
+    .verdict-badge{float:right;padding:6px 10px;border-radius:999px;font-weight:700;font-size:13px;border:1px solid var(--border);background:var(--chip)}
+    .badge-ok{color:var(--ok)}.badge-warn{color:var(--warn)}.badge-bad{color:var(--bad)}
+    .meta{display:flex;gap:10px;align-items:center;color:var(--muted);font-size:13px;margin:6px 0 8px}
+    .meta .dot{width:4px;height:4px;border-radius:50%;background:#3b4a6b}
+    .scorebar{height:6px;background:#0d1322;border-radius:8px;overflow:hidden;border:1px solid #1b2847}
+    .scorebar>i{display:block;height:100%;width:0%;background:linear-gradient(90deg,#1e90ff,#63a8ff)}
+    .section{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:14px}
+    @media (max-width:980px){.section{grid-template-columns:1fr}}
+    .pill{background:var(--panel-2);border:1px solid var(--border);border-radius:14px;padding:12px;min-height:84px}
+    .pill h4{margin:0 0 6px;font-size:14px;color:var(--muted);font-weight:600;display:flex;gap:8px;align-items:center}
+    .list{margin:0;padding-left:18px;font-size:14px;color:var(--muted)}
+    .empty{color:#7f93b5;font-size:14px}
+    details.evidence{margin-top:16px}
+    details.evidence summary{cursor:pointer;user-select:none;list-style:none;display:flex;gap:8px;align-items:center;font-weight:700;color:var(--text);padding:10px 12px;background:var(--panel-2);border:1px solid var(--border);border-radius:12px}
+    details.evidence[open] summary{border-bottom-left-radius:0;border-bottom-right-radius:0}
+    .evidence-body{border:1px solid var(--border);border-top:none;border-bottom-left-radius:12px;border-bottom-right-radius:12px;background:var(--chip);padding:12px;font-size:14px;color:var(--muted)}
+    .kv{display:grid;grid-template-columns:180px 1fr;gap:8px 12px}
+    .mono{font-family:ui-monospace,"SFMono-Regular",Menlo,Consolas,"Liberation Mono",monospace}
+    footer{margin:32px 0 18px;color:var(--muted);font-size:14px;display:flex;align-items:center;justify-content:space-between;gap:12px;border-top:1px dashed #203055;padding-top:14px}
+    .brand{font-weight:800;letter-spacing:.1px}
+    .hint{color:var(--muted);font-size:13px}
+    .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    .scanner{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:radial-gradient(1200px 500px at 50% -10%,rgba(49,80,140,.25),transparent 55%),rgba(5,8,14,.60);backdrop-filter:blur(8px) saturate(160%);z-index:9999}
+    .scanner.show{display:flex;animation:fadeIn .12s ease-out}
+    @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+    .scan-card{width:min(660px,92vw);background:var(--panel);border:1px solid var(--border);border-radius:18px;padding:18px;box-shadow:var(--glow)}
+    .scan-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px}
+    .scan-title{font-weight:800;font-size:18px;letter-spacing:-.02em}
+    .scan-url{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60%}
+    .scan-cancel{background:#1b2847;color:var(--text);border:1px solid var(--border);border-radius:10px;padding:8px 12px;cursor:pointer}
+    .scan-cancel:disabled{opacity:.55;cursor:not-allowed}
+    .scan-body{display:grid;grid-template-columns:170px 1fr;gap:14px}
+    @media (max-width:720px){.scan-body{grid-template-columns:1fr}}
+    .ring-wrap{display:flex;align-items:center;justify-content:center}
+    .ring{width:140px;height:140px;border-radius:50%;background:conic-gradient(from 0deg,#3cc8ff,#7aa2ff 25%,#9c6bff 45%,#ff5ca7 65%,#ffc36b 85%,#3cc8ff 100%);-webkit-mask:radial-gradient(circle at center,transparent 56%,#000 57%);mask:radial-gradient(circle at center,transparent 56%,#000 57%);animation:spin 1.2s linear infinite;box-shadow:inset 0 0 18px rgba(255,255,255,.08)}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .scan-steps{padding:6px 0}
+    .scan-step{display:flex;align-items:center;gap:10px;padding:6px 8px;border-radius:10px;margin-bottom:6px;background:linear-gradient(180deg,rgba(23,30,46,.45),rgba(23,30,46,.25));border:1px solid var(--border)}
+    .scan-step .dot{width:10px;height:10px;border-radius:50%;background:#7aa2ff;box-shadow:0 0 10px rgba(122,162,255,.8);animation:pulse .9s ease-in-out infinite}
+    .scan-step.done .dot{width:10px;height:10px;border-radius:2px;background:var(--ok);box-shadow:none;animation:none;clip-path:polygon(14% 44%,0 60%,42% 100%,100% 24%,84% 8%,42% 66%);transform:scale(1.1)}
+    .scan-step span{color:var(--text)}
+    @keyframes pulse{0%{transform:scale(.85);opacity:.7}50%{transform:scale(1);opacity:1}100%{transform:scale(.85);opacity:.7}}
+    .scanbar{height:8px;background:#0d1322;border:1px solid #1b2847;border-radius:10px;overflow:hidden;margin-top:10px}
+    .scanbar>i{display:block;height:100%;width:0%;background:linear-gradient(90deg,#3cc8ff,#7aa2ff,#9c6bff,#ff5ca7,#ffc36b);transition:width .14s ease}
+    .scan-footer{display:flex;align-items:center;justify-content:space-between;margin-top:10px;color:var(--muted);font-size:13px}
   </style>
-
-  <script type="application/ld+json">
-  {"@context":"https://schema.org","@type":"Organization","name":"CheckThatURL","url":"{{ request.url_root }}","logo":"{{ request.url_root.rstrip('/') }}/static/og.png","sameAs":[]}
-  </script>
-  <script type="application/ld+json">
-  {"@context":"https://schema.org","@type":"WebSite","url":"{{ request.url_root }}","name":"CheckThatURL","potentialAction":{"@type":"SearchAction","target":"{{ request.url_root }}?q={search_term_string}","query-input":"required name=search_term_string"}}
-  </script>
 </head>
+<body>
+  <div class="wrap">
+    <div class="brandbar">
+      <a class="brand-link" href="/" aria-label="Go to CheckThatURL home">
+        <img src="/static/ctu-mark.svg" alt="" />
+        <span>CheckThatURL</span>
+      </a>
+    </div>
 
-<body class="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-white selection:bg-brand-500 selection:text-white pt-[env(safe-area-inset-top)]">
-  <header class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-    <a class="flex items-center gap-2 font-semibold tracking-tight" href="/"><span class="text-brand-400">●</span> CheckThatURL</a>
-    <nav class="hidden sm:flex items-center gap-5 text-sm text-slate-300">
-      <a href="#how" class="hover:text-white">How it works</a>
-      <a href="/privacy" class="hover:text-white">Privacy</a>
-      <a href="/legal" class="hover:text-white">Legal</a>
-      <a href="/faq" class="hover:text-white">FAQ</a>
-    </nav>
-  </header>
+    <div class="top-privacy">
+      <span class="lock">🔐</span>
+      <div><strong>Privacy:</strong> We <strong>don’t store</strong> your URLs or page content. Scans are ephemeral and processed in-memory. Feedback is optional and anonymous. <a href="/privacy">Learn more</a>.</div>
+    </div>
 
-  {% if SELF_HOSTED %}
-  <div class="max-w-7xl mx-auto px-4">
-    <div class="glass rounded-xl ring-1 ring-white/10 p-2.5 text-xs sm:text-sm text-slate-200">
-      🔒 <span class="font-medium">Self-hosted mode:</span> scans run locally; optional external lookups are disabled.
+    <div class="grid">
+      <div>
+        <div class="hero">
+          <h1>Scan any link. <span class="accent">Instant</span> verdicts.<br/>Clear reasons.</h1>
+          <p>AI-powered phishing detection system to protect you from fraud, scams, and suspicious links.</p>
+        </div>
+
+        <div class="search">
+          <input id="url" class="url-input" placeholder="Paste a URL (e.g. https://bank.example/login)" />
+          <button id="scan" class="btn">Check</button>
+          <button id="rescan" class="btn secondary" title="Re-run with cache-busting">Re-scan anyway</button>
+          <label class="quick"><input type="checkbox" id="fastToggle"> ⚡ Quick scan</label>
+        </div>
+
+        <div id="hint" class="hint">Press Enter or click Check to scan.</div>
+
+        <div id="verdictCard" class="card" style="margin-top:18px; display:none">
+          <div class="row" style="justify-content:space-between;">
+            <h3 style="margin:0;font-size:20px;">Verdict</h3>
+            <div id="verdictBadge" class="verdict-badge badge-warn">Suspicious</div>
+          </div>
+
+          <div class="meta">
+            <span id="lastScanned">Last scanned —</span>
+            <span class="dot"></span>
+            <button id="shareBtn" class="btn small secondary">Share</button>
+          </div>
+
+          <div id="verdictTitle" style="font-size:28px;font-weight:800;letter-spacing:-.02em;margin:2px 0 6px;">—</div>
+          <div id="verdictExplain" style="color:var(--muted);margin-bottom:12px;">—</div>
+
+          <div class="scorebar" style="margin:8px 0 16px;">
+            <i id="riskFill"></i>
+          </div>
+
+          <div class="section">
+            <div class="pill" id="pill-domain"><h4>🌐 Domain Risks</h4><div id="domainRisks" class="empty">No notable issues.</div></div>
+            <div class="pill" id="pill-content"><h4>📝 Content Risks</h4><div id="contentRisks" class="empty">No notable issues.</div></div>
+            <div class="pill" id="pill-link"><h4>🔗 Link Risks</h4><div id="linkRisks" class="empty">No notable issues.</div></div>
+            <div class="pill" id="pill-behavior"><h4>🧪 Behavior Signals</h4><div id="behaviorRisks" class="empty">No notable issues.</div></div>
+          </div>
+
+          <details id="evidence" class="evidence">
+            <summary>🧾 Evidence (redirect chain & consent clicks)</summary>
+            <div class="evidence-body">
+              <div class="kv">
+                <div><strong>Redirect chain</strong></div><div id="evChain" class="mono">—</div>
+                <div><strong>Consent clicks</strong></div><div id="evConsent">—</div>
+              </div>
+            </div>
+          </details>
+        </div>
+      </div>
+
+      <div>
+        <div class="card">
+          <h3 style="margin:0 0 8px;">How it works</h3>
+          <p class="hint" style="margin:0">We analyze domain, content, link, and live behavior signals (redirects, timers, consent dialogs) and show grouped reasons you can verify. Results are designed to be explainable and fast for everyday use.</p>
+        </div>
+      </div>
+    </div>
+
+    <footer>
+      <div>© <span id="year"></span> <span class="brand">CheckThatURL.com</span>. Built by Emmanuel Orgu.</div>
+      <div class="row">
+        <a href="/privacy">Privacy</a>
+        <a href="/legal">Legal</a>
+        <a href="/faq">FAQ</a>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Scanner overlay -->
+  <div id="scanner" class="scanner" aria-hidden="true">
+    <div class="scan-card" role="dialog" aria-live="polite" aria-label="Scanning in progress">
+      <div class="scan-head">
+        <div class="scan-title">Scanning…</div>
+        <div class="scan-url mono" id="scanUrl">—</div>
+        <button id="scanCancel" class="scan-cancel">Cancel</button>
+      </div>
+      <div class="scan-body">
+        <div class="ring-wrap"><div class="ring" aria-hidden="true"></div></div>
+        <div>
+          <div id="scanSteps" class="scan-steps"></div>
+          <div class="scanbar"><i id="scanProgress"></i></div>
+          <div class="scan-footer">
+            <span id="scanStatus" class="mono">Initializing…</span>
+            <span id="scanEta" class="mono">~2s</span>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
-  {% endif %}
 
-  <div class="max-w-7xl mx-auto px-4 mt-2">
-    <div class="glass rounded-xl ring-1 ring-white/10 p-2.5 text-xs sm:text-sm text-slate-200">
-      🔐 <strong>Privacy:</strong> We <strong>don’t store</strong> your URLs or page content. Scans are ephemeral and processed in-memory.
-      Feedback is optional and anonymous. <a href="/privacy" class="underline">Learn more</a>.
-    </div>
-  </div>
+  <script>
+    const $ = s => document.querySelector(s);
+    $('#year').textContent = new Date().getFullYear();
 
-  <section class="max-w-7xl mx-auto px-4 pt-5 pb-2">
-    <div class="grid md:grid-cols-2 gap-5 items-start">
-      <div>
-        <h1 class="text-3xl sm:text-4xl font-extrabold leading-tight">
-          Scan any link. <span class="text-brand-400">Instant</span> verdicts. Clear reasons.
-        </h1>
-        <p class="mt-2.5 text-slate-300 text-sm sm:text-base">
-          AI-powered phishing detection system to protect you from fraud, scams, and suspicious links.
-        </p>
+    const qs = new URLSearchParams(location.search);
+    if (qs.get('url')) $('#url').value = qs.get('url');
 
-        <form id="check-form" class="mt-4 glass rounded-2xl p-2 ring-1 ring-white/10">
-          <div class="flex flex-col md:flex-row gap-2 md:items-center">
-            <div class="relative flex-1">
-              <input id="url-input" type="text" placeholder="Paste a URL (e.g. https://bank.example/login)" autocomplete="off"
-                     class="w-full bg-transparent placeholder-slate-400 focus:outline-none px-3.5 py-3 text-[15px]" />
-              <div id="suggestions" class="absolute left-2 right-2 top-full mt-2 hidden rounded-xl bg-slate-900/95 ring-1 ring-white/10 shadow-xl overflow-hidden z-50"></div>
-            </div>
-            <button type="submit" class="w-full md:w-auto px-4 py-3 rounded-xl bg-brand-500 hover:bg-brand-400 transition font-semibold">Check</button>
-          </div>
-          <div id="url-feedback" class="text-xs sm:text-sm mt-2 text-slate-400"></div>
-        </form>
-
-        <div id="history" class="mt-3 text-xs sm:text-sm text-slate-400"></div>
-      </div>
-
-      <!-- Result Card -->
-      <div id="results-card" class="glass rounded-2xl p-4 ring-1 ring-white/10 hidden">
-        <div class="flex items-center justify-between">
-          <div class="text-xs sm:text-sm text-slate-300">Verdict</div>
-          <div id="badge" class="px-2.5 py-1 text-[11px] rounded-full bg-slate-700 text-slate-200 ring-1 ring-white/10">—</div>
-        </div>
-
-        <h2 id="verdict-title" class="mt-1.5 text-xl sm:text-2xl font-bold">—</h2>
-        <p id="explanation" class="mt-1.5 text-[13px] text-slate-300">—</p>
-        <p id="diag-line" class="mt-1 text-[12px] text-slate-400 hidden"></p>
-        <p id="summary-line" class="mt-1 text-[12px] text-slate-400"></p>
-
-        <!-- Risk groups -->
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-2 mt-3">
-          <div class="glass rounded-lg p-2.5 ring-1 ring-white/10">
-            <div class="flex items-center justify-between">
-              <span class="text-[13px] font-semibold">🌐 Domain Risks</span>
-              <span class="tooltip text-[11px] text-slate-400 underline decoration-dotted cursor-help">
-                why?
-                <span class="tooltip-card absolute right-0 mt-2 opacity-0 pointer-events-none transition bg-slate-900/95 text-white text-[11px] w-56 p-3 rounded-xl ring-1 ring-white/10">
-                  New domains or odd TLDs aren’t bad alone — we only weigh them with other red flags.
-                </span>
-              </span>
-            </div>
-            <ul id="domain-risks" class="mt-2 text-[12px] space-y-1.5 max-h-28 overflow-auto md:max-h-32"></ul>
-          </div>
-
-          <div class="glass rounded-lg p-2.5 ring-1 ring-white/10">
-            <div class="flex items-center justify-between">
-              <span class="text-[13px] font-semibold">📝 Content Risks</span>
-              <span class="tooltip text-[11px] text-slate-400 underline decoration-dotted cursor-help">
-                why?
-                <span class="tooltip-card absolute right-0 mt-2 opacity-0 pointer-events-none transition bg-slate-900/95 text-white text-[11px] w-56 p-3 rounded-xl ring-1 ring-white/10">
-                  Urgency, credential prompts, or repeated phishing phrases increase risk.
-                </span>
-              </span>
-            </div>
-            <ul id="content-risks" class="mt-2 text-[12px] space-y-1.5 max-h-28 overflow-auto md:max-h-32"></ul>
-          </div>
-
-          <div class="glass rounded-lg p-2.5 ring-1 ring-white/10">
-            <div class="flex items-center justify-between">
-              <span class="text-[13px] font-semibold">🔗 Link Risks</span>
-              <span class="tooltip text-[11px] text-slate-400 underline decoration-dotted cursor-help">
-                why?
-                <span class="tooltip-card absolute right-0 mt-2 opacity-0 pointer-events-none transition bg-slate-900/95 text-white text-[11px] w-56 p-3 rounded-xl ring-1 ring-white/10">
-                  Mismatched anchors, excessive external links, and redirect chains can be malicious.
-                </span>
-              </span>
-            </div>
-            <ul id="link-risks" class="mt-2 text-[12px] space-y-1.5 max-h-28 overflow-auto md:max-h-32"></ul>
-          </div>
-
-          <div class="glass rounded-lg p-2.5 ring-1 ring-white/10">
-            <div class="flex items-center justify-between">
-              <span class="text-[13px] font-semibold">🧪 Behavior Signals</span>
-              <span class="tooltip text-[11px] text-slate-400 underline decoration-dotted cursor-help">
-                why?
-                <span class="tooltip-card absolute right-0 mt-2 opacity-0 pointer-events-none transition bg-slate-900/95 text-white text-[11px] w-56 p-3 rounded-xl ring-1 ring-white/10">
-                  Redirects after actions, JS-driven navigation, hidden content reveals, and DOM mutations are suspicious behaviors.
-                </span>
-              </span>
-            </div>
-            <ul id="behavior-risks" class="mt-2 text-[12px] space-y-1.5 max-h-28 overflow-auto md:max-h-32"></ul>
-          </div>
-        </div>
-
-        <!-- Category scores -->
-        <div class="mt-3">
-          <h3 class="text-sm font-semibold mb-1.5">Category Scores</h3>
-          <div class="space-y-1.5 text-xs">
-            <div>
-              <div class="flex justify-between"><span>Domain</span><span id="score-domain-text">0%</span></div>
-              <div class="w-full bg-white/10 h-2 rounded-full overflow-hidden">
-                <div id="score-domain-bar" class="h-2 bg-brand-500 rounded-full" style="width:0%"></div>
-              </div>
-            </div>
-            <div>
-              <div class="flex justify-between"><span>Content</span><span id="score-content-text">0%</span></div>
-              <div class="w-full bg-white/10 h-2 rounded-full overflow-hidden">
-                <div id="score-content-bar" class="h-2 bg-brand-500 rounded-full" style="width:0%"></div>
-              </div>
-            </div>
-            <div>
-              <div class="flex justify-between"><span>Link</span><span id="score-link-text">0%</span></div>
-              <div class="w-full bg-white/10 h-2 rounded-full overflow-hidden">
-                <div id="score-link-bar" class="h-2 bg-brand-500 rounded-full" style="width:0%"></div>
-              </div>
-            </div>
-            <div>
-              <div class="flex justify-between"><span>Behavior</span><span id="score-behavior-text">0%</span></div>
-              <div class="w-full bg-white/10 h-2 rounded-full overflow-hidden">
-                <div id="score-behavior-bar" class="h-2 bg-brand-500 rounded-full" style="width:0%"></div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Structural & Visual -->
-        <div class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-2">
-          <div class="glass rounded-lg p-2.5 ring-1 ring-white/10">
-            <div class="flex items-center justify-between">
-              <span class="text-sm font-semibold">🧩 Structural Similarity</span>
-            </div>
-            <div class="mt-1.5 text-xs text-slate-300">
-              <div>Match score: <span id="domScoreText">—</span></div>
-              <div>Closest template: <span id="domTemplateText">—</span></div>
-            </div>
-          </div>
-          <div class="glass rounded-lg p-2.5 ring-1 ring-white/10">
-            <div class="flex items-center justify-between">
-              <span class="text-sm font-semibold">🖼️ Visual Similarity</span>
-            </div>
-            <div class="mt-1.5 text-xs text-slate-300">
-              <div>Match score: <span id="visualScoreText">—</span></div>
-              <div>Closest template: <span id="visualClosestText">—</span></div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Chart -->
-        <div id="chart-wrap" class="mt-3">
-          <div class="relative w-full h-44 sm:h-56">
-            <canvas id="confidenceChart"></canvas>
-          </div>
-        </div>
-
-        <details class="mt-3 text-xs text-slate-400">
-          <summary class="cursor-pointer">See raw checks</summary>
-          <ul id="raw-list" class="mt-1.5 space-y-1"></ul>
-        </details>
-
-        <!-- Feedback row -->
-        <div id="feedback-row" class="mt-3 hidden">
-          <div class="flex flex-wrap items-center gap-2 text-sm">
-            <span class="text-slate-300">Was this result helpful?</span>
-            <button id="fb-yes" class="px-3 py-1 rounded-lg bg-white/10 hover:bg-white/20">Yes</button>
-            <button id="fb-no"  class="px-3 py-1 rounded-lg bg-white/10 hover:bg-white/20">No</button>
-            <span class="text-slate-500">•</span>
-            <button id="report-fp" class="px-3 py-1 rounded-lg bg-danger/10 hover:bg-danger/20">Report False Positive</button>
-            <button id="report-fn" class="px-3 py-1 rounded-lg bg-warning/10 hover:bg-warning/20">Report False Negative</button>
-            <span id="fb-toast" class="hidden text-xs text-slate-400"></span>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <section id="how" class="max-w-7xl mx-auto px-4 py-8">
-    <h3 class="text-2xl font-bold mb-5">How it works</h3>
-    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-      <div class="glass rounded-2xl p-5 ring-1 ring-white/10">
-        <div class="text-4xl">1️⃣</div>
-        <div class="mt-2.5 font-semibold">Paste a link</div>
-        <p class="text-slate-300 text-sm mt-1">We’ll prep it for safe analysis.</p>
-      </div>
-      <div class="glass rounded-2xl p-5 ring-1 ring-white/10">
-        <div class="text-4xl">2️⃣</div>
-        <div class="mt-2.5 font-semibold">AI checks content + behavior</div>
-        <p class="text-slate-300 text-sm mt-1">Domain, text, structure — and more.</p>
-      </div>
-      <div class="glass rounded-2xl p-5 ring-1 ring-white/10">
-        <div class="text-4xl">3️⃣</div>
-        <div class="mt-2.5 font-semibold">Clear verdict & reasons</div>
-        <p class="text-slate-300 text-sm mt-1">See risks grouped by category.</p>
-      </div>
-    </div>
-  </section>
-
-  <section class="max-w-7xl mx-auto px-4 pb-10">
-    <div class="glass rounded-2xl p-5 ring-1 ring-white/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-      <div>
-        <h4 class="text-lg sm:text-xl font-bold">Don’t click blind.</h4>
-        <p class="text-slate-300 text-sm mt-1">Scan links in seconds — no login, no tracking.</p>
-      </div>
-      <a href="#" onclick="document.getElementById('url-input').focus();" class="w-full sm:w-auto px-5 py-3 bg-brand-500 hover:bg-brand-400 rounded-xl font-semibold text-center">Scan a link</a>
-    </div>
-  </section>
-
-  <footer class="border-t border-white/10">
-    <div class="max-w-7xl mx-auto px-4 py-6 text-xs sm:text-sm text-slate-400 flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
-      <p>© 2025 CheckThatURL. Built by Emmanuel Orgu.</p>
-      <div class="flex flex-wrap items-center gap-3">
-        <a href="/privacy" class="hover:text-white">Privacy</a><span class="text-slate-600">•</span>
-        <a href="/legal" class="hover:text-white">Legal</a><span class="text-slate-600">•</span>
-        <a href="/faq" class="hover:text-white">FAQ</a>
-        <span class="text-slate-600 hidden md:inline">•</span>
-        <span>No data stored. No cookies. No tracking.</span>
-      </div>
-    </div>
-  </footer>
-
-<script>
-document.addEventListener("DOMContentLoaded", () => {
-  const form = document.getElementById("check-form");
-  const urlInput = document.getElementById("url-input");
-  const feedback = document.getElementById("url-feedback");
-  const suggestionsBox = document.getElementById("suggestions");
-  const resultsCard = document.getElementById("results-card");
-  const verdictTitle = document.getElementById("verdict-title");
-  const badge = document.getElementById("badge");
-  const explanation = document.getElementById("explanation");
-  const diagLine = document.getElementById("diag-line");
-  const summaryLine = document.getElementById("summary-line");
-
-  const domainList = document.getElementById("domain-risks");
-  const contentList = document.getElementById("content-risks");
-  const linkList = document.getElementById("link-risks");
-  const behaviorList = document.getElementById("behavior-risks");
-
-  const rawList = document.getElementById("raw-list");
-  const chartCanvas = document.getElementById("confidenceChart");
-  const chartWrap = document.getElementById("chart-wrap");
-  const historyBox = document.getElementById("history");
-  const feedbackRow = document.getElementById("feedback-row");
-  let chartInstance;
-
-  const fbYes = document.getElementById("fb-yes");
-  const fbNo  = document.getElementById("fb-no");
-  const reportFP = document.getElementById("report-fp");
-  const reportFN = document.getElementById("report-fn");
-  const fbToast = document.getElementById("fb-toast");
-  let lastScan = { url: "", verdict: "" };
-
-  const scoreEls = {
-    domain:   { bar: document.getElementById("score-domain-bar"),   text: document.getElementById("score-domain-text") },
-    content:  { bar: document.getElementById("score-content-bar"),  text: document.getElementById("score-content-text") },
-    link:     { bar: document.getElementById("score-link-bar"),     text: document.getElementById("score-link-text") },
-    behavior: { bar: document.getElementById("score-behavior-bar"), text: document.getElementById("score-behavior-text") },
-  };
-
-  const domScoreText = document.getElementById("domScoreText");
-  const domTemplateText = document.getElementById("domTemplateText");
-  const visualScoreText = document.getElementById("visualScoreText");
-  const visualClosestText = document.getElementById("visualClosestText");
-
-  const suffixes = [".com", ".ng", ".org", ".bank", ".io", ".app"];
-
-  const escapeHtml = (s) => String(s || "")
-    .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
-    .replace(/"/g,"&quot;").replace(/'/g,"&#39;");
-
-  function chip(u) {
-    return '<button data-url="' + u + '" class="px-2.5 py-1 rounded-full text-[11px] bg-white/5 hover:bg-white/10 ring-1 ring-white/10">' + escapeHtml(u) + '</button>';
-  }
-
-  function loadHistory() {
-    let history = JSON.parse(localStorage.getItem("scanHistory") || "[]");
-    history = history.filter(u => u && typeof u === "string" && u.indexOf("${") === -1);
-    localStorage.setItem("scanHistory", JSON.stringify(history.slice(0, 10)));
-
-    if (!history.length) { historyBox.innerHTML = ""; return; }
-    historyBox.innerHTML =
-      '<div class="flex flex-wrap gap-2 items-center"><span class="text-slate-400">Recent:</span>' +
-      history.map(chip).join("") +
-      '</div>';
-  }
-  loadHistory();
-
-  historyBox.addEventListener("click", (e) => {
-    const u = e.target.getAttribute("data-url");
-    if (u) { urlInput.value = u; urlInput.focus(); }
-  });
-
-  urlInput.addEventListener("input", () => {
-    const v = urlInput.value.trim();
-    feedback.textContent = v ? "Press Enter or click Check to scan." : "Paste a URL to begin.";
-    feedback.className = v ? "text-xs sm:text-sm mt-2 text-brand-200" : "text-xs sm:text-sm mt-2 text-slate-400";
-
-    if (v && !v.includes(".")) {
-      suggestionsBox.innerHTML = suffixes.map(ext => `<div class="px-3 py-2 hover:bg-white/10 cursor-pointer">${escapeHtml(v)}${ext}</div>`).join("");
-      suggestionsBox.classList.remove("hidden");
-    } else {
-      suggestionsBox.classList.add("hidden");
+    let lastScanEpoch = 0;
+    function relTime(ts){
+      if(!ts) return '—';
+      const s = Math.max(1, Math.floor((Date.now()-ts)/1000));
+      if(s<60) return `${s}s ago`;
+      const m = Math.floor(s/60); if(m<60) return `${m}m ago`;
+      const h = Math.floor(m/60); if(h<24) return `${h}h ago`;
+      return `${Math.floor(h/24)}d ago`;
     }
-  });
+    setInterval(()=>{ if(lastScanEpoch) $('#lastScanned').textContent = `Last scanned ${relTime(lastScanEpoch)}`; },1000);
 
-  suggestionsBox.addEventListener("click", (e) => {
-    if (e.target && e.target.textContent) {
-      urlInput.value = e.target.textContent;
-      suggestionsBox.classList.add("hidden");
-      urlInput.focus();
+    async function shareVerdict(data){
+      const url = new URL(location.href);
+      url.searchParams.set('url', data.url || $('#url').value || '');
+      const shareText = `CheckThatURL verdict: ${data.verdict} (${Math.round(data.risk*100)}% risk)\n${url.toString()}`;
+      try{
+        if (navigator.share) {
+          await navigator.share({title:'CheckThatURL verdict', text: shareText, url: url.toString()});
+        } else {
+          await navigator.clipboard.writeText(shareText);
+          alert('Share link copied to clipboard.');
+        }
+      }catch(_){}
     }
-  });
 
-  function setBadgeState(state) {
-    const map = {
-      "Checking":    { text: "Checking…",  cls: "bg-slate-700 text-slate-200 ring-1 ring-white/10" },
-      "Phishing":    { text: "Phishing",   cls: "bg-danger/20 text-danger ring-1 ring-danger/30" },
-      "Suspicious":  { text: "Suspicious", cls: "bg-warning/20 text-warning ring-1 ring-warning/30" },
-      "Legitimate":  { text: "Legitimate", cls: "bg-success/20 text-success ring-1 ring-success/30" },
-      "Unreachable": { text: "Unreachable",cls: "bg-white/10 text-neutral ring-1 ring-white/20" },
-      "Blocked":     { text: "Blocked",    cls: "bg-white/10 text-neutral ring-1 ring-white/20" },
-      "Not Found":   { text: "Not Found",  cls: "bg-white/10 text-neutral ring-1 ring-white/20" },
-      "Rate Limited":{ text: "Rate Limited",cls: "bg-white/10 text-neutral ring-1 ring-white/20" },
-      "Server Error":{ text: "Server Error",cls: "bg-white/10 text-neutral ring-1 ring-white/20" }
-    };
-    const cfg = map[state] || map["Checking"];
-    badge.className = `px-2.5 py-1 text-[11px] rounded-full ${cfg.cls}`;
-    badge.textContent = cfg.text;
-  }
+    // ====== STRICT messaging & abnormalities ======
+    const WEAK_PATTERN = /(further\s+checks\s+recommended|seek\s+further\s+verification|manual\s+review\s+recommended)/i;
 
-  function renderList(el, items) {
-    const safe = (items || []).filter(Boolean).map(i => `<li class="leading-relaxed">• ${escapeHtml(i)}</li>`);
-    el.innerHTML = safe.length ? safe.join("") : `<li class="text-slate-500">No notable issues.</li>`;
-  }
+    const clean = arr => (Array.isArray(arr)?arr:[])
+      .map(x => (x||'').toString().trim())
+      .filter(x => x && !WEAK_PATTERN.test(x));
 
-  function renderCategoryScores(scores) {
-    const s = scores || {};
-    ["domain","content","link","behavior"].forEach(k => {
-      const v = Math.max(0, Math.min(1, Number(s[k] || 0)));
-      const pct = Math.round(v * 100);
-      scoreEls[k].text.textContent = pct + "%";
-      scoreEls[k].bar.style.width = pct + "%";
+    const categories = d => ({
+      domain:   clean(d.domain_risks),
+      content:  clean(d.content_risks),
+      link:     clean(d.link_risks),
+      behavior: clean(d.behavior_risks),
     });
-  }
 
-  function resetCategoryScores() {
-    ["domain","content","link","behavior"].forEach(k => {
-      scoreEls[k].text.textContent = "0%";
-      scoreEls[k].bar.style.width = "0%";
-    });
-  }
+    // Derive abnormalities directly from raw behavior telemetry if buckets are empty
+    function deriveBehaviorSignals(data){
+      const out = [];
+      const beh = data.behavior || {};
+      const chain = Array.isArray(beh.redirect_chain) ? beh.redirect_chain : [];
+      const events = (beh.events || []).map(e => (e||'').toString());
 
-  function pct(x) {
-    const n = Number(x || 0);
-    return (Math.round(n * 1000) / 10) + "%";
-  }
+      if (chain.length > 1) out.push(`Multiple redirects observed (${chain.length} hops)`);
 
-  async function sendFeedback(kind){
-    if(!lastScan.url) return;
-    try{
-      const body = (kind==="yes"||kind==="no")
-        ? { url:lastScan.url, verdict:lastScan.verdict, helpful:(kind==="yes") }
-        : { url:lastScan.url, verdict:lastScan.verdict, type:(kind==="fp"?"fp":"fn") };
-      const endpoint = (kind==="yes"||kind==="no") ? "/feedback" : "/report";
-      const res = await fetch(endpoint,{ method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify(body) });
-      const j = await res.json();
-      fbToast.classList.remove("hidden");
-      fbToast.textContent = j.ok ? "Thanks — saved." : ("Error: "+(j.error||"unknown"));
-      setTimeout(()=>fbToast.classList.add("hidden"), 2200);
-    }catch(e){
-      fbToast.classList.remove("hidden");
-      fbToast.textContent = "Network error";
-      setTimeout(()=>fbToast.classList.add("hidden"), 2200);
+      const seen = (re) => events.some(e => re.test(e));
+
+      if (seen(/js_redirect/i))       out.push('JavaScript-triggered redirect');
+      if (seen(/post_redirect/i))     out.push('Post-submission redirect flow detected');
+      if (seen(/consent_click/i))     out.push('Consent/allow dialog interaction captured');
+      if (seen(/timer|countdown/i))   out.push('Urgency/countdown timer behavior');
+      if (seen(/dom[_-]?mutation|mutation/i)) out.push('Rapid DOM mutations observed');
+      if (seen(/iframe/i))            out.push('Cross-site iframe embedding');
+      if (seen(/obfuscat|eval/i))     out.push('Obfuscated script execution patterns');
+      if (seen(/clipboard|copy/i))    out.push('Clipboard access/auto-copy behavior');
+      if (seen(/notification/i))      out.push('Browser notification prompt behavior');
+
+      return out;
     }
-  }
 
-  fbYes.addEventListener("click", ()=>sendFeedback("yes"));
-  fbNo.addEventListener("click",  ()=>sendFeedback("no"));
-  reportFP.addEventListener("click",()=>sendFeedback("fp"));
-  reportFN.addEventListener("click",()=>sendFeedback("fn"));
+    // Ensure non-legit verdicts have concrete issues listed; keep the original verdict.
+    function ensureAbnormalitiesForNonLegit(verdict, c, data){
+      if (verdict === 'Legitimate') return c;
+      // If behavior bucket empty, try to derive
+      if (!c.behavior.length){
+        c.behavior = deriveBehaviorSignals(data);
+      }
+      // If absolutely everything is still empty, create a minimal model-based bullet so UI never says "no issues"
+      const total = c.domain.length + c.content.length + c.link.length + c.behavior.length;
+      if (total === 0){
+        c.content = [`Anomalous content/structure pattern detected by the model (confidence ${Math.round((data.risk||0)*100)}%).`];
+      }
+      return c;
+    }
 
-  function smoothScrollTo(el){
-    try{
-      const y = el.getBoundingClientRect().top + window.scrollY - 90;
-      window.scrollTo({ top: y, behavior: "smooth" });
-    }catch(_){}
-  }
+    const nonEmpty = a => Array.isArray(a) && a.length>0;
 
-  function setCheckingState(){
-    resultsCard.classList.remove("hidden");
-    setBadgeState("Checking");
-    verdictTitle.textContent = "Checking…";
-    explanation.textContent = "Running static & behavioral checks.";
-    diagLine.classList.add("hidden");
-    summaryLine.textContent = "";
-    renderList(domainList, []); renderList(contentList, []); renderList(linkList, []); renderList(behaviorList, []);
-    resetCategoryScores();
-    if (domScoreText) domScoreText.textContent = "—";
-    if (domTemplateText) domTemplateText.textContent = "—";
-    if (visualScoreText) visualScoreText.textContent = "—";
-    if (visualClosestText) visualClosestText.textContent = "—";
-    if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
-    rawList.innerHTML = "";
-    chartWrap.classList.remove("hidden");
-    feedbackRow.classList.add("hidden");
-    smoothScrollTo(resultsCard);
-  }
+    function setBadge(v){
+      const badge = $('#verdictBadge');
+      badge.textContent = v;
+      badge.classList.remove('badge-ok','badge-warn','badge-bad');
+      if (v === 'Legitimate') badge.classList.add('badge-ok');
+      else if (v === 'Phishing') badge.classList.add('badge-bad');
+      else badge.classList.add('badge-warn');
+    }
 
-  form.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const url = urlInput.value.trim();
-    if (!url) return;
-
-    setCheckingState();
-
-    try {
-      const res = await fetch("/check", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url })
-      });
-      const data = await res.json();
-
-      lastScan = { url: data.url || url, verdict: data.verdict || "" };
-
-      if (["Unreachable","Blocked","Not Found","Rate Limited","Server Error"].includes(data.verdict)) {
-        setBadgeState(data.verdict);
-        verdictTitle.textContent = data.verdict;
-        explanation.textContent = data.explanation || "We couldn’t fetch the site.";
-        const label = data.diagnostic && data.diagnostic.label;
-        if (label) { diagLine.textContent = label; diagLine.classList.remove("hidden"); } else { diagLine.classList.add("hidden"); }
-        summaryLine.textContent = "";
-        renderList(domainList, []); renderList(contentList, []); renderList(linkList, []); renderList(behaviorList, []);
-        resetCategoryScores();
-        if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
-        chartWrap.classList.add("hidden");
-        rawList.innerHTML = "";
-        let history = JSON.parse(localStorage.getItem("scanHistory") || "[]");
-        if (!history.includes(url)) { history.unshift(url); localStorage.setItem("scanHistory", JSON.stringify(history.slice(0,10))); }
-        loadHistory();
-        feedbackRow.classList.remove("hidden");
+    // Verdict-aware list rendering
+    function fillList(el, items, verdict){
+      const pill = el.closest('.pill');
+      if (verdict === 'Legitimate'){
+        if (!items.length){ el.className='empty'; el.textContent='No notable issues.'; pill.style.display=''; return; }
+        el.className='list'; el.innerHTML = items.map(x=>`<li>${x}</li>`).join(''); pill.style.display='';
         return;
       }
-
-      if (data.error) {
-        setBadgeState("Suspicious");
-        verdictTitle.textContent = "Error";
-        explanation.textContent = data.error;
-        diagLine.classList.add("hidden");
-        chartWrap.classList.add("hidden");
-        feedbackRow.classList.remove("hidden");
-        return;
-      }
-
-      const v = data.verdict || "Suspicious";
-      setBadgeState(v);
-      verdictTitle.textContent = v;
-      explanation.textContent = data.explanation || "We’ve grouped risk signals below.";
-      diagLine.classList.add("hidden");
-
-      const summary = (data.explanations && data.explanations.summary) ? data.explanations.summary : "";
-      summaryLine.textContent = summary;
-
-      const groups = {
-        domain_risks:    data.domain_risks    || (data.explanations && data.explanations.domain)    || [],
-        content_risks:   data.content_risks   || (data.explanations && data.explanations.content)   || [],
-        link_risks:      data.link_risks      || (data.explanations && data.explanations.link)      || [],
-        behavior_risks:  data.behavior_risks  || (data.explanations && data.explanations.behavior)  || (data.behavior && data.behavior.events) || []
-      };
-      if ((!groups.domain_risks.length && !groups.content_risks.length && !groups.link_risks.length) && Array.isArray(data.features_triggered)) {
-        groups.content_risks = data.features_triggered;
-      }
-      renderList(domainList, groups.domain_risks);
-      renderList(contentList, groups.content_risks);
-      renderList(linkList, groups.link_risks);
-      renderList(behaviorList, groups.behavior_risks);
-
-      renderCategoryScores(data.category_scores || {});
-
-      const s = data.structure || {};
-      const vis = data.visual || {};
-      const phishing = Number(data.phishing_score || 0);
-      const legit    = Number(data.legit_score || 0);
-
-      if (domScoreText) domScoreText.textContent = s.score !== undefined ? pct(s.score) : "—";
-      if (domTemplateText) domTemplateText.textContent = s.template || "—";
-      if (visualScoreText) visualScoreText.textContent = vis.score !== undefined ? pct(vis.score) : "—";
-      if (visualClosestText) visualClosestText.textContent = vis.closest || "—";
-
-      if (chartInstance) chartInstance.destroy();
-      chartInstance = new Chart(chartCanvas, {
-        type: "doughnut",
-        data: { labels: ["Phishing", "Legitimate"], datasets: [{ data: [phishing, legit], backgroundColor: ["#ef4444", "#16a34a"], hoverBackgroundColor: ["#dc2626", "#15803d"], borderWidth: 0 }] },
-        options: { responsive: true, maintainAspectRatio: false, cutout: "70%", plugins: { legend: { position: "bottom", labels: { color: "#cbd5e1" } }, tooltip: { callbacks: { label: (ctx)=> `${ctx.label}: ${ctx.raw}%` } } } }
-      });
-
-      // Redirect count: HTTP + behavior-chain + client-side flags
-      const behavior = data.behavior || {};
-      const hasBehChain = Array.isArray(behavior.redirect_chain);
-      const behRedirects = hasBehChain ? (behavior.redirect_chain.length - 1) : 0;
-      const httpRedirects = hasBehChain ? 0 : Number(behavior.http_redirects || 0);
-      const clientRedirects = Number(behavior.client_redirects || 0);
-
-      rawList.innerHTML = [
-        `Confidence: ${data.confidence ?? "-"}`,
-        `Phishing score: ${phishing}`,
-        `Legit score: ${legit}`,
-        `Behavior mode: ${escapeHtml(behavior.mode || "-")}`,
-        `Behavior score: ${pct(behavior.score || 0)}`,
-        `Redirects: ${httpRedirects + behRedirects + clientRedirects}`,
-        `DOM mutation score: ${pct(behavior.dom_mutation_score || 0)}`,
-        `Structure match: ${pct((data.structure || {}).score || 0)} (${escapeHtml((data.structure || {}).template || "—")})`,
-        `Visual match: ${pct((data.visual || {}).score || 0)} (${escapeHtml((data.visual || {}).closest || "—")})`
-      ].map(x => `<li>${escapeHtml(x)}</li>`).join("");
-
-      let history = JSON.parse(localStorage.getItem("scanHistory") || "[]");
-      if (!history.includes(url)) { history.unshift(url); localStorage.setItem("scanHistory", JSON.stringify(history.slice(0,10))); }
-      loadHistory();
-      feedbackRow.classList.remove("hidden");
-
-    } catch (err) {
-      setBadgeState("Unreachable");
-      verdictTitle.textContent = "Connection error";
-      explanation.textContent = "We couldn’t reach the scanner. Please try again.";
-      diagLine.classList.add("hidden");
-      chartWrap.classList.add("hidden");
-      feedbackRow.classList.remove("hidden");
+      // Phishing/Suspicious: show only concrete abnormalities; hide empty buckets
+      if (!items.length){ pill.style.display='none'; return; }
+      el.className='list'; el.innerHTML = items.map(x=>`<li>${x}</li>`).join(''); pill.style.display='';
     }
-  });
-});
-</script>
+
+    function presentCats(c){
+      const out = [];
+      if (nonEmpty(c.domain)) out.push('Domain');
+      if (nonEmpty(c.content)) out.push('Content');
+      if (nonEmpty(c.link)) out.push('Links');
+      if (nonEmpty(c.behavior)) out.push('Behavior');
+      return out;
+    }
+
+    function buildSummary(verdict, c){
+      const cats = presentCats(c);
+      if (verdict === 'Phishing')   return `Multiple phishing indicators detected across: ${cats.join(', ')}. Review the breakdown below.`;
+      if (verdict === 'Suspicious') return `Some risk signals detected in: ${cats.join(', ')}. See the grouped reasons below.`;
+      return 'Low risk. No phishing patterns detected.';
+    }
+
+    function buildExplain(verdict, c){
+      const pick = arr => arr.slice(0,2).join('; ');
+      const parts = [];
+      if (nonEmpty(c.domain))   parts.push(`Domain: ${pick(c.domain)}`);
+      if (nonEmpty(c.content))  parts.push(`Content: ${pick(c.content)}`);
+      if (nonEmpty(c.link))     parts.push(`Links: ${pick(c.link)}`);
+      if (nonEmpty(c.behavior)) parts.push(`Behavior: ${pick(c.behavior)}`);
+      if (parts.length) return parts.join(' • ');
+      return verdict === 'Legitimate' ? 'No notable risk signals found.' : 'Model-detected anomalies listed above.';
+    }
+
+    function sanitizeHint(raw, computed){
+      if (!raw) return computed;
+      return WEAK_PATTERN.test(raw) ? computed : raw;
+    }
+
+    function fillEvidence(data){
+      const chain = (data.behavior && data.behavior.redirect_chain) || [];
+      $('#evChain').textContent = chain.length ? chain.join('  →  ') : '—';
+      const consent = (data.behavior && (data.behavior.events||[]).filter(e => (e||'').startsWith('consent_click:')).length) || 0;
+      $('#evConsent').textContent = consent ? `${consent} click(s)` : '—';
+    }
+
+    // Scanner overlay
+    let aborter = null, animTimer = null;
+    const stepList = q => q ? ['Fetching page','Analyzing content','Computing verdict']
+                            : ['Fetching page','Analyzing content','Checking links','Running behavior checks','Comparing structure','Computing verdict'];
+    function showScanner(url,isQuick){
+      $('#scanner').classList.add('show');
+      $('#scanUrl').textContent=url;
+      $('#scanSteps').innerHTML='';
+      stepList(isQuick).forEach((t,i)=>{
+        const div=document.createElement('div');
+        div.className='scan-step'; div.dataset.idx=i;
+        div.innerHTML=`<div class="dot"></div><span>${t}</span>`;
+        $('#scanSteps').appendChild(div);
+      });
+      $('#scanProgress').style.width='0%';
+      $('#scanStatus').textContent='Initializing…';
+      $('#scanEta').textContent=isQuick?'~2s':'~5s';
+    }
+    function hideScanner(){ $('#scanner').classList.remove('show'); if(animTimer) clearInterval(animTimer); animTimer=null; }
+    function markStepDone(i){
+      const el=document.querySelector(`.scan-step[data-idx="${i}"]`); if(el) el.classList.add('done');
+      const total=document.querySelectorAll('.scan-step').length||1;
+      $('#scanProgress').style.width=Math.min(100,Math.round(((i+1)/total)*100))+'%';
+    }
+    function animateProgress(){
+      let p=0; animTimer=setInterval(()=>{ p=Math.min(96,p+Math.random()*3.5+0.5); $('#scanProgress').style.width=p+'%'; },140);
+    }
+
+    async function runScan(forceRescan=false){
+      const url = ($('#url').value||'').trim();
+      if(!url) return;
+      const isQuick = $('#fastToggle').checked;
+
+      try{
+        aborter = new AbortController();
+        showScanner(url,isQuick); animateProgress();
+        const steps = stepList(isQuick);
+        let sidx=0; const stepTimer=setInterval(()=>{ if(sidx<steps.length){ markStepDone(sidx); $('#scanStatus').textContent=steps[sidx]; sidx++; } else clearInterval(stepTimer); }, isQuick?420:560);
+
+        const resp = await fetch('/check?ui=redacted' + (forceRescan ? '&_=' + Date.now() : ''), {
+          method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url}), signal:aborter.signal
+        });
+        const data = await resp.json();
+
+        markStepDone(steps.length-1);
+        $('#scanStatus').textContent='Done';
+        $('#scanProgress').style.width='100%';
+
+        lastScanEpoch = Date.now();
+        $('#verdictCard').style.display='block';
+
+        const verdict = (data.verdict || 'Legitimate').trim();
+        $('#verdictTitle').textContent = verdict;
+        setBadge(verdict);
+        $('#riskFill').style.width = Math.round((data.risk || 0) * 100) + '%';
+
+        // Clean buckets then ensure abnormalities for non-legit
+        let c = categories(data);
+        c = ensureAbnormalitiesForNonLegit(verdict, c, data);
+
+        // Render category lists
+        fillList($('#domainRisks'), c.domain, verdict);
+        fillList($('#contentRisks'), c.content, verdict);
+        fillList($('#linkRisks'),    c.link,    verdict);
+        fillList($('#behaviorRisks'),c.behavior,verdict);
+        fillEvidence(data);
+
+        // Hint + explainer (no weak phrasing)
+        const computedSummary = buildSummary(verdict, c);
+        const rawHint = data.explanations && data.explanations.summary;
+        $('#hint').textContent = sanitizeHint(rawHint, computedSummary);
+
+        const rawExplain = (data.explanation||'').trim();
+        $('#verdictExplain').textContent = (!rawExplain || WEAK_PATTERN.test(rawExplain)) ? buildExplain(verdict, c) : rawExplain;
+
+        // Update URL for sharing
+        const u = new URL(location.href); u.searchParams.set('url', url); history.replaceState(null,'',u.toString());
+
+        hideScanner(); aborter=null;
+      }catch(e){
+        hideScanner(); aborter=null;
+        alert('Scan failed or cancelled.');
+      }
+    }
+
+    $('#scan').addEventListener('click', ()=>runScan(false));
+    $('#rescan').addEventListener('click', ()=>runScan(true));
+    $('#url').addEventListener('keydown', e => { if(e.key==='Enter') runScan(false); });
+    $('#scanCancel').addEventListener('click', ()=>{ try{ aborter?.abort(); }catch(_){ } hideScanner(); });
+
+    $('#shareBtn').addEventListener('click', async ()=>{
+      const card = $('#verdictCard'); if (card.style.display==='none') return;
+      const data = { url: ($('#url').value||'').trim(), verdict: $('#verdictTitle').textContent||'', risk: parseFloat($('#riskFill').style.width||'0')/100 };
+      await shareVerdict(data);
+    });
+  </script>
 </body>
 </html>

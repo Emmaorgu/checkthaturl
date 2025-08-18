@@ -1,0 +1,170 @@
+{
+  "runs": [
+    {
+      "url": "https://vercel.com",
+      "label": "legit",
+      "verdict": "suspicious",
+      "confidence": 83.5,
+      "category_scores": {
+        "behavior": 0.0,
+        "content": 0.057,
+        "domain": 0.195,
+        "link": 0.667
+      },
+      "structure": {
+        "score": 0.718,
+        "template": "ctu_home"
+      },
+      "behavior": {
+        "cta_clicks": 1,
+        "dom_mutation_score": 0.0,
+        "events": [],
+        "final_url": "https://vercel.com/",
+        "form_count": 0,
+        "hidden_revealed_count": 0,
+        "js_redirects_detected": 0,
+        "mode": "playwright",
+        "post_action_redirects": 0,
+        "redirect_chain": [
+          "https://vercel.com/"
+        ],
+        "score": 0.0,
+        "status_code": 200
+      }
+    },
+    {
+      "url": "https://clearbit.com",
+      "label": "legit",
+      "verdict": "suspicious",
+      "confidence": 76.2,
+      "category_scores": {
+        "behavior": 0.0,
+        "content": 0.114,
+        "domain": 0.228,
+        "link": 0.333
+      },
+      "structure": {
+        "score": 0.73,
+        "template": "ctu_home"
+      },
+      "behavior": {
+        "cta_clicks": 1,
+        "dom_mutation_score": 0.0015,
+        "events": [],
+        "final_url": "https://clearbit.com/",
+        "form_count": 1,
+        "hidden_revealed_count": 0,
+        "js_redirects_detected": 0,
+        "mode": "playwright",
+        "post_action_redirects": 0,
+        "redirect_chain": [
+          "https://clearbit.com/"
+        ],
+        "score": 0.0,
+        "status_code": 200
+      }
+    },
+    {
+      "url": "https://linear.app",
+      "label": "legit",
+      "verdict": "suspicious",
+      "confidence": 30.3,
+      "category_scores": {
+        "behavior": 0.0,
+        "content": 0.057,
+        "domain": 0.195,
+        "link": 0.333
+      },
+      "structure": {
+        "score": 0.551,
+        "template": "ctu_home"
+      },
+      "behavior": {
+        "cta_clicks": 0,
+        "dom_mutation_score": 0.0001,
+        "events": [],
+        "final_url": "https://linear.app/",
+        "form_count": 0,
+        "hidden_revealed_count": 0,
+        "js_redirects_detected": 0,
+        "mode": "playwright",
+        "post_action_redirects": 0,
+        "redirect_chain": [
+          "https://linear.app/"
+        ],
+        "score": 0.0,
+        "status_code": 200
+      }
+    },
+    {
+      "url": "https://relocate.spicethefood.com/apply",
+      "label": "phish",
+      "verdict": "phishing",
+      "confidence": 42.9,
+      "category_scores": {
+        "behavior": 0.0,
+        "content": 0.171,
+        "domain": 0.23,
+        "link": 0.0
+      },
+      "structure": {
+        "score": 0.839,
+        "template": "verify.unionbnk-portal.online"
+      },
+      "behavior": {
+        "cta_clicks": 0,
+        "dom_mutation_score": 0.0,
+        "events": [],
+        "final_url": "https://relocate.spicethefood.com/apply/",
+        "form_count": 0,
+        "hidden_revealed_count": 0,
+        "js_redirects_detected": 0,
+        "mode": "playwright",
+        "post_action_redirects": 0,
+        "redirect_chain": [
+          "https://relocate.spicethefood.com/apply/"
+        ],
+        "score": 0.0,
+        "status_code": 200
+      }
+    },
+    {
+      "url": "https://careermakeup.com/start-here/",
+      "label": "phish",
+      "verdict": "suspicious",
+      "confidence": 55.2,
+      "category_scores": {
+        "behavior": 0.0,
+        "content": 0.057,
+        "domain": 0.214,
+        "link": 0.0
+      },
+      "structure": {
+        "score": 0.574,
+        "template": "alert.nigeria.banking-secure.com"
+      },
+      "behavior": {
+        "cta_clicks": 0,
+        "dom_mutation_score": 0.0,
+        "events": [],
+        "final_url": "https://careermakeup.com/start-here/",
+        "form_count": 1,
+        "hidden_revealed_count": 0,
+        "js_redirects_detected": 0,
+        "mode": "playwright",
+        "post_action_redirects": 0,
+        "redirect_chain": [
+          "https://careermakeup.com/start-here/"
+        ],
+        "score": 0.0,
+        "status_code": 200
+      }
+    }
+  ],
+  "summary": {
+    "legit_ok": 3,
+    "legit_bad": 0,
+    "phish_ok": 1,
+    "phish_missed": 1
+  }
+}

@@ -1,27 +1,42 @@
 # Python
 __pycache__/
-*.pyc
-
-# Virtual envs
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
 .venv/
-env/
 venv/
+.env
+.env.*
+instance/
+*.sqlite*
+*.db
 
-# Local data and caches (keep dom_templates/json only)
-data/*.csv
-data/*.json
-!data/dom_templates/**
-data/cloned_phishing_sites/**
-data/whois_cache.json
-phishing_feeds_cache/**
+# Logs & cache
+*.log
+*.tmp
+*.swp
+.cache/
+.pytest_cache/
 
-# Models (keep pkl)
-!model/*.pkl
+# Frontend/build
+node_modules/
+dist/
+build/
+coverage/
 
-# Playwright cache
-**/playwright/.local-browsers/
+# Playwright / browsers cache
+playwright/.cache/
+**/user-data-dir/
 
-# OS/IDE
+# OS/editor
 .DS_Store
+Thumbs.db
 .idea/
 .vscode/
+*.code-workspace
+
+# Data/models (keep small samples only)
+data/raw/
+data/interim/
+models/

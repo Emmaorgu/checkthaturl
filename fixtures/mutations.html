@@ -1,0 +1,9 @@
+<!doctype html><meta charset="utf-8">
+<title>Mutations</title>
+<div id="root"></div>
+<script>
+const root=document.getElementById('root');
+let n=0; const add=()=>{ for(let i=0;i<200;i++){ const d=document.createElement('div');
+d.textContent="row "+(n++); root.appendChild(d);} };
+setInterval(add, 500);
+</script>

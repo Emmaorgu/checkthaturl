@@ -1,0 +1,27 @@
+{
+  "runs": [
+    {
+      "url": "https://relocate.spicethefood.com/apply",
+      "behavior": {
+        "mode": "error",
+        "score": 0.0,
+        "events": [
+          "behavior engine not available: ModuleNotFoundError: No module named 'pandas._libs.pandas_parser'"
+        ]
+      }
+    },
+    {
+      "url": "https://careermakeup.com/start-here/",
+      "behavior": {
+        "mode": "error",
+        "score": 0.0,
+        "events": [
+          "behavior engine not available: ModuleNotFoundError: No module named 'pandas._libs.pandas_parser'"
+        ]
+      }
+    }
+  ],
+  "summary": {
+    "total": 2
+  }
+}
