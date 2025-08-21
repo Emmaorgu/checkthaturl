@@ -18,6 +18,7 @@ from urllib.parse import urlparse, urlunparse, urljoin
 # ------------------------------------------------------------------------------
 if __package__ in (None, "",):
     sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+
     from app.extract_features import extract_features
     from app.replay_engine import simulate as simulate_behavior
     from app.dom_diff import structure_similarity
@@ -33,6 +34,17 @@ if __package__ in (None, "",):
         from app.feedback import feedback_bp
     except Exception:
         feedback_bp = None
+
+    # Day 2/3 services
+    from app.services.reasons_consistency import build_reasons
+    from app.services.response_guard import ensure_reasons_contract
+    from app.services.static_detectors import collect_static_reasons
+    from app.services.brand_spoof import detect_brand_spoof
+    # Day 4 calibration
+    from app.services.calibration import (
+        calibrate_probability, verdict_from_calibrated, reliability_info, apply_contradiction_guards
+    )
+
 else:
     from .extract_features import extract_features
     from .replay_engine import simulate as simulate_behavior
@@ -50,6 +62,14 @@ else:
     except Exception:
         feedback_bp = None
 
+    from .services.reasons_consistency import build_reasons
+    from .services.response_guard import ensure_reasons_contract
+    from .services.static_detectors import collect_static_reasons
+    from .services.brand_spoof import detect_brand_spoof
+    from .services.calibration import (
+        calibrate_probability, verdict_from_calibrated, reliability_info, apply_contradiction_guards
+    )
+
 # ------------------------------------------------------------------------------
 # Flask
 # ------------------------------------------------------------------------------
@@ -59,7 +79,7 @@ if feedback_bp:
     app.register_blueprint(feedback_bp)
 
 # ------------------------------------------------------------------------------
-# Tunables / policy (unchanged logic)
+# Tunables / policy
 # ------------------------------------------------------------------------------
 PHISHING_THRESHOLD = 0.70
 LEGIT_THRESHOLD    = 0.30
@@ -81,7 +101,6 @@ DEFAULT_PSP = (
     "accounts.google.com,google.com,live.com,microsoftonline.com,apple.com,amazon.com"
 )
 CTU_TRUSTED_PSP = {d.strip().lower() for d in os.getenv("CTU_TRUSTED_PSP", DEFAULT_PSP).split(",") if d.strip()}
-
 CTU_TRUSTED_DOMAINS = {d.strip().lower() for d in os.getenv("CTU_TRUSTED_DOMAINS", "").split(",") if d.strip()}
 
 CTU_FETCH_LEGAL = os.getenv("CTU_FETCH_LEGAL", "1") == "1"
@@ -159,11 +178,6 @@ def resolve_url(raw_url: str | None) -> str | None:
     if u.startswith(("http://","https://")): return u
     if u.startswith("//"): return "https:" + u
     return "https://" + u
-
-def choose_verdict(p_phish: float) -> str:
-    if p_phish >= PHISHING_THRESHOLD: return "Phishing"
-    if p_phish <= LEGIT_THRESHOLD:    return "Legitimate"
-    return "Suspicious"
 
 def align_to_model(df: pd.DataFrame, mdl) -> pd.DataFrame:
     if hasattr(mdl, "feature_names_in_"):
@@ -424,20 +438,15 @@ def redact_ui_payload(payload: dict) -> dict:
     if not isinstance(payload, dict):
         return payload
     p = dict(payload)
-
     if "explanation" in p:
         p["explanation"] = _redact_explanation(p["explanation"])
-
     for key in ("domain_risks", "content_risks", "link_risks", "behavior_risks"):
-        if key in p:
-            p[key] = _redact_list(p.get(key))
-
+        if key in p: p[key] = _redact_list(p.get(key))
     pol = p.get("policy")
     if isinstance(pol, dict):
         pol = dict(pol)
         pol.pop("legal_probe_pages", None)
         p["policy"] = pol
-
     return p
 
 # ------------------------------------------------------------------------------
@@ -462,8 +471,7 @@ def check_url():
                 "explanation": "We couldn’t reach this site (DNS/host/timeout).",
                 "diagnostic": {"label": pre.get("label") or "DNS error"}
             }
-            if ui_flag == "redacted":
-                resp = redact_ui_payload(resp)
+            if ui_flag == "redacted": resp = redact_ui_payload(resp)
             return jsonify(resp), 200
 
         html_content = ""
@@ -499,8 +507,7 @@ def check_url():
                             "explanation": "We couldn’t reach this site (TLS/connect error).",
                             "diagnostic": {"label": f"{type(e).__name__} (https and http)"}
                         }
-                        if ui_flag == "redacted":
-                            resp = redact_ui_payload(resp)
+                        if ui_flag == "redacted": resp = redact_ui_payload(resp)
                         return jsonify(resp), 200
                 else:
                     resp = {
@@ -508,8 +515,7 @@ def check_url():
                         "explanation": "We couldn’t reach this site.",
                         "diagnostic": {"label": f"{type(e).__name__}"}
                     }
-                    if ui_flag == "redacted":
-                        resp = redact_ui_payload(resp)
+                    if ui_flag == "redacted": resp = redact_ui_payload(resp)
                     return jsonify(resp), 200
             except requests.RequestException as e:
                 resp = {
@@ -517,8 +523,7 @@ def check_url():
                     "explanation": "We couldn’t reach this site.",
                     "diagnostic": {"label": f"{type(e).__name__}"}
                 }
-                if ui_flag == "redacted":
-                    resp = redact_ui_payload(resp)
+                if ui_flag == "redacted": resp = redact_ui_payload(resp)
                 return jsonify(resp), 200
 
             if not (200 <= status < 300):
@@ -531,7 +536,9 @@ def check_url():
         features.pop("registrar_name", None)
 
         if OUR_SCAN and CTU_SOFT_WHITELIST_SELF:
-            for k in ("is_new_domain","suspicious_tld"): features[k] = 0
+            # Neutralize a couple of noisy domain-only flags for our site
+            for k in ("is_new_domain","suspicious_tld"):
+                features[k] = 0
 
         timer_fallback = detect_urgency_timer(html_content)
         if not int(features.get("has_js_timer", 0)) and timer_fallback["has_js_timer"]: features["has_js_timer"] = 1
@@ -554,7 +561,8 @@ def check_url():
         # ---------- Behavior ----------
         behavior = {"mode": "disabled", "score": 0.0, "events": []}
         try:
-            if _behavior_enabled(): behavior = simulate_behavior(url)
+            if CTU_BEHAVIOR_MODE not in {"off","disabled","0","false"}:
+                behavior = simulate_behavior(url)
         except Exception as e:
             behavior = {"mode": "error", "score": 0.0, "events": [f"behavior engine unavailable: {type(e).__name__}"]}
         behv_full = _behavior_feature_block(behavior)
@@ -599,11 +607,13 @@ def check_url():
         except Exception: visual = {"score": 0.0, "closest": None}
 
         # ---------- Risk / Verdict ----------
-        blended_risk = _blend_risk(p_phish, behv_for_blend)
-        verdict = choose_verdict(blended_risk)
+        blended_risk = _blend_risk(p_phish, behv_for_blend)  # raw, 0..1
+        p_cal = calibrate_probability(blended_risk)          # calibrated, 0..1
+        verdict = verdict_from_calibrated(p_cal)             # initial verdict from calibrated prob
 
         category_scores = compute_category_scores(features, behavior_score)
 
+        # Existing guards (preserved)
         if not DOMAIN_ONLY_CAN_PHISH:
             non_surface = int(features.get("non_surface_red_flags", 0))
             link_sig = (
@@ -617,13 +627,14 @@ def check_url():
                 verdict = "Suspicious"
 
         if STRICT_SURFACE_GUARD and verdict == "Phishing" and int(features.get("non_surface_red_flags", 0)) == 0:
-            verdict = "Suspicious" if blended_risk >= 0.45 else "Legitimate"
+            verdict = "Suspicious" if p_cal >= 0.45 else "Legitimate"
 
         if STARTUP_EXCEPTION_GUARD and verdict == "Phishing" \
            and features.get("startup_like", 0) == 1 and features.get("is_new_domain", 0) == 1 \
-           and int(features.get("non_surface_red_flags", 0)) <= 1 and blended_risk < 0.85:
+           and int(features.get("non_surface_red_flags", 0)) <= 1 and p_cal < 0.85:
             verdict = "Suspicious"
 
+        legal_ok = bool(legal_probe.get("ok"))
         hard_content = (
             int(features.get("has_password_field", 0)) == 1 or
             float(features.get("phish_context_score", 0.0)) >= 0.45 or
@@ -631,11 +642,9 @@ def check_url():
             behv_for_blend.get("timer_decreasing", 0) == 1 or
             int(behavior.get("post_action_redirects_form", 0)) >= 1
         )
-
-        legal_ok = bool(legal_probe.get("ok"))
         if legal_ok and not hard_content and (len((behavior.get("redirect_chain") or [])) <= 1) and int(features.get("suspicious_tld", 0)) == 0:
             verdict = "Legitimate"
-            blended_risk = min(blended_risk, 0.25)
+            p_cal = min(p_cal, 0.25)
 
         if verdict == "Legitimate" and (structure_guard in ("medium","high")) and not legal_ok:
             verdict = "Suspicious"
@@ -646,9 +655,18 @@ def check_url():
         if reg in CTU_TRUSTED_DOMAINS and verdict == "Phishing" and not hard_content:
             verdict = "Suspicious"
 
-        if _is_our_domain(url) and not hard_content:
+        # ---------- FINAL SELF-ALLOW (no hard content) ----------
+        if OUR_SCAN and not hard_content:
             verdict = "Legitimate"
-            blended_risk = min(blended_risk, 0.30)
+            # Ensure calibrated risk is tiny to avoid scary bars in UI
+            self_cap = float(os.getenv("CTU_SELF_MAX_RISK", "0.05"))
+            p_cal = min(p_cal, self_cap)
+            # Don't carry over any non-surface flags to UI summaries
+            features["non_surface_red_flags"] = 0
+
+        # Final contradiction sanity pass (skip for our own domain to avoid flips)
+        if not OUR_SCAN:
+            verdict, p_cal = apply_contradiction_guards(verdict, p_cal, features, behavior, structure, legal_ok)
 
         # ---------- Reasons ----------
         human_reasons = []
@@ -665,7 +683,7 @@ def check_url():
             if features.get("keyword_density", 0) > 0.02: human_reasons.append("📌 Elevated phishing keyword density.")
             if features.get("duplicate_phrases", 0) > 1:  human_reasons.append("📋 Repeating suspicious phrases.")
             if float(features.get("mismatched_anchor_ratio", 0)) > 0.3: human_reasons.append("🔗 Anchor text vs link mismatch.")
-            if float(features.get("external_link_ratio", 0)) > 0.65 and not _is_our_domain(url):
+            if float(features.get("external_link_ratio", 0)) > 0.65 and not OUR_SCAN:
                 human_reasons.append("🌍 Many external links.")
 
             chain = behavior.get("redirect_chain") or []
@@ -692,13 +710,25 @@ def check_url():
                 pct = round(float(structure.get("score", 0.0)) * 100.0, 1)
                 human_reasons.append(f"🧩 DOM structure similarity {pct}% to '{tmpl}'.")
 
+            # Day 3 static analyzers & brand spoof (skip for our domain)
+            if not OUR_SCAN:
+                try:
+                    static_reasons = collect_static_reasons(url, html_content)
+                    if static_reasons: human_reasons.extend(static_reasons)
+                except Exception: pass
+                try:
+                    brand_reasons = detect_brand_spoof(url, html_content, trusted_domains=CTU_TRUSTED_DOMAINS)
+                    if brand_reasons: human_reasons.extend(brand_reasons)
+                except Exception: pass
+
         if legal_ok:
             human_reasons.append("✅ Verified legal pages (privacy/terms) present on this site.")
 
         pruned = _prune_explanations(verdict, human_reasons, behv_for_blend)
         domain_risks, content_risks, link_risks, behavior_risks, _ = _group_reasons(pruned)
 
-        if verdict in ("Phishing","Suspicious") and not (domain_risks or content_risks or link_risks or behavior_risks):
+        # Do not synthesize placeholder reasons if Legitimate or our domain
+        if verdict in ("Phishing","Suspicious") and not OUR_SCAN and not (domain_risks or content_risks or link_risks or behavior_risks):
             if features.get("is_new_domain"):          domain_risks.append("🆕 Recently-registered domain.")
             if features.get("suspicious_tld"):         domain_risks.append("🌐 Suspicious/rare TLD.")
             if features.get("domain_entropy", 0) > 4:  domain_risks.append("🎲 Unnatural/complex domain pattern.")
@@ -707,44 +737,51 @@ def check_url():
             if not (domain_risks or content_risks or link_risks or behavior_risks):
                 domain_risks.append("⚠ Model confidence came primarily from domain-only signals; content/link/behavior had no red flags.")
 
+        # Build explanation/summary
         summary_bits = []
-        if features.get("startup_like"):                 summary_bits.append("startup-like pattern detected")
-        if features.get("is_new_domain"):                summary_bits.append("young domain")
-        if features.get("non_surface_red_flags", 0) > 0: summary_bits.append(f"{int(features.get('non_surface_red_flags', 0))} non-surface signal(s)")
-        if behavior_score >= 0.35:                       summary_bits.append("dynamic behavior observed")
+        if verdict != "Legitimate":  # keep the legit card clean
+            if features.get("startup_like"):                 summary_bits.append("startup-like pattern detected")
+            if features.get("is_new_domain"):                summary_bits.append("young domain")
+            if features.get("non_surface_red_flags", 0) > 0: summary_bits.append(f"{int(features.get('non_surface_red_flags', 0))} non-surface signal(s)")
+            if behavior_score >= 0.35:                       summary_bits.append("dynamic behavior observed")
         summary_tail = (" • " + ", ".join(summary_bits)) if summary_bits else ""
+
+        # EXACT legit message (requested)
         explanation = (
             f"{confidence}% confidence • {verdict}{summary_tail}. See grouped risk signals below."
             if verdict != "Legitimate"
-            else "Looks legitimate based on current checks. We verified legal pages and avoided penalizing internal navigation."
+            else "Low or no phishing pattern detected."
         )
 
         v2_summary = (
-            "This site appears mostly safe but shows content/behavior cues associated with phishing. Proceed with caution."
-            if ((float(features.get("phish_context_score", 0)) >= 0.35 or behavior_score >= 0.35) and verdict == "Suspicious")
-            else ("Low phishing indicators detected." if verdict == "Legitimate" else
-                  "Multiple static and behavioral signals consistent with phishing were detected.")
+            "Low or no phishing pattern detected."
+            if verdict == "Legitimate"
+            else ("This site appears mostly safe but shows content/behavior cues associated with phishing. Proceed with caution."
+                  if ((float(features.get("phish_context_score", 0)) >= 0.35 or behavior_score >= 0.35) and verdict == "Suspicious")
+                  else "Multiple static and behavioral signals consistent with phishing were detected.")
         )
 
+        # ---------- Response ----------
+        reliability = reliability_info(p_cal)
         resp = {
             "url": url,
             "verdict": verdict,
-            "risk": round(blended_risk, 3),
+            "risk": round(p_cal, 3),
             "confidence": confidence,
-            "phishing_score": phishing_score,
-            "legit_score": legit_score,
+            "phishing_score": round(p_phish*100.0,2),
+            "legit_score": round((1.0-p_phish)*100.0,2),
             "explanation": explanation,
-            "domain_risks": domain_risks,
-            "content_risks": content_risks,
-            "link_risks": link_risks,
-            "behavior_risks": behavior_risks,
-            "features_triggered": domain_risks + content_risks + link_risks + behavior_risks,
+            "domain_risks": [] if verdict == "Legitimate" else domain_risks,
+            "content_risks": [] if verdict == "Legitimate" else content_risks,
+            "link_risks": [] if verdict == "Legitimate" else link_risks,
+            "behavior_risks": [] if verdict == "Legitimate" else behavior_risks,
+            "features_triggered": [] if verdict == "Legitimate" else (domain_risks + content_risks + link_risks + behavior_risks),
             "category_scores": category_scores,
             "explanations": {
-                "domain": domain_risks,
-                "link": link_risks,
-                "content": content_risks,
-                "behavior": behavior_risks,
+                "domain": [] if verdict == "Legitimate" else domain_risks,
+                "link": [] if verdict == "Legitimate" else link_risks,
+                "content": [] if verdict == "Legitimate" else content_risks,
+                "behavior": [] if verdict == "Legitimate" else behavior_risks,
                 "summary": v2_summary
             },
             "behavior": behavior,
@@ -761,20 +798,38 @@ def check_url():
                 "trusted_psp": sorted(CTU_TRUSTED_PSP),
                 "psp_redirects_neutralized": bool(psp_neutral),
                 "legal_probe_pages": legal_probe.get("pages", []),
-                "legal_probe_debug": legal_probe.get("debug", {})
+                "legal_probe_debug": legal_probe.get("debug", {}),
+                "calibration": reliability,
             },
             "counters": {
-                "surface_flags": int(features.get("is_new_domain", 0) == 1) +
-                                 int(features.get("has_https", 1) == 0) +
-                                 int(features.get("suspicious_tld", 0) == 1),
-                "non_surface_red_flags": int(features.get("non_surface_red_flags", 0))
+                "surface_flags": 0 if verdict == "Legitimate" else
+                    int(features.get("is_new_domain", 0) == 1) +
+                    int(features.get("has_https", 1) == 0) +
+                    int(features.get("suspicious_tld", 0) == 1),
+                "non_surface_red_flags": 0 if verdict == "Legitimate" else int(features.get("non_surface_red_flags", 0))
             },
-            "startup_like": int(features.get("startup_like", 0))
+            "startup_like": 0 if verdict == "Legitimate" else int(features.get("startup_like", 0))
         }
 
         if diag: resp["diagnostic"] = diag
 
-        # UI redaction
+        # --- CONSISTENCY INTEGRATION (keeps backend verdict AS-IS) ---
+        reason_buckets = build_reasons(resp)
+        ensure_reasons_contract(resp.get("verdict"), reason_buckets)
+        resp.update(reason_buckets)
+        resp["features_triggered"] = (
+            [] if verdict == "Legitimate"
+            else (resp["domain_risks"] + resp["content_risks"] + resp["link_risks"] + resp["behavior_risks"])
+        )
+        if "explanations" in resp and isinstance(resp["explanations"], dict):
+            resp["explanations"].update({
+                "domain": [] if verdict == "Legitimate" else resp["domain_risks"],
+                "content": [] if verdict == "Legitimate" else resp["content_risks"],
+                "link": [] if verdict == "Legitimate" else resp["link_risks"],
+                "behavior": [] if verdict == "Legitimate" else resp["behavior_risks"],
+            })
+        # -------------------------------------------------------------
+
         if ui_flag == "redacted":
             resp = redact_ui_payload(resp)
 
