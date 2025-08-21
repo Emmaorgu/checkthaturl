@@ -465,9 +465,10 @@
       }catch(e){
         hideScanner(); aborter=null;
         console.error(e);
-        const msg = (e && e.message) ? e.message : 'Scan failed or cancelled.';
-        $('#hint').textContent = 'Scan failed: ' + msg;
-        alert('Scan failed: ' + msg);
+        const raw = (e && e.message) ? e.message : 'Scan failed or cancelled.';
+        const clean = raw.replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim().slice(0,180);
+        $('#hint').textContent = 'Scan failed: ' + clean;
+        alert('Scan failed: ' + clean);
       }
     }
 

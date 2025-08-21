@@ -1,6 +1,6 @@
 # app/app.py
-import os, sys, glob, math, socket, re, requests, pandas as pd, joblib
-from flask import Flask, render_template, request, jsonify
+import os, sys, glob, math, socket, re, json, requests, pandas as pd, joblib
+from flask import Flask, render_template, request
 from flask_cors import CORS
 from datetime import datetime
 from urllib.parse import urlparse, urlunparse, urljoin
@@ -154,14 +154,17 @@ def align_to_model(df: pd.DataFrame, mdl) -> pd.DataFrame:
         if not pd.api.types.is_numeric_dtype(df[c]): df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0.0)
     return df
 
-# ---- JSON compatibility: convert numpy/sets/tuples to JSON-safe natives
+# ---- JSON safety ----
 def to_native(obj):
+    """Deep-cast common non-JSON-serializable types to JSON-safe natives."""
     try:
         import numpy as np
         np_f = (np.float_, np.float16, np.float32, np.float64)
         np_i = (np.int_, np.int8, np.int16, np.int32, np.int64)
+        np_b = (np.bool_, np.bool8)
+        np_nd = (np.ndarray,)
     except Exception:
-        np_f = tuple(); np_i = tuple()
+        np_f = np_i = np_b = np_nd = tuple()
 
     if isinstance(obj, dict):
         return {k: to_native(v) for k, v in obj.items()}
@@ -171,7 +174,17 @@ def to_native(obj):
         return [to_native(x) for x in sorted(list(obj), key=lambda x: str(x))]
     if np_f and isinstance(obj, np_f): return float(obj)
     if np_i and isinstance(obj, np_i): return int(obj)
+    if np_b and isinstance(obj, np_b): return bool(obj)
+    if np_nd and isinstance(obj, np_nd): return [to_native(x) for x in obj.tolist()]
     return obj
+
+def safe_json(payload, status=200):
+    """Return application/json without risking 500 from unserializable types."""
+    try:
+        body = json.dumps(to_native(payload), ensure_ascii=False, default=str)
+    except Exception as e:
+        body = json.dumps({"error": f"serialization_failed: {type(e).__name__}", "raw": str(payload)[:400]}, ensure_ascii=False)
+    return app.response_class(body, status=status, mimetype="application/json")
 
 DOMAIN_HINTS  = ("domain","whois","tld","dns","registrar","mx","spf","dkim","age","subdomain","punycode","entropy")
 CONTENT_HINTS = ("content","text","keyword","phrase","login","form","credential","timer","urgency","brand","logo","tfidf","nlp","password","ocr","policy","terms")
@@ -199,7 +212,7 @@ def dns_preflight(u: str) -> dict:
     except socket.gaierror: return {"ok": False, "label": "DNS didn’t resolve (NXDOMAIN)"}
     except Exception:        return {"ok": False, "label": "DNS error"}
 
-# -------------------- legal probing (unchanged core) --------------------
+# -------------------- legal probing (abbrev. comments) --------------------
 ANCHOR_RE = re.compile(r"<a\b[^>]*href=['\"]([^'\"#]+)['\"][^>]*>(.*?)</a>", re.I | re.S)
 LEGAL_GUESS_BASENAMES = [
     "privacy","privacy-policy","policy/privacy","policies/privacy","legal/privacy",
@@ -371,14 +384,13 @@ def redact_ui_payload(payload: dict) -> dict:
 @app.route("/check", methods=["POST"])
 def check_url():
     try:
-        # safer JSON parse (never throws)
         data = request.get_json(silent=True) or {}
         url = (data.get("url") or "").strip()
-        if not url: return jsonify({"error": "No URL provided"}), 400
+        if not url: return safe_json({"error": "No URL provided"}, 400)
 
         ui_flag = (request.args.get("ui") or data.get("ui") or "").strip().lower()
         url = resolve_url(url)
-        if not url: return jsonify({"error": "Invalid URL"}), 400
+        if not url: return safe_json({"error": "Invalid URL"}, 400)
 
         pre = dns_preflight(url)
         if not pre.get("ok"):
@@ -386,7 +398,7 @@ def check_url():
                     "explanation": "We couldn’t reach this site (DNS/host/timeout).",
                     "diagnostic": {"label": pre.get("label") or "DNS error"}}
             if ui_flag == "redacted": resp = redact_ui_payload(resp)
-            return jsonify(to_native(resp)), 200
+            return safe_json(resp)
 
         html_content = ""
         OUR_SCAN = _is_our_domain(url)
@@ -414,19 +426,19 @@ def check_url():
                                 "explanation": "We couldn’t reach this site (TLS/connect error).",
                                 "diagnostic": {"label": f"{type(e).__name__} (https and http)"}}
                         if ui_flag == "redacted": resp = redact_ui_payload(resp)
-                        return jsonify(to_native(resp)), 200
+                        return safe_json(resp)
                 else:
                     resp = {"url": url, "verdict": "Unreachable", "confidence": 0.0,
                             "explanation": "We couldn’t reach this site.",
                             "diagnostic": {"label": f"{type(e).__name__}"}}
                     if ui_flag == "redacted": resp = redact_ui_payload(resp)
-                    return jsonify(to_native(resp)), 200
+                    return safe_json(resp)
             except requests.RequestException as e:
                 resp = {"url": url, "verdict": "Unreachable", "confidence": 0.0,
                         "explanation": "We couldn’t reach this site.",
                         "diagnostic": {"label": f"{type(e).__name__}"}}
                 if ui_flag == "redacted": resp = redact_ui_payload(resp)
-                return jsonify(to_native(resp)), 200
+                return safe_json(resp)
 
             if not (200 <= status < 300):
                 diag = {"label": f"HTTP {status} {r.reason or ''}".strip()}
@@ -683,10 +695,10 @@ def check_url():
             })
 
         if ui_flag == "redacted": resp = redact_ui_payload(resp)
-        return jsonify(to_native(resp))
+        return safe_json(resp)
 
     except Exception as e:
-        # Fail-safe JSON (never 500 HTML)
+        # Fail-safe JSON (NEVER return HTML 500)
         resp = {"url": (request.get_json(silent=True) or {}).get("url", ""),
                 "verdict": "Suspicious", "risk": 0.5, "confidence": 0.0,
                 "explanation": f"Our scanner hit an unexpected error ({type(e).__name__}). Returning a cautious verdict.",
@@ -698,7 +710,7 @@ def check_url():
                 "visual": {"score":0.0,"closest":None}}
         ui_flag = (request.args.get("ui") or "").strip().lower()
         if ui_flag == "redacted": resp = redact_ui_payload(resp)
-        return jsonify(to_native(resp)), 200
+        return safe_json(resp)
 
 # -------------------- pages & health --------------------
 @app.route("/", methods=["GET"])
@@ -710,8 +722,8 @@ def legal(): return render_template("legal.html")
 @app.route("/faq", methods=["GET"])
 def faq(): return render_template("faq.html")
 @app.route("/health", methods=["GET"])
-def health(): return jsonify({"ok": True})
+def health(): return safe_json({"ok": True})
 @app.route("/version", methods=["GET"])
-def version(): return jsonify({"model_path": os.path.abspath(MODEL_PATH), "server_time_utc": datetime.utcnow().isoformat() + "Z"})
+def version(): return safe_json({"model_path": os.path.abspath(MODEL_PATH), "server_time_utc": datetime.utcnow().isoformat() + "Z"})
 if __name__ == "__main__":
     app.run(debug=True)
