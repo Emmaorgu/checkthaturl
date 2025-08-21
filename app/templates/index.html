@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>CheckThatURL — Scan any link. Instant verdicts. Clear reasons.</title>
   <meta name="color-scheme" content="dark light" />
-  <!-- optional: set your API base here in production -->
   <!-- <meta name="ctu-api-base" content="https://<YOUR-RENDER-SERVICE>.onrender.com"> -->
 
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
@@ -85,7 +84,6 @@
     .scan-footer{display:flex;align-items:center;justify-content:space-between;margin-top:10px;color:var(--muted);font-size:13px}
   </style>
 
-  <!-- analytics -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-D0RMWZH4ZJ"></script>
   <script>
     window.dataLayer = window.dataLayer || [];
@@ -93,9 +91,7 @@
     gtag('js', new Date()); gtag('config', 'G-D0RMWZH4ZJ');
   </script>
 
-  <!-- Configurable API base -->
   <script>
-    // allow meta override
     (function(){ const m=document.querySelector('meta[name="ctu-api-base"]'); if(m&&m.content) window.CTU_API_BASE=m.content.trim(); })();
     window.CTU_API_BASE = window.CTU_API_BASE || "";
   </script>
@@ -240,19 +236,10 @@
       }catch(_){}
     }
 
-    // ====== STRICT messaging & abnormalities ======
+    // Strict messaging cleanup
     const WEAK_PATTERN = /(further\s+checks\s+recommended|seek\s+further\s+verification|manual\s+review\s+recommended)/i;
-
-    const clean = arr => (Array.isArray(arr)?arr:[])
-      .map(x => (x||'').toString().trim())
-      .filter(x => x && !WEAK_PATTERN.test(x));
-
-    const categories = d => ({
-      domain:   clean(d.domain_risks),
-      content:  clean(d.content_risks),
-      link:     clean(d.link_risks),
-      behavior: clean(d.behavior_risks),
-    });
+    const clean = arr => (Array.isArray(arr)?arr:[]).map(x => (x||'').toString().trim()).filter(x => x && !WEAK_PATTERN.test(x));
+    const categories = d => ({ domain: clean(d.domain_risks), content: clean(d.content_risks), link: clean(d.link_risks), behavior: clean(d.behavior_risks) });
 
     function deriveBehaviorSignals(data){
       const out = [];
@@ -261,32 +248,27 @@
       const events = (beh.events || []).map(e => (e||'').toString());
       if (chain.length > 1) out.push(`Multiple redirects observed (${chain.length} hops)`);
       const seen = (re) => events.some(e => re.test(e));
-      if (seen(/js_redirect/i))       out.push('JavaScript-triggered redirect');
-      if (seen(/post_redirect/i))     out.push('Post-submission redirect flow detected');
-      if (seen(/consent_click/i))     out.push('Consent/allow dialog interaction captured');
-      if (seen(/timer|countdown/i))   out.push('Urgency/countdown timer behavior');
+      if (seen(/js_redirect/i)) out.push('JavaScript-triggered redirect');
+      if (seen(/post_redirect/i)) out.push('Post-submission redirect flow detected');
+      if (seen(/consent_click/i)) out.push('Consent/allow dialog interaction captured');
+      if (seen(/timer|countdown/i)) out.push('Urgency/countdown timer behavior');
       if (seen(/dom[_-]?mutation|mutation/i)) out.push('Rapid DOM mutations observed');
-      if (seen(/iframe/i))            out.push('Cross-site iframe embedding');
-      if (seen(/obfuscat|eval/i))     out.push('Obfuscated script execution patterns');
-      if (seen(/clipboard|copy/i))    out.push('Clipboard access/auto-copy behavior');
-      if (seen(/notification/i))      out.push('Browser notification prompt behavior');
+      if (seen(/iframe/i)) out.push('Cross-site iframe embedding');
+      if (seen(/obfuscat|eval/i)) out.push('Obfuscated script execution patterns');
+      if (seen(/clipboard|copy/i)) out.push('Clipboard access/auto-copy behavior');
+      if (seen(/notification/i)) out.push('Browser notification prompt behavior');
       return out;
     }
 
     function ensureAbnormalitiesForNonLegit(verdict, c, data){
       if (verdict === 'Legitimate') return c;
-      if (!c.behavior.length){
-        c.behavior = deriveBehaviorSignals(data);
-      }
+      if (!c.behavior.length) c.behavior = deriveBehaviorSignals(data);
       const total = c.domain.length + c.content.length + c.link.length + c.behavior.length;
-      if (total === 0){
-        c.content = [`Anomalous content/structure pattern detected by the model (confidence ${Math.round((data.risk||0)*100)}%).`];
-      }
+      if (total === 0) c.content = [`Anomalous content/structure pattern detected by the model (confidence ${Math.round((data.risk||0)*100)}%).`];
       return c;
     }
 
     const nonEmpty = a => Array.isArray(a) && a.length>0;
-
     function setBadge(v){
       const badge = $('#verdictBadge');
       badge.textContent = v;
@@ -295,7 +277,6 @@
       else if (v === 'Phishing') badge.classList.add('badge-bad');
       else badge.classList.add('badge-warn');
     }
-
     function fillList(el, items, verdict){
       const pill = el.closest('.pill');
       if (verdict === 'Legitimate'){
@@ -306,47 +287,18 @@
       if (!items.length){ pill.style.display='none'; return; }
       el.className='list'; el.innerHTML = items.map(x=>`<li>${x}</li>`).join(''); pill.style.display='';
     }
-
-    function presentCats(c){
-      const out = [];
-      if (nonEmpty(c.domain)) out.push('Domain');
-      if (nonEmpty(c.content)) out.push('Content');
-      if (nonEmpty(c.link)) out.push('Links');
-      if (nonEmpty(c.behavior)) out.push('Behavior');
-      return out;
-    }
-
-    function buildSummary(verdict, c){
-      const cats = presentCats(c);
-      if (verdict === 'Phishing')   return `Multiple phishing indicators detected across: ${cats.join(', ')}. Review the breakdown below.`;
-      if (verdict === 'Suspicious') return `Some risk signals detected in: ${cats.join(', ')}. See the grouped reasons below.`;
-      return 'Low risk. No phishing patterns detected.';
-    }
-
-    function buildExplain(verdict, c){
-      const pick = arr => arr.slice(0,2).join('; ');
-      const parts = [];
-      if (nonEmpty(c.domain))   parts.push(`Domain: ${pick(c.domain)}`);
-      if (nonEmpty(c.content))  parts.push(`Content: ${pick(c.content)}`);
-      if (nonEmpty(c.link))     parts.push(`Links: ${pick(c.link)}`);
-      if (nonEmpty(c.behavior)) parts.push(`Behavior: ${pick(c.behavior)}`);
-      if (parts.length) return parts.join(' • ');
-      return verdict === 'Legitimate' ? 'No notable risk signals found.' : 'Model-detected anomalies listed above.';
-    }
-
-    function sanitizeHint(raw, computed){
-      if (!raw) return computed;
-      return /(further\s+checks\s+recommended|seek\s+further\s+verification|manual\s+review\s+recommended)/i.test(raw) ? computed : raw;
-    }
-
+    function presentCats(c){ const out=[]; if(nonEmpty(c.domain))out.push('Domain'); if(nonEmpty(c.content))out.push('Content'); if(nonEmpty(c.link))out.push('Links'); if(nonEmpty(c.behavior))out.push('Behavior'); return out; }
+    function buildSummary(v,c){ const cats=presentCats(c); if(v==='Phishing')return `Multiple phishing indicators detected across: ${cats.join(', ')}. Review the breakdown below.`; if(v==='Suspicious')return `Some risk signals detected in: ${cats.join(', ')}. See the grouped reasons below.`; return 'Low risk. No phishing patterns detected.'; }
+    function buildExplain(v,c){ const pick=a=>a.slice(0,2).join('; '); const parts=[]; if(nonEmpty(c.domain))parts.push(`Domain: ${pick(c.domain)}`); if(nonEmpty(c.content))parts.push(`Content: ${pick(c.content)}`); if(nonEmpty(c.link))parts.push(`Links: ${pick(c.link)}`); if(nonEmpty(c.behavior))parts.push(`Behavior: ${pick(c.behavior)}`); return parts.length?parts.join(' • '):(v==='Legitimate'?'No notable risk signals found.':'Model-detected anomalies listed above.'); }
+    function sanitizeHint(raw,computed){ if(!raw)return computed; return /(further\s+checks\s+recommended|seek\s+further\s+verification|manual\s+review\s+recommended)/i.test(raw)?computed:raw; }
     function fillEvidence(data){
       const chain = (data.behavior && data.behavior.redirect_chain) || [];
-      $('#evChain').textContent = chain.length ? chain.join('  →  ') : '—';
+      document.getElementById('evChain').textContent = chain.length ? chain.join('  →  ') : '—';
       const consent = (data.behavior && (data.behavior.events||[]).filter(e => (e||'').startsWith('consent_click:')).length) || 0;
-      $('#evConsent').textContent = consent ? `${consent} click(s)` : '—';
+      document.getElementById('evConsent').textContent = consent ? `${consent} click(s)` : '—';
     }
 
-    // ===== API base auto-detection =====
+    // API base autodetect
     let API_BASE = null;
     async function resolveApiBase(){
       if (API_BASE !== null) return API_BASE;
@@ -361,7 +313,6 @@
       if (fromStorage) candidates.push(norm(fromStorage));
       candidates.push('');     // same origin
       candidates.push('/api'); // reverse-proxy mount
-
       for (const base of candidates){
         try{
           const r = await fetch(norm(base) + '/health', {method:'GET', mode:'cors'});
@@ -370,10 +321,9 @@
             localStorage.setItem('ctu_api_base', API_BASE);
             return API_BASE;
           }
-        }catch(_){ }
+        }catch(_){}
       }
-      API_BASE = ''; // last resort
-      return API_BASE;
+      API_BASE = ''; return API_BASE;
     }
 
     // Scanner overlay
@@ -381,39 +331,36 @@
     const stepList = q => q ? ['Fetching page','Analyzing content','Computing verdict']
                             : ['Fetching page','Analyzing content','Checking links','Running behavior checks','Comparing structure','Computing verdict'];
     function showScanner(url,isQuick){
-      $('#scanner').classList.add('show');
-      $('#scanUrl').textContent=url;
-      $('#scanSteps').innerHTML='';
+      document.getElementById('scanner').classList.add('show');
+      document.getElementById('scanUrl').textContent=url;
+      document.getElementById('scanSteps').innerHTML='';
       stepList(isQuick).forEach((t,i)=>{
-        const div=document.createElement('div');
-        div.className='scan-step'; div.dataset.idx=i;
+        const div=document.createElement('div'); div.className='scan-step'; div.dataset.idx=i;
         div.innerHTML=`<div class="dot"></div><span>${t}</span>`;
-        $('#scanSteps').appendChild(div);
+        document.getElementById('scanSteps').appendChild(div);
       });
-      $('#scanProgress').style.width='0%';
-      $('#scanStatus').textContent='Initializing…';
-      $('#scanEta').textContent=isQuick?'~2s':'~5s';
+      document.getElementById('scanProgress').style.width='0%';
+      document.getElementById('scanStatus').textContent='Initializing…';
+      document.getElementById('scanEta').textContent=isQuick?'~2s':'~5s';
     }
-    function hideScanner(){ $('#scanner').classList.remove('show'); if(animTimer) clearInterval(animTimer); animTimer=null; }
+    function hideScanner(){ document.getElementById('scanner').classList.remove('show'); if(animTimer) clearInterval(animTimer); animTimer=null; }
     function markStepDone(i){
       const el=document.querySelector(`.scan-step[data-idx="${i}"]`); if(el) el.classList.add('done');
       const total=document.querySelectorAll('.scan-step').length||1;
-      $('#scanProgress').style.width=Math.min(100,Math.round(((i+1)/total)*100))+'%';
+      document.getElementById('scanProgress').style.width=Math.min(100,Math.round(((i+1)/total)*100))+'%';
     }
-    function animateProgress(){
-      let p=0; animTimer=setInterval(()=>{ p=Math.min(96,p+Math.random()*3.5+0.5); $('#scanProgress').style.width=p+'%'; },140);
-    }
+    function animateProgress(){ let p=0; animTimer=setInterval(()=>{ p=Math.min(96,p+Math.random()*3.5+0.5); document.getElementById('scanProgress').style.width=p+'%'; },140); }
 
     async function runScan(forceRescan=false){
-      const url = ($('#url').value||'').trim();
+      const url = (document.getElementById('url').value||'').trim();
       if(!url) return;
-      const isQuick = $('#fastToggle').checked;
+      const isQuick = document.getElementById('fastToggle').checked;
 
       try{
         aborter = new AbortController();
         showScanner(url,isQuick); animateProgress();
         const steps = stepList(isQuick);
-        let sidx=0; const stepTimer=setInterval(()=>{ if(sidx<steps.length){ markStepDone(sidx); $('#scanStatus').textContent=steps[sidx]; sidx++; } else clearInterval(stepTimer); }, isQuick?420:560);
+        let sidx=0; const stepTimer=setInterval(()=>{ if(sidx<steps.length){ markStepDone(sidx); document.getElementById('scanStatus').textContent=steps[sidx]; sidx++; } else clearInterval(stepTimer); }, isQuick?420:560);
 
         const base = await resolveApiBase();
         const resp = await fetch(base + '/check?ui=redacted' + (forceRescan ? '&_=' + Date.now() : ''), {
@@ -423,41 +370,50 @@
           signal:aborter.signal,
           mode: 'cors'
         });
-        if (!resp.ok) {
-          const t = await resp.text().catch(()=> '');
-          throw new Error(`HTTP ${resp.status} ${resp.statusText}${t ? ' — ' + t.slice(0,200) : ''}`);
-        }
+
         let data;
-        try { data = await resp.json(); }
-        catch { throw new Error('API returned non-JSON response'); }
+        if (!resp.ok) {
+          // Try JSON error first (our server will send JSON even on exceptions)
+          try {
+            const j = await resp.clone().json();
+            const msg = (j && (j.explanation || j.error || j.message)) || `HTTP ${resp.status} ${resp.statusText}`;
+            throw new Error(msg);
+          } catch (_) {
+            const t = await resp.text().catch(()=> '');
+            throw new Error(`HTTP ${resp.status} ${resp.statusText}${t ? ' — ' + t.replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').slice(0,200) : ''}`);
+          }
+        } else {
+          try { data = await resp.json(); }
+          catch { throw new Error('API returned non-JSON response'); }
+        }
 
         markStepDone(steps.length-1);
-        $('#scanStatus').textContent='Done';
-        $('#scanProgress').style.width='100%';
+        document.getElementById('scanStatus').textContent='Done';
+        document.getElementById('scanProgress').style.width='100%';
 
         lastScanEpoch = Date.now();
-        $('#verdictCard').style.display='block';
+        document.getElementById('verdictCard').style.display='block';
 
         const verdict = (data.verdict || 'Legitimate').trim();
-        $('#verdictTitle').textContent = verdict;
+        document.getElementById('verdictTitle').textContent = verdict;
         setBadge(verdict);
-        $('#riskFill').style.width = Math.round((data.risk || 0) * 100) + '%';
+        document.getElementById('riskFill').style.width = Math.round((data.risk || 0) * 100) + '%';
 
         let c = categories(data);
         c = ensureAbnormalitiesForNonLegit(verdict, c, data);
 
-        fillList($('#domainRisks'), c.domain, verdict);
-        fillList($('#contentRisks'), c.content, verdict);
-        fillList($('#linkRisks'),    c.link,    verdict);
-        fillList($('#behaviorRisks'),c.behavior,verdict);
+        fillList(document.getElementById('domainRisks'), c.domain, verdict);
+        fillList(document.getElementById('contentRisks'), c.content, verdict);
+        fillList(document.getElementById('linkRisks'),    c.link,    verdict);
+        fillList(document.getElementById('behaviorRisks'),c.behavior,verdict);
         fillEvidence(data);
 
         const computedSummary = buildSummary(verdict, c);
         const rawHint = data.explanations && data.explanations.summary;
-        $('#hint').textContent = sanitizeHint(rawHint, computedSummary);
+        document.getElementById('hint').textContent = sanitizeHint(rawHint, computedSummary);
 
         const rawExplain = (data.explanation||'').trim();
-        $('#verdictExplain').textContent = (!rawExplain || WEAK_PATTERN.test(rawExplain)) ? buildExplain(verdict, c) : rawExplain;
+        document.getElementById('verdictExplain').textContent = (!rawExplain || WEAK_PATTERN.test(rawExplain)) ? buildExplain(verdict, c) : rawExplain;
 
         const u = new URL(location.href); u.searchParams.set('url', url); history.replaceState(null,'',u.toString());
 
@@ -467,19 +423,19 @@
         console.error(e);
         const raw = (e && e.message) ? e.message : 'Scan failed or cancelled.';
         const clean = raw.replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim().slice(0,180);
-        $('#hint').textContent = 'Scan failed: ' + clean;
+        document.getElementById('hint').textContent = 'Scan failed: ' + clean;
         alert('Scan failed: ' + clean);
       }
     }
 
-    $('#scan').addEventListener('click', ()=>runScan(false));
-    $('#rescan').addEventListener('click', ()=>runScan(true));
-    $('#url').addEventListener('keydown', e => { if(e.key==='Enter') runScan(false); });
-    $('#scanCancel').addEventListener('click', ()=>{ try{ aborter?.abort(); }catch(_){ } hideScanner(); });
+    document.getElementById('scan').addEventListener('click', ()=>runScan(false));
+    document.getElementById('rescan').addEventListener('click', ()=>runScan(true));
+    document.getElementById('url').addEventListener('keydown', e => { if(e.key==='Enter') runScan(false); });
+    document.getElementById('scanCancel').addEventListener('click', ()=>{ try{ aborter?.abort(); }catch(_){ } hideScanner(); });
 
-    $('#shareBtn').addEventListener('click', async ()=>{
-      const card = $('#verdictCard'); if (card.style.display==='none') return;
-      const data = { url: ($('#url').value||'').trim(), verdict: $('#verdictTitle').textContent||'', risk: parseFloat($('#riskFill').style.width||'0')/100 };
+    document.getElementById('shareBtn').addEventListener('click', async ()=>{
+      const card = document.getElementById('verdictCard'); if (card.style.display==='none') return;
+      const data = { url: (document.getElementById('url').value||'').trim(), verdict: document.getElementById('verdictTitle').textContent||'', risk: parseFloat(document.getElementById('riskFill').style.width||'0')/100 };
       await shareVerdict(data);
     });
   </script>

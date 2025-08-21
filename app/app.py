@@ -20,7 +20,6 @@ if __package__ in (None, "",):
         from app.feedback import feedback_bp
     except Exception:
         feedback_bp = None
-    # services
     from app.services.reasons_consistency import build_reasons
     from app.services.response_guard import ensure_reasons_contract
     from app.services.static_detectors import collect_static_reasons
@@ -53,6 +52,11 @@ else:
 
 # -------------------- Flask --------------------
 app = Flask(__name__, template_folder="templates", static_folder="static")
+# Make sure Flask does not bypass our handlers
+app.config.update(
+    PROPAGATE_EXCEPTIONS=False,
+    TRAP_HTTP_EXCEPTIONS=True,
+)
 CORS(app)
 if feedback_bp: app.register_blueprint(feedback_bp)
 
@@ -212,7 +216,7 @@ def dns_preflight(u: str) -> dict:
     except socket.gaierror: return {"ok": False, "label": "DNS didn’t resolve (NXDOMAIN)"}
     except Exception:        return {"ok": False, "label": "DNS error"}
 
-# -------------------- legal probing (abbrev. comments) --------------------
+# -------------------- legal probing --------------------
 ANCHOR_RE = re.compile(r"<a\b[^>]*href=['\"]([^'\"#]+)['\"][^>]*>(.*?)</a>", re.I | re.S)
 LEGAL_GUESS_BASENAMES = [
     "privacy","privacy-policy","policy/privacy","policies/privacy","legal/privacy",
@@ -712,18 +716,48 @@ def check_url():
         if ui_flag == "redacted": resp = redact_ui_payload(resp)
         return safe_json(resp)
 
+# -------- Global error handler (turn ANY crash into JSON; 200 for /check) --------
+@app.errorhandler(Exception)
+def _handle_any_error(e):
+    try:
+        path = (request.path or "").lower()
+    except Exception:
+        path = ""
+    payload = {
+        "url": (request.get_json(silent=True) or {}).get("url", ""),
+        "verdict": "Suspicious",
+        "risk": 0.5,
+        "confidence": 0.0,
+        "explanation": f"Unhandled server error ({type(e).__name__}). Returning a cautious verdict.",
+        "error": f"{type(e).__name__}: {e}",
+        "domain_risks": [], "content_risks": [], "link_risks": [], "behavior_risks": [],
+        "category_scores": {"domain":0,"content":0,"link":0,"behavior":0},
+        "behavior": {"mode":"error","score":0.0,"events":[]},
+        "structure": {"score":0.0,"template":None},
+        "visual": {"score":0.0,"closest":None},
+    }
+    # Return 200 for scanner endpoint so the UI never sees HTTP 500.
+    status = 200 if path.startswith("/check") else 500
+    return safe_json(payload, status=status)
+
 # -------------------- pages & health --------------------
 @app.route("/", methods=["GET"])
 def index(): return render_template("index.html")
+
 @app.route("/privacy", methods=["GET"])
 def privacy(): return render_template("privacy.html")
+
 @app.route("/legal", methods=["GET"])
 def legal(): return render_template("legal.html")
+
 @app.route("/faq", methods=["GET"])
 def faq(): return render_template("faq.html")
+
 @app.route("/health", methods=["GET"])
 def health(): return safe_json({"ok": True})
+
 @app.route("/version", methods=["GET"])
 def version(): return safe_json({"model_path": os.path.abspath(MODEL_PATH), "server_time_utc": datetime.utcnow().isoformat() + "Z"})
+
 if __name__ == "__main__":
     app.run(debug=True)
