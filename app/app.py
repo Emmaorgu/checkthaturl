@@ -1,9 +1,16 @@
 # app/app.py
 import os, sys, glob, math, socket, re, json, requests, pandas as pd, joblib
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, make_response
 from flask_cors import CORS
 from datetime import datetime
 from urllib.parse import urlparse, urlunparse, urljoin
+from werkzeug.exceptions import HTTPException
+
+# -------------------- Flask --------------------
+app = Flask(__name__, template_folder="templates", static_folder="static")
+# ensure Flask never propagates exceptions to Werkzeug HTML
+app.config.update(PROPAGATE_EXCEPTIONS=False, TRAP_HTTP_EXCEPTIONS=False)
+CORS(app)
 
 # -------------------- flexible imports --------------------
 if __package__ in (None, "",):
@@ -50,15 +57,11 @@ else:
         reliability_info, apply_contradiction_guards
     )
 
-# -------------------- Flask --------------------
-app = Flask(__name__, template_folder="templates", static_folder="static")
-# Make sure Flask does not bypass our handlers
-app.config.update(
-    PROPAGATE_EXCEPTIONS=False,
-    TRAP_HTTP_EXCEPTIONS=True,
-)
-CORS(app)
-if feedback_bp: app.register_blueprint(feedback_bp)
+if feedback_bp:
+    try:
+        app.register_blueprint(feedback_bp)
+    except Exception:
+        pass
 
 # -------------------- Policy / constants --------------------
 PHISHING_THRESHOLD = 0.70
@@ -72,7 +75,8 @@ CTU_BEHAVIOR_MODE       = os.getenv("CTU_BEHAVIOR_MODE", "auto").lower()
 CTU_SOFT_WHITELIST_SELF = os.getenv("CTU_SOFT_WHITELIST_SELF", "1") == "1"
 
 OUR_HOSTS = {"checkthaturl.com", "www.checkthaturl.com"}
-LOCAL_TEMPLATE_INDEX = os.path.join(os.path.dirname(__file__), "templates", "index.html")
+# use root_path to avoid path confusion on some hosts
+LOCAL_TEMPLATE_INDEX = os.path.join(app.root_path, "templates", "index.html")
 
 STRUCTURE_BENIGN_PREFIXES  = ("ctu_", "benign_", "safe_", "homepage_")
 STRUCTURE_IGNORE_TEMPLATES = {"ctu_home"}
@@ -95,7 +99,7 @@ BROWSER_LANG = "en,en-NG;q=0.9,en-GB;q=0.8"
 
 # -------------------- model --------------------
 def _latest_model_path():
-    model_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'model'))
+    model_dir = os.path.abspath(os.path.join(app.root_path, '..', 'model'))
     versioned = glob.glob(os.path.join(model_dir, "phish_rf_model_*.pkl"))
     def ts(fp):
         from datetime import datetime as _dt
@@ -183,12 +187,33 @@ def to_native(obj):
     return obj
 
 def safe_json(payload, status=200):
-    """Return application/json without risking 500 from unserializable types."""
+    """Return application/json without risking HTML 500s."""
     try:
         body = json.dumps(to_native(payload), ensure_ascii=False, default=str)
     except Exception as e:
-        body = json.dumps({"error": f"serialization_failed: {type(e).__name__}", "raw": str(payload)[:400]}, ensure_ascii=False)
-    return app.response_class(body, status=status, mimetype="application/json")
+        body = json.dumps({"error": f"serialization_failed:{type(e).__name__}", "raw": str(payload)[:400]}, ensure_ascii=False)
+    resp = make_response(body, status)
+    resp.headers["Content-Type"] = "application/json; charset=utf-8"
+    return resp
+
+# ---- Global error handlers: never leak HTML 500s ----
+@app.errorhandler(Exception)
+def _any_exception(e):
+    # Map HTTP errors to a safe JSON, avoid 500 to the UI.
+    if isinstance(e, HTTPException):
+        return safe_json({"error": e.name, "status": e.code}, status=200 if e.code >= 500 else e.code)
+    return safe_json({
+        "verdict": "Suspicious",
+        "risk": 0.5,
+        "confidence": 0.0,
+        "explanation": f"Our scanner hit an unexpected error ({type(e).__name__}). Returning a cautious verdict.",
+        "error": f"{type(e).__name__}: {e}",
+        "domain_risks": [], "content_risks": [], "link_risks": [], "behavior_risks": [],
+        "behavior": {"mode":"error","score":0.0,"events":[]},
+        "structure": {"score":0.0,"template":None},
+        "visual": {"score":0.0,"closest":None},
+        "category_scores": {"domain":0,"content":0,"link":0,"behavior":0}
+    }, status=200)
 
 DOMAIN_HINTS  = ("domain","whois","tld","dns","registrar","mx","spf","dkim","age","subdomain","punycode","entropy")
 CONTENT_HINTS = ("content","text","keyword","phrase","login","form","credential","timer","urgency","brand","logo","tfidf","nlp","password","ocr","policy","terms")
@@ -211,6 +236,8 @@ def _group_reasons(reasons):
 def dns_preflight(u: str) -> dict:
     try:
         host = urlparse(u).netloc.split(":")[0]
+        # guard against None/invalid host
+        if not host: return {"ok": False, "label": "Invalid host"}
         socket.getaddrinfo(host, 443); socket.getaddrinfo(host, 80)
         return {"ok": True, "label": ""}
     except socket.gaierror: return {"ok": False, "label": "DNS didn’t resolve (NXDOMAIN)"}
@@ -385,8 +412,11 @@ def redact_ui_payload(payload: dict) -> dict:
     return p
 
 # -------------------- API --------------------
-@app.route("/check", methods=["POST"])
+@app.route("/check", methods=["POST", "OPTIONS"])
 def check_url():
+    # Handle CORS preflight explicitly (some hosts forward OPTIONS to app)
+    if request.method == "OPTIONS":
+        return safe_json({"ok": True})
     try:
         data = request.get_json(silent=True) or {}
         url = (data.get("url") or "").strip()
@@ -527,7 +557,7 @@ def check_url():
         p_cal = calibrate_probability(blended_risk)
         verdict = verdict_from_calibrated(p_cal)
 
-        category_scores = compute_category_scores(features, behavior_score)
+        _ = compute_category_scores(features, behavior_score)  # kept for side effects/compat
 
         if not DOMAIN_ONLY_CAN_PHISH:
             non_surface = int(features.get("non_surface_red_flags", 0))
@@ -624,30 +654,19 @@ def check_url():
         pruned = _prune_explanations(verdict, human_reasons, behv_for_blend)
         domain_risks, content_risks, link_risks, behavior_risks, _ = _group_reasons(pruned)
 
-        if verdict in ("Phishing","Suspicious") and not OUR_SCAN and not (domain_risks or content_risks or link_risks or behavior_risks):
-            if features.get("is_new_domain"):          domain_risks.append("🆕 Recently-registered domain.")
-            if features.get("suspicious_tld"):         domain_risks.append("🌐 Suspicious/rare TLD.")
-            if features.get("domain_entropy", 0) > 4:  domain_risks.append("🎲 Unnatural/complex domain pattern.")
-            if float(features.get("phish_context_score", 0)) >= 0.35:
-                content_risks.append("🧠 NLP flagged phishing-like phrasing.")
-            if not (domain_risks or content_risks or link_risks or behavior_risks):
-                domain_risks.append("⚠ Model confidence came primarily from domain-only signals; content/link/behavior had no red flags.")
-
-        # summaries
-        if verdict == "Legitimate":
-            explanation = "Low or no phishing pattern detected."
-            v2_summary = "Low or no phishing pattern detected."
-        else:
-            explanation = f"{confidence}% confidence • {verdict}. See grouped risk signals below."
-            v2_summary = ("This site appears mostly safe but shows content/behavior cues associated with phishing. Proceed with caution."
-                          if ((float(features.get("phish_context_score", 0)) >= 0.35 or behavior_score >= 0.35) and verdict == "Suspicious")
-                          else "Multiple static and behavioral signals consistent with phishing were detected.")
+        explanation = "Low or no phishing pattern detected." if verdict == "Legitimate" \
+                      else f"{confidence}% confidence • {verdict}. See grouped risk signals below."
+        v2_summary = ("Low or no phishing pattern detected." if verdict == "Legitimate" else
+                      ("This site appears mostly safe but shows content/behavior cues associated with phishing. Proceed with caution."
+                       if ((float(features.get("phish_context_score", 0)) >= 0.35 or behavior_score >= 0.35) and verdict == "Suspicious")
+                       else "Multiple static and behavioral signals consistent with phishing were detected."))
 
         reliability = reliability_info(p_cal)
         resp = {
             "url": url, "verdict": verdict, "risk": round(float(p_cal), 3),
             "confidence": float(confidence),
-            "phishing_score": float(phishing_score), "legit_score": float(legit_score),
+            "phishing_score": round(float(p_phish) * 100.0, 2),
+            "legit_score": round((1.0 - float(p_phish)) * 100.0, 2),
             "explanation": explanation,
             "domain_risks": [] if verdict == "Legitimate" else domain_risks,
             "content_risks": [] if verdict == "Legitimate" else content_risks,
@@ -660,7 +679,9 @@ def check_url():
                              "content": [] if verdict == "Legitimate" else content_risks,
                              "behavior": [] if verdict == "Legitimate" else behavior_risks,
                              "summary": v2_summary},
-            "behavior": behavior, "structure": structure, "visual": visual,
+            "behavior": behavior,
+            "structure": structure,
+            "visual": visual,
             "policy": {
                 "strict_surface_guard": STRICT_SURFACE_GUARD,
                 "startup_exception_guard": STARTUP_EXCEPTION_GUARD,
@@ -684,7 +705,6 @@ def check_url():
         }
         if diag: resp["diagnostic"] = diag
 
-        # consistency (does not change verdict)
         reason_buckets = build_reasons(resp)
         ensure_reasons_contract(resp.get("verdict"), reason_buckets)
         resp.update(reason_buckets)
@@ -702,7 +722,7 @@ def check_url():
         return safe_json(resp)
 
     except Exception as e:
-        # Fail-safe JSON (NEVER return HTML 500)
+        # belt-and-suspenders: this should rarely run because of global handler
         resp = {"url": (request.get_json(silent=True) or {}).get("url", ""),
                 "verdict": "Suspicious", "risk": 0.5, "confidence": 0.0,
                 "explanation": f"Our scanner hit an unexpected error ({type(e).__name__}). Returning a cautious verdict.",
@@ -714,31 +734,7 @@ def check_url():
                 "visual": {"score":0.0,"closest":None}}
         ui_flag = (request.args.get("ui") or "").strip().lower()
         if ui_flag == "redacted": resp = redact_ui_payload(resp)
-        return safe_json(resp)
-
-# -------- Global error handler (turn ANY crash into JSON; 200 for /check) --------
-@app.errorhandler(Exception)
-def _handle_any_error(e):
-    try:
-        path = (request.path or "").lower()
-    except Exception:
-        path = ""
-    payload = {
-        "url": (request.get_json(silent=True) or {}).get("url", ""),
-        "verdict": "Suspicious",
-        "risk": 0.5,
-        "confidence": 0.0,
-        "explanation": f"Unhandled server error ({type(e).__name__}). Returning a cautious verdict.",
-        "error": f"{type(e).__name__}: {e}",
-        "domain_risks": [], "content_risks": [], "link_risks": [], "behavior_risks": [],
-        "category_scores": {"domain":0,"content":0,"link":0,"behavior":0},
-        "behavior": {"mode":"error","score":0.0,"events":[]},
-        "structure": {"score":0.0,"template":None},
-        "visual": {"score":0.0,"closest":None},
-    }
-    # Return 200 for scanner endpoint so the UI never sees HTTP 500.
-    status = 200 if path.startswith("/check") else 500
-    return safe_json(payload, status=status)
+        return safe_json(resp, status=200)
 
 # -------------------- pages & health --------------------
 @app.route("/", methods=["GET"])
@@ -760,4 +756,5 @@ def health(): return safe_json({"ok": True})
 def version(): return safe_json({"model_path": os.path.abspath(MODEL_PATH), "server_time_utc": datetime.utcnow().isoformat() + "Z"})
 
 if __name__ == "__main__":
+    # debug off in production hosts anyway; leave True here for local dev
     app.run(debug=True)
