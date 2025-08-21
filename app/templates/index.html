@@ -5,14 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>CheckThatURL — Scan any link. Instant verdicts. Clear reasons.</title>
   <meta name="color-scheme" content="dark light" />
+  <!-- optional: set your API base here in production -->
+  <!-- <meta name="ctu-api-base" content="https://<YOUR-RENDER-SERVICE>.onrender.com"> -->
+
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
-  <link rel="alternate icon" href="/static/favicon.ico" sizes="any">
-  <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
-  <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16.png">
-  <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+  <link rel="alternate icon" href="/static/favicon.svg" sizes="any">
   <meta name="theme-color" content="#0c111a" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
   <style>
     :root{--bg:#0c111a;--panel:#121826;--panel-2:#171e2e;--text:#e6edf6;--muted:#9fb0c7;--brand:#1e90ff;--ok:#1ec28b;--warn:#ffb020;--bad:#ff4d4f;--border:#223052;--chip:#0f1523;--glow:0 0 24px rgba(30,144,255,.35), inset 0 0 30px rgba(30,144,255,.12)}
     *{box-sizing:border-box}
@@ -26,7 +27,6 @@
     .top-privacy{background:#0b1526;border:1px solid var(--border);padding:12px 16px;border-radius:12px;display:flex;gap:10px;align-items:center;margin:12px auto 28px}
     .top-privacy .lock{font-size:18px}
     .hero h1{font-size:clamp(32px,5.6vw,56px);line-height:1.05;margin:4px 0 10px;font-weight:800;letter-spacing:-.02em}
-    .hero h1 .accent{color:var(--brand)}
     .hero p{margin:10px 0 24px;color:var(--muted);font-size:18px}
     .search{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:14px;display:flex;gap:12px;align-items:center;margin-bottom:8px;flex-wrap:wrap}
     .url-input{flex:1;background:#0e1525;color:var(--text);border:1px solid #1b2847;padding:16px 14px;font-size:16px;border-radius:10px;outline:none;min-width:260px}
@@ -84,6 +84,21 @@
     .scanbar>i{display:block;height:100%;width:0%;background:linear-gradient(90deg,#3cc8ff,#7aa2ff,#9c6bff,#ff5ca7,#ffc36b);transition:width .14s ease}
     .scan-footer{display:flex;align-items:center;justify-content:space-between;margin-top:10px;color:var(--muted);font-size:13px}
   </style>
+
+  <!-- analytics -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-D0RMWZH4ZJ"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date()); gtag('config', 'G-D0RMWZH4ZJ');
+  </script>
+
+  <!-- Configurable API base -->
+  <script>
+    // allow meta override
+    (function(){ const m=document.querySelector('meta[name="ctu-api-base"]'); if(m&&m.content) window.CTU_API_BASE=m.content.trim(); })();
+    window.CTU_API_BASE = window.CTU_API_BASE || "";
+  </script>
 </head>
 <body>
   <div class="wrap">
@@ -239,17 +254,13 @@
       behavior: clean(d.behavior_risks),
     });
 
-    // Derive abnormalities directly from raw behavior telemetry if buckets are empty
     function deriveBehaviorSignals(data){
       const out = [];
       const beh = data.behavior || {};
       const chain = Array.isArray(beh.redirect_chain) ? beh.redirect_chain : [];
       const events = (beh.events || []).map(e => (e||'').toString());
-
       if (chain.length > 1) out.push(`Multiple redirects observed (${chain.length} hops)`);
-
       const seen = (re) => events.some(e => re.test(e));
-
       if (seen(/js_redirect/i))       out.push('JavaScript-triggered redirect');
       if (seen(/post_redirect/i))     out.push('Post-submission redirect flow detected');
       if (seen(/consent_click/i))     out.push('Consent/allow dialog interaction captured');
@@ -259,18 +270,14 @@
       if (seen(/obfuscat|eval/i))     out.push('Obfuscated script execution patterns');
       if (seen(/clipboard|copy/i))    out.push('Clipboard access/auto-copy behavior');
       if (seen(/notification/i))      out.push('Browser notification prompt behavior');
-
       return out;
     }
 
-    // Ensure non-legit verdicts have concrete issues listed; keep the original verdict.
     function ensureAbnormalitiesForNonLegit(verdict, c, data){
       if (verdict === 'Legitimate') return c;
-      // If behavior bucket empty, try to derive
       if (!c.behavior.length){
         c.behavior = deriveBehaviorSignals(data);
       }
-      // If absolutely everything is still empty, create a minimal model-based bullet so UI never says "no issues"
       const total = c.domain.length + c.content.length + c.link.length + c.behavior.length;
       if (total === 0){
         c.content = [`Anomalous content/structure pattern detected by the model (confidence ${Math.round((data.risk||0)*100)}%).`];
@@ -289,7 +296,6 @@
       else badge.classList.add('badge-warn');
     }
 
-    // Verdict-aware list rendering
     function fillList(el, items, verdict){
       const pill = el.closest('.pill');
       if (verdict === 'Legitimate'){
@@ -297,7 +303,6 @@
         el.className='list'; el.innerHTML = items.map(x=>`<li>${x}</li>`).join(''); pill.style.display='';
         return;
       }
-      // Phishing/Suspicious: show only concrete abnormalities; hide empty buckets
       if (!items.length){ pill.style.display='none'; return; }
       el.className='list'; el.innerHTML = items.map(x=>`<li>${x}</li>`).join(''); pill.style.display='';
     }
@@ -331,7 +336,7 @@
 
     function sanitizeHint(raw, computed){
       if (!raw) return computed;
-      return WEAK_PATTERN.test(raw) ? computed : raw;
+      return /(further\s+checks\s+recommended|seek\s+further\s+verification|manual\s+review\s+recommended)/i.test(raw) ? computed : raw;
     }
 
     function fillEvidence(data){
@@ -339,6 +344,36 @@
       $('#evChain').textContent = chain.length ? chain.join('  →  ') : '—';
       const consent = (data.behavior && (data.behavior.events||[]).filter(e => (e||'').startsWith('consent_click:')).length) || 0;
       $('#evConsent').textContent = consent ? `${consent} click(s)` : '—';
+    }
+
+    // ===== API base auto-detection =====
+    let API_BASE = null;
+    async function resolveApiBase(){
+      if (API_BASE !== null) return API_BASE;
+      const qs = new URLSearchParams(location.search);
+      const fromParam   = (qs.get('api') || '').trim();
+      const fromGlobal  = (window.CTU_API_BASE || '').trim();
+      const fromStorage = (localStorage.getItem('ctu_api_base') || '').trim();
+      const norm = b => (b||'').replace(/\/+$/,'');
+      const candidates = [];
+      if (fromParam)   candidates.push(norm(fromParam));
+      if (fromGlobal)  candidates.push(norm(fromGlobal));
+      if (fromStorage) candidates.push(norm(fromStorage));
+      candidates.push('');     // same origin
+      candidates.push('/api'); // reverse-proxy mount
+
+      for (const base of candidates){
+        try{
+          const r = await fetch(norm(base) + '/health', {method:'GET', mode:'cors'});
+          if (r.ok){
+            API_BASE = norm(base);
+            localStorage.setItem('ctu_api_base', API_BASE);
+            return API_BASE;
+          }
+        }catch(_){ }
+      }
+      API_BASE = ''; // last resort
+      return API_BASE;
     }
 
     // Scanner overlay
@@ -380,10 +415,21 @@
         const steps = stepList(isQuick);
         let sidx=0; const stepTimer=setInterval(()=>{ if(sidx<steps.length){ markStepDone(sidx); $('#scanStatus').textContent=steps[sidx]; sidx++; } else clearInterval(stepTimer); }, isQuick?420:560);
 
-        const resp = await fetch('/check?ui=redacted' + (forceRescan ? '&_=' + Date.now() : ''), {
-          method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url}), signal:aborter.signal
+        const base = await resolveApiBase();
+        const resp = await fetch(base + '/check?ui=redacted' + (forceRescan ? '&_=' + Date.now() : ''), {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({url}),
+          signal:aborter.signal,
+          mode: 'cors'
         });
-        const data = await resp.json();
+        if (!resp.ok) {
+          const t = await resp.text().catch(()=> '');
+          throw new Error(`HTTP ${resp.status} ${resp.statusText}${t ? ' — ' + t.slice(0,200) : ''}`);
+        }
+        let data;
+        try { data = await resp.json(); }
+        catch { throw new Error('API returned non-JSON response'); }
 
         markStepDone(steps.length-1);
         $('#scanStatus').textContent='Done';
@@ -397,18 +443,15 @@
         setBadge(verdict);
         $('#riskFill').style.width = Math.round((data.risk || 0) * 100) + '%';
 
-        // Clean buckets then ensure abnormalities for non-legit
         let c = categories(data);
         c = ensureAbnormalitiesForNonLegit(verdict, c, data);
 
-        // Render category lists
         fillList($('#domainRisks'), c.domain, verdict);
         fillList($('#contentRisks'), c.content, verdict);
         fillList($('#linkRisks'),    c.link,    verdict);
         fillList($('#behaviorRisks'),c.behavior,verdict);
         fillEvidence(data);
 
-        // Hint + explainer (no weak phrasing)
         const computedSummary = buildSummary(verdict, c);
         const rawHint = data.explanations && data.explanations.summary;
         $('#hint').textContent = sanitizeHint(rawHint, computedSummary);
@@ -416,13 +459,15 @@
         const rawExplain = (data.explanation||'').trim();
         $('#verdictExplain').textContent = (!rawExplain || WEAK_PATTERN.test(rawExplain)) ? buildExplain(verdict, c) : rawExplain;
 
-        // Update URL for sharing
         const u = new URL(location.href); u.searchParams.set('url', url); history.replaceState(null,'',u.toString());
 
         hideScanner(); aborter=null;
       }catch(e){
         hideScanner(); aborter=null;
-        alert('Scan failed or cancelled.');
+        console.error(e);
+        const msg = (e && e.message) ? e.message : 'Scan failed or cancelled.';
+        $('#hint').textContent = 'Scan failed: ' + msg;
+        alert('Scan failed: ' + msg);
       }
     }
 
