@@ -5,16 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>CheckThatURL — Scan any link. Instant verdicts. Clear reasons.</title>
   <meta name="color-scheme" content="dark light" />
+  <!-- Preferred: set this to your deployed API host (no trailing slash). -->
+  <meta name="ctu-api-base" content="https://api.checkthaturl.com">
+
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
-  <link rel="alternate icon" href="/static/favicon.ico" sizes="any">
-  <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
-  <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16.png">
-  <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+  <link rel="alternate icon" href="/static/favicon.svg" sizes="any">
   <meta name="theme-color" content="#0c111a" />
-  <!-- Force UI to use Render API in production -->
-  <meta name="ctu-api-base" content="https://checkthaturl.onrender.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" crossorigin />
+
   <style>
     :root{--bg:#0c111a;--panel:#121826;--panel-2:#171e2e;--text:#e6edf6;--muted:#9fb0c7;--brand:#1e90ff;--ok:#1ec28b;--warn:#ffb020;--bad:#ff4d4f;--border:#223052;--chip:#0f1523;--glow:0 0 24px rgba(30,144,255,.35), inset 0 0 30px rgba(30,144,255,.12)}
     *{box-sizing:border-box}
@@ -28,7 +27,6 @@
     .top-privacy{background:#0b1526;border:1px solid var(--border);padding:12px 16px;border-radius:12px;display:flex;gap:10px;align-items:center;margin:12px auto 28px}
     .top-privacy .lock{font-size:18px}
     .hero h1{font-size:clamp(32px,5.6vw,56px);line-height:1.05;margin:4px 0 10px;font-weight:800;letter-spacing:-.02em}
-    .hero h1 .accent{color:var(--brand)}
     .hero p{margin:10px 0 24px;color:var(--muted);font-size:18px}
     .search{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:14px;display:flex;gap:12px;align-items:center;margin-bottom:8px;flex-wrap:wrap}
     .url-input{flex:1;background:#0e1525;color:var(--text);border:1px solid #1b2847;padding:16px 14px;font-size:16px;border-radius:10px;outline:none;min-width:260px}
@@ -36,7 +34,7 @@
     .btn.secondary{background:#1b2847;color:var(--text);border:1px solid var(--border)}
     .btn.small{padding:8px 12px;font-weight:600}
     .btn:disabled{opacity:.55;cursor:not-allowed}
-    .quick {display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px;margin-left:auto}
+    .quick{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px;margin-left:auto}
     .grid{display:grid;grid-template-columns:1.2fr 1fr;gap:24px}
     @media (max-width:980px){.grid{grid-template-columns:1fr}}
     .card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:18px}
@@ -86,6 +84,22 @@
     .scanbar>i{display:block;height:100%;width:0%;background:linear-gradient(90deg,#3cc8ff,#7aa2ff,#9c6bff,#ff5ca7,#ffc36b);transition:width .14s ease}
     .scan-footer{display:flex;align-items:center;justify-content:space-between;margin-top:10px;color:var(--muted);font-size:13px}
   </style>
+
+  <!-- analytics -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-D0RMWZH4ZJ"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date()); gtag('config', 'G-D0RMWZH4ZJ');
+  </script>
+
+  <!-- Configure initial (optional) hard-coded API base -->
+  <script>
+    (function(){
+      const m=document.querySelector('meta[name="ctu-api-base"]');
+      if(m&&m.content) window.CTU_API_BASE=(m.content||'').trim().replace(/\/+$/,'');
+    })();
+  </script>
 </head>
 <body>
   <div class="wrap">
@@ -96,8 +110,8 @@
       </a>
     </div>
 
-    <div class="top-privacy">
-      <span class="lock">🔐</span>
+    <div class="top-privacy" role="note" aria-live="polite">
+      <span class="lock" aria-hidden="true">🔐</span>
       <div><strong>Privacy:</strong> We <strong>don’t store</strong> your URLs or page content. Scans are ephemeral and processed in-memory. Feedback is optional and anonymous. <a href="/privacy">Learn more</a>.</div>
     </div>
 
@@ -109,13 +123,13 @@
         </div>
 
         <div class="search">
-          <input id="url" class="url-input" placeholder="Paste a URL (e.g. https://bank.example/login)" />
+          <input id="url" class="url-input" placeholder="Paste a URL (e.g. https://bank.example/login)" inputmode="url" autocomplete="off" />
           <button id="scan" class="btn">Check</button>
           <button id="rescan" class="btn secondary" title="Re-run with cache-busting">Re-scan anyway</button>
           <label class="quick"><input type="checkbox" id="fastToggle"> ⚡ Quick scan</label>
         </div>
 
-        <div id="hint" class="hint">Press Enter or click Check to scan.</div>
+        <div id="hint" class="hint" role="status">Press Enter or click Check to scan.</div>
 
         <div id="verdictCard" class="card" style="margin-top:18px; display:none">
           <div class="row" style="justify-content:space-between;">
@@ -123,9 +137,9 @@
             <div id="verdictBadge" class="verdict-badge badge-warn">Suspicious</div>
           </div>
 
-        <div class="meta">
+          <div class="meta">
             <span id="lastScanned">Last scanned —</span>
-            <span class="dot"></span>
+            <span class="dot" aria-hidden="true"></span>
             <button id="shareBtn" class="btn small secondary">Share</button>
           </div>
 
@@ -199,34 +213,6 @@
     const $ = s => document.querySelector(s);
     $('#year').textContent = new Date().getFullYear();
 
-    // --- API base detection ---
-    const META_API = (document.querySelector('meta[name="ctu-api-base"]')?.content || '').trim();
-    const ENV_API  = (window.CTU_API_BASE || '').trim();
-    // Order: explicit → same-origin → /api fallback
-    const API_CANDIDATES = [ENV_API, META_API, '', '/api'].filter(Boolean);
-
-    async function apiFetch(path, opts){
-      let lastErr = null;
-      for (const base of API_CANDIDATES){
-        const b = base.endsWith('/') ? base.slice(0,-1) : base;
-        const url = b + path;
-        try{
-          const resp = await fetch(url, opts);
-          if (!resp.ok){
-            const t = await resp.text().catch(()=> '');
-            throw new Error(`HTTP ${resp.status}${t ? ' — ' + t.slice(0,120) : ''}`);
-          }
-          let data;
-          try { data = await resp.json(); }
-          catch { throw new Error('API returned non-JSON response'); }
-          return data;
-        }catch(e){
-          lastErr = e;
-        }
-      }
-      throw lastErr || new Error('Network error');
-    }
-
     const qs = new URLSearchParams(location.search);
     if (qs.get('url')) $('#url').value = qs.get('url');
 
@@ -255,8 +241,9 @@
       }catch(_){}
     }
 
-    // ====== STRICT messaging & abnormalities ======
-    const WEAK_PATTERN = /(further\s+checks\s+recommended|seek\s+further\s+verification|manual\s+review\s+recommended)/i;
+    // === Text cleaning & category helpers ===
+    const WEAK_PATTERN   = /(further\s+checks\s+recommended|seek\s+further\s+verification|manual\s+review\s+recommended)/i;
+    const DEBUG_PATTERN  = /(self[-\s]?scan|internal error masked|unexpected error|traceback|stack|exception)/i;
 
     const clean = arr => (Array.isArray(arr)?arr:[])
       .map(x => (x||'').toString().trim())
@@ -266,37 +253,32 @@
       domain:   clean(d.domain_risks),
       content:  clean(d.content_risks),
       link:     clean(d.link_risks),
-      behavior: clean(d.behavior_risks),
+      behavior: clean(d.behavior_risks)
     });
 
     function deriveBehaviorSignals(data){
-      const out = [];
-      const beh = data.behavior || {};
+      const out = [], beh = data.behavior || {};
       const chain = Array.isArray(beh.redirect_chain) ? beh.redirect_chain : [];
       const events = (beh.events || []).map(e => (e||'').toString());
-
       if (chain.length > 1) out.push(`Multiple redirects observed (${chain.length} hops)`);
-      const seen = (re) => events.some(e => re.test(e));
-      if (seen(/js_redirect/i))       out.push('JavaScript-triggered redirect');
-      if (seen(/post_redirect/i))     out.push('Post-submission redirect flow detected');
-      if (seen(/consent_click/i))     out.push('Consent/allow dialog interaction captured');
-      if (seen(/timer|countdown/i))   out.push('Urgency/countdown timer behavior');
+      const seen = re => events.some(e => re.test(e));
+      if (seen(/js_redirect/i)) out.push('JavaScript-triggered redirect');
+      if (seen(/post_redirect/i)) out.push('Post-submission redirect flow detected');
+      if (seen(/consent_click/i)) out.push('Consent/allow dialog interaction captured');
+      if (seen(/timer|countdown/i)) out.push('Urgency/countdown timer behavior');
       if (seen(/dom[_-]?mutation|mutation/i)) out.push('Rapid DOM mutations observed');
-      if (seen(/iframe/i))            out.push('Cross-site iframe embedding');
-      if (seen(/obfuscat|eval/i))     out.push('Obfuscated script execution patterns');
-      if (seen(/clipboard|copy/i))    out.push('Clipboard access/auto-copy behavior');
-      if (seen(/notification/i))      out.push('Browser notification prompt behavior');
-
+      if (seen(/iframe/i)) out.push('Cross-site iframe embedding');
+      if (seen(/obfuscat|eval/i)) out.push('Obfuscated script execution patterns');
+      if (seen(/clipboard|copy/i)) out.push('Clipboard access/auto-copy behavior');
+      if (seen(/notification/i)) out.push('Browser notification prompt behavior');
       return out;
     }
 
     function ensureAbnormalitiesForNonLegit(verdict, c, data){
       if (verdict === 'Legitimate') return c;
-      if (!c.behavior.length){ c.behavior = deriveBehaviorSignals(data); }
+      if (!c.behavior.length) c.behavior = deriveBehaviorSignals(data);
       const total = c.domain.length + c.content.length + c.link.length + c.behavior.length;
-      if (total === 0){
-        c.content = [`Anomalous content/structure pattern detected by the model (confidence ${Math.round((data.risk||0)*100)}%).`];
-      }
+      if (total === 0) c.content = [`Anomalous content/structure pattern detected by the model (confidence ${Math.round((data.risk||0)*100)}%).`];
       return c;
     }
 
@@ -330,35 +312,73 @@
       if (nonEmpty(c.behavior)) out.push('Behavior');
       return out;
     }
-
     function buildSummary(verdict, c){
       const cats = presentCats(c);
-      if (verdict === 'Phishing')   return `Multiple phishing indicators detected across: ${cats.join(', ')}. Review the breakdown below.`;
-      if (verdict === 'Suspicious') return `Some risk signals detected in: ${cats.join(', ')}. See the grouped reasons below.`;
+      if (verdict === 'Phishing')   return `Multiple phishing indicators detected across: ${cats.join(', ')}.`;
+      if (verdict === 'Suspicious') return `Some risk signals detected in: ${cats.join(', ')}.`;
       return 'Low risk. No phishing patterns detected.';
     }
-
     function buildExplain(verdict, c){
       const pick = arr => arr.slice(0,2).join('; ');
-      const parts = [];
+      const parts=[];
       if (nonEmpty(c.domain))   parts.push(`Domain: ${pick(c.domain)}`);
       if (nonEmpty(c.content))  parts.push(`Content: ${pick(c.content)}`);
       if (nonEmpty(c.link))     parts.push(`Links: ${pick(c.link)}`);
       if (nonEmpty(c.behavior)) parts.push(`Behavior: ${pick(c.behavior)}`);
-      if (parts.length) return parts.join(' • ');
-      return verdict === 'Legitimate' ? 'No notable risk signals found.' : 'Model-detected anomalies listed above.';
+      return parts.length ? parts.join(' • ')
+        : (verdict==='Legitimate' ? 'No notable risk signals found.' : 'Model-detected anomalies listed above.');
     }
 
-    function sanitizeHint(raw, computed){
-      if (!raw) return computed;
-      return WEAK_PATTERN.test(raw) ? computed : raw;
+    // Sanitize backend explanations/hints so users never see internal diagnostics
+    function cleanExplanation(verdict, rawExplain, cats){
+      const trimmed = (rawExplain || '').trim();
+      const looksDebug = !trimmed || WEAK_PATTERN.test(trimmed) || DEBUG_PATTERN.test(trimmed);
+      if (verdict === 'Legitimate'){
+        return looksDebug ? 'Low risk. No phishing patterns detected.' : trimmed;
+      }
+      return looksDebug ? buildExplain(verdict, cats) : trimmed;
     }
 
-    function fillEvidence(data){
-      const chain = (data.behavior && data.behavior.redirect_chain) || [];
-      $('#evChain').textContent = chain.length ? chain.join('  →  ') : '—';
-      const consent = (data.behavior && (data.behavior.events||[]).filter(e => (e||'').startsWith('consent_click:')).length) || 0;
-      $('#evConsent').textContent = consent ? `${consent} click(s)` : '—';
+    // ===== API base resolution with live probing =====
+    let API_BASE = null;
+
+    async function probe(base, timeoutMs=2200){
+      if(!base) return false;
+      const ctl = new AbortController();
+      const t = setTimeout(()=>ctl.abort(), timeoutMs);
+      try{
+        const r = await fetch(base.replace(/\/+$/,'') + '/health', { method:'GET', mode:'cors', signal:ctl.signal });
+        clearTimeout(t);
+        if(!r.ok) return false;
+        const j = await r.json().catch(()=> ({}));
+        return !!(j && (j.ok===true || j.ok==='true'));
+      }catch{ clearTimeout(t); return false; }
+    }
+
+    async function resolveApiBase(){
+      if (API_BASE !== null) return API_BASE;
+
+      const hard = (window.CTU_API_BASE || '').replace(/\/+$/,'');
+      const origin = location.origin.replace(/\/+$/,'');
+      const host = location.hostname || '';
+      const swapWWW = host.startsWith('www.') ? host.slice(4) : ('www.'+host);
+
+      const candidates = [];
+      if (hard) candidates.push(hard);
+      candidates.push(origin + '/api');        // Flask blueprint alias
+      candidates.push(origin);                 // root (non-proxied)
+      if (host) {
+        const altOrigin = origin.replace(host, swapWWW);
+        candidates.push(altOrigin + '/api');
+        candidates.push(altOrigin);
+      }
+
+      for (const c of candidates){
+        if (await probe(c)){ API_BASE = c.replace(/\/+$/,''); break; }
+      }
+      if (!API_BASE) API_BASE = hard || origin + '/api'; // last-resort guess
+
+      return API_BASE;
     }
 
     // Scanner overlay
@@ -372,7 +392,7 @@
       stepList(isQuick).forEach((t,i)=>{
         const div=document.createElement('div');
         div.className='scan-step'; div.dataset.idx=i;
-        div.innerHTML=`<div class="dot"></div><span>${t}</span>`;
+        div.innerHTML=`<div class="dot" aria-hidden="true"></div><span>${t}</span>`;
         $('#scanSteps').appendChild(div);
       });
       $('#scanProgress').style.width='0%';
@@ -385,9 +405,7 @@
       const total=document.querySelectorAll('.scan-step').length||1;
       $('#scanProgress').style.width=Math.min(100,Math.round(((i+1)/total)*100))+'%';
     }
-    function animateProgress(){
-      let p=0; animTimer=setInterval(()=>{ p=Math.min(96,p+Math.random()*3.5+0.5); $('#scanProgress').style.width=p+'%'; },140);
-    }
+    function animateProgress(){ let p=0; animTimer=setInterval(()=>{ p=Math.min(96,p+Math.random()*3.5+0.5); $('#scanProgress').style.width=p+'%'; },140); }
 
     async function runScan(forceRescan=false){
       const url = ($('#url').value||'').trim();
@@ -400,14 +418,25 @@
         const steps = stepList(isQuick);
         let sidx=0; const stepTimer=setInterval(()=>{ if(sidx<steps.length){ markStepDone(sidx); $('#scanStatus').textContent=steps[sidx]; sidx++; } else clearInterval(stepTimer); }, isQuick?420:560);
 
-        const data = await apiFetch('/check?ui=redacted' + (forceRescan ? '&_=' + Date.now() : ''), {
+        const base = await resolveApiBase();
+        if (!base) { throw new Error('API base not configured or reachable'); }
+
+        const resp = await fetch(base + '/check?ui=redacted' + (forceRescan ? '&_=' + Date.now() : ''), {
           method:'POST',
           headers:{'Content-Type':'application/json'},
           body:JSON.stringify({url}),
           signal:aborter.signal,
-          mode:'cors',
-          credentials:'omit'
+          mode: 'cors',
+          credentials: 'omit'
         });
+        if (!resp.ok) {
+          const t = await resp.text().catch(()=> '');
+          const msg = `HTTP ${resp.status} ${resp.statusText}${t ? ' — ' + t.replace(/<[^>]*>/g,' ').slice(0,200) : ''}`;
+          throw new Error(msg);
+        }
+        let data;
+        try { data = await resp.json(); }
+        catch { throw new Error('API returned non-JSON response'); }
 
         markStepDone(steps.length-1);
         $('#scanStatus').textContent='Done';
@@ -428,21 +457,32 @@
         fillList($('#contentRisks'), c.content, verdict);
         fillList($('#linkRisks'),    c.link,    verdict);
         fillList($('#behaviorRisks'),c.behavior,verdict);
-        fillEvidence(data);
+
+        // evidence
+        const chain = (data.behavior && data.behavior.redirect_chain) || [];
+        $('#evChain').textContent = chain.length ? chain.join('  →  ') : '—';
+        const consent = (data.behavior && (data.behavior.events||[]).filter(e => (e||'').startsWith('consent_click:')).length) || 0;
+        $('#evConsent').textContent = consent ? `${consent} click(s)` : '—';
 
         const computedSummary = buildSummary(verdict, c);
         const rawHint = data.explanations && data.explanations.summary;
-        $('#hint').textContent = sanitizeHint(rawHint, computedSummary);
+        $('#hint').textContent = (rawHint && !WEAK_PATTERN.test(rawHint) && !DEBUG_PATTERN.test(rawHint))
+          ? rawHint
+          : computedSummary;
 
         const rawExplain = (data.explanation||'').trim();
-        $('#verdictExplain').textContent = (!rawExplain || WEAK_PATTERN.test(rawExplain)) ? buildExplain(verdict, c) : rawExplain;
+        $('#verdictExplain').textContent = cleanExplanation(verdict, rawExplain, c);
 
         const u = new URL(location.href); u.searchParams.set('url', url); history.replaceState(null,'',u.toString());
 
         hideScanner(); aborter=null;
       }catch(e){
         hideScanner(); aborter=null;
-        alert(`Scan failed: ${e?.message || e}`);
+        console.error(e);
+        const raw = (e && e.message) ? e.message : 'Scan failed or cancelled.';
+        const clean = raw.replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim().slice(0,180);
+        $('#hint').textContent = 'Scan failed: ' + clean;
+        alert('Scan failed: ' + clean);
       }
     }
 

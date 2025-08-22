@@ -1,17 +1,28 @@
 services:
   - type: web
     name: checkthaturl
-    env: docker
+    env: python
     plan: free
     region: oregon
-    dockerfilePath: ./Dockerfile
-    autoDeploy: true
-
-    # You can keep this even with Dockerfile HEALTHCHECK
-    healthCheckPath: /health
-
+    buildCommand: |
+      python -V
+      pip --version
+      # Normalize requirements.txt to UTF-8 (idempotent)
+      python - <<'PY'
+import pathlib
+p=pathlib.Path("requirements.txt")
+b=p.read_bytes()
+for enc in ("utf-8","utf-8-sig","utf-16","utf-16-le","utf-16-be"):
+    try:
+        t=b.decode(enc)
+        p.write_text(t, encoding="utf-8")
+        break
+    except Exception:
+        pass
+PY
+      pip install --no-cache-dir -r requirements.txt
+    startCommand: gunicorn app.app:app -w 2 -k gthread -b 0.0.0.0:$PORT --timeout 180
     envVars:
-      # --- your existing flags preserved ---
       - key: CTU_SELF_HOSTED
         value: "0"
       - key: CTU_BEHAVIOR
@@ -26,20 +37,6 @@ services:
         value: "1"
       - key: CTU_FEEDBACK_SALT
         sync: false
-
-      # --- new flags used by the hardened backend you deployed ---
-      # First deploy: set to "off" if you want zero risk, then switch to "auto".
-      - key: CTU_BEHAVIOR_MODE
-        value: "auto"
-      - key: CTU_BEHAVIOR_TIMEOUT_SEC
-        value: "8"
-      - key: CTU_SOFT_WHITELIST_SELF
-        value: "1"
-
-      # Render injects PORT; Dockerfile uses it in CMD
-      - key: PORT
-        value: "10000"
-
     disks:
       - name: ctu-data
         mountPath: /opt/render/project/src/data
