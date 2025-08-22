@@ -23,20 +23,25 @@
     .brand-link{display:inline-flex;align-items:center;gap:8px;font-weight:800;letter-spacing:.1px;color:var(--text)}
     .brand-link:hover{opacity:.95;text-decoration:none}
     .brand-link img{width:20px;height:20px;display:block}
+
     .top-privacy{background:#0b1526;border:1px solid var(--border);padding:12px 16px;border-radius:12px;display:flex;gap:10px;align-items:center;margin:12px auto 28px}
     .top-privacy .lock{font-size:18px}
+
     .hero h1{font-size:clamp(32px,5.6vw,56px);line-height:1.05;margin:4px 0 10px;font-weight:800;letter-spacing:-.02em}
     .hero h1 .accent{color:var(--brand)}
     .hero p{margin:10px 0 24px;color:var(--muted);font-size:18px}
+
     .search{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:14px;display:flex;gap:12px;align-items:center;margin-bottom:8px;flex-wrap:wrap}
     .url-input{flex:1;background:#0e1525;color:var(--text);border:1px solid #1b2847;padding:16px 14px;font-size:16px;border-radius:10px;outline:none;min-width:260px}
     .btn{background:var(--brand);color:#fff;border:none;padding:14px 18px;font-weight:700;border-radius:12px;cursor:pointer}
     .btn.secondary{background:#1b2847;color:var(--text);border:1px solid var(--border)}
     .btn.small{padding:8px 12px;font-weight:600}
     .btn:disabled{opacity:.55;cursor:not-allowed}
-    .quick {display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px;margin-left:auto}
+    .quick{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px;margin-left:auto}
+
     .grid{display:grid;grid-template-columns:1.2fr 1fr;gap:24px}
     @media (max-width:980px){.grid{grid-template-columns:1fr}}
+
     .card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:18px}
     .verdict-badge{float:right;padding:6px 10px;border-radius:999px;font-weight:700;font-size:13px;border:1px solid var(--border);background:var(--chip)}
     .badge-ok{color:var(--ok)}.badge-warn{color:var(--warn)}.badge-bad{color:var(--bad)}
@@ -50,17 +55,20 @@
     .pill h4{margin:0 0 6px;font-size:14px;color:var(--muted);font-weight:600;display:flex;gap:8px;align-items:center}
     .list{margin:0;padding-left:18px;font-size:14px;color:var(--muted)}
     .empty{color:#7f93b5;font-size:14px}
+
     details.evidence{margin-top:16px}
     details.evidence summary{cursor:pointer;user-select:none;list-style:none;display:flex;gap:8px;align-items:center;font-weight:700;color:var(--text);padding:10px 12px;background:var(--panel-2);border:1px solid var(--border);border-radius:12px}
     details.evidence[open] summary{border-bottom-left-radius:0;border-bottom-right-radius:0}
     .evidence-body{border:1px solid var(--border);border-top:none;border-bottom-left-radius:12px;border-bottom-right-radius:12px;background:var(--chip);padding:12px;font-size:14px;color:var(--muted)}
     .kv{display:grid;grid-template-columns:180px 1fr;gap:8px 12px}
     .mono{font-family:ui-monospace,"SFMono-Regular",Menlo,Consolas,"Liberation Mono",monospace}
+
     footer{margin:32px 0 18px;color:var(--muted);font-size:14px;display:flex;align-items:center;justify-content:space-between;gap:12px;border-top:1px dashed #203055;padding-top:14px}
     .brand{font-weight:800;letter-spacing:.1px}
     .hint{color:var(--muted);font-size:13px}
     .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-    /* Scanner */
+
+    /* Scanner overlay */
     .scanner{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:radial-gradient(1200px 500px at 50% -10%,rgba(49,80,140,.25),transparent 55%),rgba(5,8,14,.60);backdrop-filter:blur(8px) saturate(160%);z-index:9999}
     .scanner.show{display:flex;animation:fadeIn .12s ease-out}
     @keyframes fadeIn{from{opacity:0}to{opacity:1}}
@@ -84,6 +92,7 @@
     .scanbar{height:8px;background:#0d1322;border:1px solid #1b2847;border-radius:10px;overflow:hidden;margin-top:10px}
     .scanbar>i{display:block;height:100%;width:0%;background:linear-gradient(90deg,#3cc8ff,#7aa2ff,#9c6bff,#ff5ca7,#ffc36b);transition:width .14s ease}
     .scan-footer{display:flex;align-items:center;justify-content:space-between;margin-top:10px;color:var(--muted);font-size:13px}
+
     /* Toast */
     .toast{position:fixed;right:16px;top:16px;z-index:10000;background:#142038;border:1px solid #27406e;color:#e6edf6;border-radius:12px;padding:10px 12px;font-size:14px;box-shadow:0 6px 24px rgba(0,0,0,.25)}
   </style>
@@ -188,7 +197,7 @@
           <div id="scanSteps" class="scan-steps"></div>
           <div class="scanbar"><i id="scanProgress"></i></div>
           <div class="scan-footer">
-            <span id="scanStatus">Initializing…</span>
+            <span id="scanStatus">Scanning In Progress, Please Wait</span>
             <span id="scanEta" class="mono">~8s</span>
           </div>
         </div>
@@ -200,189 +209,200 @@
   <div id="toast" class="toast" style="display:none"></div>
 
   <script>
-    const $ = sel => document.querySelector(sel);
-    const $$ = sel => Array.from(document.querySelectorAll(sel));
+    // ---------- tiny helpers ----------
+    const $ = s => document.querySelector(s);
     const setText = (sel, txt) => { const el = (typeof sel === 'string') ? $(sel) : sel; if (el) el.textContent = txt; };
+    setText('#year', new Date().getFullYear());
 
-    // UI bits
-    const year = new Date().getFullYear(); setText('#year', year);
+    // ---------- elements ----------
+    const urlInput = $('#url'), btnScan = $('#scan'), btnRescan = $('#rescan'), fastToggle = $('#fastToggle');
+    const card = $('#verdictCard'), badge = $('#verdictBadge'), title = $('#verdictTitle'), explain = $('#verdictExplain'), riskFill = $('#riskFill'), lastScanned = $('#lastScanned');
+    const domRisks = $('#domainRisks'), conRisks = $('#contentRisks'), linkRisks = $('#linkRisks'), behRisks = $('#behaviorRisks');
+    const evChain = $('#evChain'), evConsent = $('#evConsent');
+    const scanner = $('#scanner'), scanUrlEl = $('#scanUrl'), scanSteps = $('#scanSteps'), scanProgress = $('#scanProgress'), scanStatus = $('#scanStatus'), scanEta = $('#scanEta'), scanCancel = $('#scanCancel');
+    const toast = $('#toast');
 
-    const urlInput   = $('#url');
-    const btnScan    = $('#scan');
-    const btnRescan  = $('#rescan');
-    const fastToggle = $('#fastToggle');
+    function showToast(msg, ms=4500){ toast.style.display='block'; toast.textContent = msg; clearTimeout(showToast._t); showToast._t = setTimeout(()=>toast.style.display='none', ms); }
 
-    const card       = $('#verdictCard');
-    const badge      = $('#verdictBadge');
-    const title      = $('#verdictTitle');
-    const explain    = $('#verdictExplain');
-    const riskFill   = $('#riskFill');
-    const lastScanned= $('#lastScanned');
+    // keyboard & clicks
+    urlInput.addEventListener('keydown', e => { if (e.key === 'Enter') runScan(false); });
+    btnScan.addEventListener('click', () => runScan(false));
+    btnRescan.addEventListener('click', () => runScan(true));
 
-    const domRisks   = $('#domainRisks');
-    const conRisks   = $('#contentRisks');
-    const linkRisks  = $('#linkRisks');
-    const behRisks   = $('#behaviorRisks');
+    // ---------- scanner UI ----------
+    let aborter = null, tickTimer = null, timeoutTimer = null;
+    const UI_TIMEOUT_MS = 22000; // hard client-side ceiling to prevent infinite spinner
+    const STEP_LABELS = ['Fetching page','Analyzing content','Checking links','Running behavior checks','Comparing structure','Computing verdict'];
 
-    const evChain    = $('#evChain');
-    const evConsent  = $('#evConsent');
+    function startScanner(url){
+      scanner.classList.add('show');
+      scanSteps.innerHTML = '';
+      STEP_LABELS.forEach(l => addStep(l));
+      setProgress(2);
+      setText(scanStatus,'Scanning in Progress, Please Wait...');
+      setText(scanEta,'~8s');
+      setText(scanUrlEl,url||'—');
+      scanCancel.disabled = false;
 
-    const scanner    = $('#scanner');
-    const scanUrlEl  = $('#scanUrl');
-    const scanSteps  = $('#scanSteps');
-    const scanProgress = $('#scanProgress');
-    const scanStatus = $('#scanStatus');
-    const scanEta    = $('#scanEta');
-    const scanCancel = $('#scanCancel');
+      // animate progress up to 85% while waiting
+      let pct = 2;
+      clearInterval(tickTimer);
+      tickTimer = setInterval(()=>{ pct = Math.min(85, pct + 0.9); setProgress(pct); }, 180);
 
-    const toast      = $('#toast');
-
-    function showToast(msg, ms=4500){
-      toast.style.display='block';
-      toast.textContent = msg;
-      clearTimeout(showToast._t);
-      showToast._t = setTimeout(()=>toast.style.display='none', ms);
+      // client-side timeout
+      clearTimeout(timeoutTimer);
+      timeoutTimer = setTimeout(()=>{ if (aborter) aborter.abort(); }, UI_TIMEOUT_MS);
     }
 
-    // Keyboard UX
-    urlInput.addEventListener('keydown', (e)=>{
-      if(e.key === 'Enter'){ runScan(false); }
-    });
-    btnScan.addEventListener('click', ()=> runScan(false));
-    btnRescan.addEventListener('click', ()=> runScan(true));
+    function stopScanner(){
+      scanner.classList.remove('show');
+      clearInterval(tickTimer);
+      clearTimeout(timeoutTimer);
+      aborter = null;
+    }
 
-    // Scanner overlay helpers
-    let aborter = null;
-    function step(label, done=false){
+    function addStep(label){
       const row = document.createElement('div');
-      row.className = 'scan-step' + (done ? ' done' : '');
+      row.className = 'scan-step';
       row.innerHTML = `<div class="dot"></div><span>${label}</span>`;
       scanSteps.appendChild(row);
       return row;
     }
+    function markStepDone(i){ const row = scanSteps.children[i]; if (row) row.classList.add('done'); }
     function setProgress(pct){ scanProgress.style.width = Math.max(0, Math.min(100, pct)) + '%'; }
 
-    function resetScanner(url){
-      scanner.classList.add('show');
-      scanSteps.innerHTML = '';
-      setProgress(0);
-      setText(scanStatus, 'Initializing…');
-      setText(scanEta, '~8s');
-      setText(scanUrlEl, url || '—');
-      scanCancel.disabled = false;
-    }
-
     scanCancel.addEventListener('click', ()=>{
-      if (aborter) { try{ aborter.abort(); }catch(e){} }
+      if (aborter) try{ aborter.abort(); }catch(e){}
       scanCancel.disabled = true;
-      setText(scanStatus, 'Cancelling…');
+      setText(scanStatus,'Cancelling…');
     });
 
-    function closeScanner(){ scanner.classList.remove('show'); }
-
-    // Rendering helpers
+    // ---------- verdict rendering ----------
     function renderList(el, items){
       if(!items || !items.length){ el.classList.add('empty'); el.textContent = 'No notable issues.'; return; }
-      el.classList.remove('empty');
-      el.innerHTML = '<ul class="list">' + items.map(x=>`<li>${escapeHtml(String(x))}</li>`).join('') + '</ul>';
+      el.classList.remove('empty'); el.innerHTML = '<ul class="list">' + items.map(x=>`<li>${escapeHtml(String(x))}</li>`).join('') + '</ul>';
     }
+    function escapeHtml(s){ return s.replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+    function setBadge(verdict){ let cls='badge-warn'; if (verdict==='Legitimate') cls='badge-ok'; else if (verdict==='Phishing') cls='badge-bad'; badge.className='verdict-badge '+cls; badge.textContent=verdict; }
 
-    function escapeHtml(s){
-      return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-    }
-
-    function setBadge(verdict){
-      let cls='badge-warn';
-      if (verdict === 'Legitimate') cls = 'badge-ok';
-      else if (verdict === 'Phishing') cls = 'badge-bad';
-      badge.className = 'verdict-badge ' + cls;
-      badge.textContent = verdict;
-    }
-
-    function updateVerdictCard(payload){
+    function updateVerdictCard(p){
       card.style.display = '';
-      setBadge(payload.verdict || 'Suspicious');
-      title.textContent = payload.verdict || '—';
-      explain.textContent = payload.explanation || '—';
+      setBadge(p.verdict || 'Suspicious');
+      title.textContent = p.verdict || '—';
+      explain.textContent = p.explanation || '—';
       lastScanned.textContent = 'Last scanned ' + new Date().toLocaleTimeString();
-
-      const pct = Math.round((payload.risk || 0) * 100);
-      riskFill.style.width = Math.max(1, Math.min(100, pct)) + '%';
-
-      renderList(domRisks, payload.domain_risks);
-      renderList(conRisks, payload.content_risks);
-      renderList(linkRisks, payload.link_risks);
-      renderList(behRisks, payload.behavior_risks);
-
-      const chain = (payload.behavior && payload.behavior.redirect_chain) || [];
-      evChain.textContent = chain.length ? chain.join('  →  ') : '—';
-      const clicks = (payload.behavior && payload.behavior.clicks || 0);
-      evConsent.textContent = clicks ? (clicks + ' interaction(s)') : '—';
+      const pct = Math.round((p.risk || 0) * 100); riskFill.style.width = Math.max(1, Math.min(100, pct)) + '%';
+      renderList(domRisks, p.domain_risks); renderList(conRisks, p.content_risks); renderList(linkRisks, p.link_risks); renderList(behRisks, p.behavior_risks);
+      const chain = (p.behavior && p.behavior.redirect_chain) || []; evChain.textContent = chain.length ? chain.join('  →  ') : '—';
+      const clicks = (p.behavior && p.behavior.clicks || 0); evConsent.textContent = clicks ? (clicks + ' interaction(s)') : '—';
     }
 
-    // ---- MAIN SCAN ----
+    // Normalize any API shape into something renderable
+    function normalizePayload(data){
+      try { if (typeof data === 'string') data = JSON.parse(data); } catch {}
+      const p = data && typeof data === 'object' ? data : {};
+      let v = (typeof p.verdict === 'string' && p.verdict.trim()) ? p.verdict.trim() : null;
+
+      if (!v) {
+        const r = (typeof p.risk === 'number') ? p.risk : (typeof p.phishing_score === 'number' ? p.phishing_score/100 : null);
+        if (r !== null) v = r >= 0.70 ? 'Phishing' : r <= 0.30 ? 'Legitimate' : 'Suspicious';
+        else if (p.status === 'partial' || p.ok === true) v = 'Suspicious';
+      }
+
+      let explanation = p.explanation;
+      if (!explanation) {
+        if (p.status === 'partial') explanation = 'Some checks timed out. Showing partial result.';
+        else if (p.ok === false)    explanation = p.message || 'Scan failed.';
+        else                        explanation = 'Result synthesized from available checks.';
+      }
+
+      return {
+        ok: (p.ok !== false),
+        status: p.status || 'ok',
+        url: p.url || '',
+        verdict: v || 'Suspicious',
+        risk: (typeof p.risk === 'number') ? p.risk : (typeof p.phishing_score === 'number' ? p.phishing_score/100 : 0.5),
+        confidence: (typeof p.confidence === 'number') ? p.confidence : 0,
+        explanation,
+        domain_risks: Array.isArray(p.domain_risks) ? p.domain_risks : [],
+        content_risks: Array.isArray(p.content_risks) ? p.content_risks : [],
+        link_risks: Array.isArray(p.link_risks) ? p.link_risks : [],
+        behavior_risks: Array.isArray(p.behavior_risks) ? p.behavior_risks : [],
+        behavior: p.behavior || {},
+        structure: p.structure || {},
+        _raw: p
+      };
+    }
+
+    // ---------- main scan flow ----------
     async function runScan(forceRescan=false){
-      const url = (urlInput.value || '').trim();
-      if(!url) return;
-      const isQuick = $('#fastToggle').checked;
+      const raw = (urlInput.value || '').trim();
+      if(!raw) return;
+      const isQuick = fastToggle.checked;
 
-      resetScanner(url);
-
-      const s1 = step('Fetching page');
-      const s2 = step('Analyzing content');
-      const s3 = step('Checking links');
-      const s4 = step('Running behavior checks');
-      const s5 = step('Comparing structure');
-      const s6 = step('Computing verdict');
-
+      startScanner(raw);
       aborter = new AbortController();
+
+      // optimistic step advancement (leaves last step for server completion)
+      let optimisticIdx = 0;
+      const optimistic = setInterval(()=>{
+        if (optimisticIdx < STEP_LABELS.length - 1) markStepDone(optimisticIdx++);
+        else clearInterval(optimistic);
+      }, 1800);
+
       const base = isQuick ? '/check?ui=redacted&quick=1' : '/check?ui=redacted';
 
       try{
-        setText(scanStatus, 'Contacting server…');
-        setProgress(8);
-
         const resp = await fetch(base + (forceRescan ? '&_=' + Date.now() : ''), {
           method:'POST',
           headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({url}),
-          signal:aborter.signal,
+          body:JSON.stringify({url: raw}),
+          signal: aborter.signal,
           mode: 'cors'
         });
+
         if (!resp.ok) {
           const t = await resp.text().catch(()=> '');
           throw new Error(`HTTP ${resp.status}${t ? ' — ' + t : ''}`);
         }
 
-        setProgress(24); s1.classList.add('done'); setText(scanStatus, 'Parsing & NLP…');
-
         let data;
         try { data = await resp.json(); }
         catch { throw new Error('API returned non-JSON response'); }
 
-        setProgress(48); s2.classList.add('done'); setText(scanStatus, 'Cross-checking links…');
-        setProgress(64); s3.classList.add('done'); setText(scanStatus, 'Simulating behavior…');
-        setProgress(78); s4.classList.add('done'); setText(scanStatus, 'Comparing structure…');
-        setProgress(90); s5.classList.add('done'); setText(scanStatus, 'Computing verdict…');
-        setProgress(100); s6.classList.add('done');
+        // finalize UI steps & progress
+        for(let i=optimisticIdx; i<STEP_LABELS.length; i++) markStepDone(i);
+        setProgress(100);
+        setText(scanStatus,'Done');
 
-        // Handle partial results gently
-        if (data.status === 'partial') {
+        // Normalize & render regardless of exact payload shape
+        console.debug('[checkthaturl] raw payload:', data);
+        const normalized = normalizePayload(data);
+
+        if (normalized.status === 'partial') {
           showToast('Timed out on some external checks. Showing partial result.');
-        } else if (data.ok !== true && !data.verdict) {
-          // Soft-fail path if server returned an error-shaped payload
-          throw new Error(data.message || 'Scan failed');
+        }
+        if (normalized.ok === false && !normalized.verdict) {
+          throw new Error(normalized.explanation || 'Scan failed');
         }
 
-        updateVerdictCard(data);
-        closeScanner();
+        updateVerdictCard(normalized);
+        stopScanner();
       } catch (err){
-        // <-- only the catch() changed; rest is your current file -->
         console.error('[scan]', err);
-        const msg = (err && err.message) ? String(err.message) : 'Scan failed or cancelled.';
-        // Don’t block with alert; show a toast and keep current UI intact
-        showToast(msg.includes('The user aborted') ? 'Scan cancelled.' : msg);
-        closeScanner();
+        const msg = (err && err.name === 'AbortError') ? 'Scan cancelled or timed out.' :
+                    (err && err.message) ? String(err.message) : 'Scan failed.';
+
+        // Soft error card so users still see something
+        updateVerdictCard({
+          verdict: 'Suspicious',
+          explanation: msg,
+          risk: 0.5,
+          domain_risks: [], content_risks: [], link_risks: [], behavior_risks: [],
+          behavior: {}
+        });
+        showToast(msg);
+        stopScanner();
       }
     }
   </script>
