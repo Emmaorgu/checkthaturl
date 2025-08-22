@@ -2,7 +2,6 @@
 from __future__ import annotations
 import os, re
 
-# -------- Tunables mirrored from app.py (kept here to avoid circular imports) --------
 PHISHING_THRESHOLD = float(os.getenv("PHISHING_THRESHOLD", "0.70"))
 LEGIT_THRESHOLD    = float(os.getenv("LEGIT_THRESHOLD", "0.30"))
 
@@ -22,19 +21,11 @@ def _choose_verdict(p_phish: float) -> str:
     return "Suspicious"
 
 def compute_category_scores(feats: dict, behavior_score: float) -> dict:
-    """
-    Same weighting used in your app.py, extracted to a shared utility.
-    - Domain: suspicious TLD, young domain, high entropy
-    - Link: external-link ratio, mismatched anchors, link red flags
-    - Content: NLP + red flag count
-    - Behavior: behavior_score passed through
-    """
     domain = 0.0
     domain += 0.35 * int(feats.get("suspicious_tld", 0) == 1)
     domain += 0.35 * int(feats.get("is_new_domain", 0) == 1)
     domain += 0.30 * min(1.0, float(feats.get("domain_entropy", 0)) / 4.5)
 
-    # Do not penalize many *internal* links; only when clearly external/mismatched.
     link = 0.0
     if float(feats.get("external_link_ratio", 0)) > 0.65:
         link = 0.66
@@ -56,10 +47,6 @@ def compute_category_scores(feats: dict, behavior_score: float) -> dict:
     }
 
 def guarded_verdict(p_like: float, feats: dict, behavior_score: float = 0.0) -> str:
-    """
-    Apply guardrails so we don't label 'Phishing' on domain-only signals.
-    Mirrors the logic you’re using in app.py.
-    """
     base = _choose_verdict(p_like)
     surface = (
         int(feats.get("is_new_domain", 0) == 1) +
@@ -75,15 +62,12 @@ def guarded_verdict(p_like: float, feats: dict, behavior_score: float = 0.0) -> 
     content_sig  = int(feats.get("content_red_flags", 0)) or float(feats.get("phish_context_score", 0)) >= 0.35
     behavior_sig = float(behavior_score) >= 0.25
 
-    # Domain-only can’t be "Phishing" unless explicitly enabled
     if not DOMAIN_ONLY_CAN_PHISH and base == "Phishing" and not (content_sig or link_sig or behavior_sig or non_surface):
         return "Suspicious"
 
-    # If *only* surface flags, soften
     if STRICT_SURFACE_GUARD and base == "Phishing" and non_surface == 0 and surface > 0:
         return "Suspicious" if p_like >= 0.45 else "Legitimate"
 
-    # Early-stage/startup leniency
     if STARTUP_EXCEPTION_GUARD and base == "Phishing" \
        and feats.get("startup_like", 0) == 1 and feats.get("is_new_domain", 0) == 1 \
        and non_surface <= 1 and p_like < 0.85:
