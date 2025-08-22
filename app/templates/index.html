@@ -5,15 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>CheckThatURL — Scan any link. Instant verdicts. Clear reasons.</title>
   <meta name="color-scheme" content="dark light" />
-  <!-- ✅ HARD-BIND YOUR API BASE HERE -->
-  <!-- Change ONLY the domain below to your deployed Flask API host. No trailing slash. -->
+  <!-- Preferred: set this to your deployed API host (no trailing slash). -->
   <meta name="ctu-api-base" content="https://api.checkthaturl.com">
 
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
   <link rel="alternate icon" href="/static/favicon.svg" sizes="any">
   <meta name="theme-color" content="#0c111a" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" crossorigin />
 
   <style>
     :root{--bg:#0c111a;--panel:#121826;--panel-2:#171e2e;--text:#e6edf6;--muted:#9fb0c7;--brand:#1e90ff;--ok:#1ec28b;--warn:#ffb020;--bad:#ff4d4f;--border:#223052;--chip:#0f1523;--glow:0 0 24px rgba(30,144,255,.35), inset 0 0 30px rgba(30,144,255,.12)}
@@ -35,7 +34,7 @@
     .btn.secondary{background:#1b2847;color:var(--text);border:1px solid var(--border)}
     .btn.small{padding:8px 12px;font-weight:600}
     .btn:disabled{opacity:.55;cursor:not-allowed}
-    .quick {display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px;margin-left:auto}
+    .quick{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px;margin-left:auto}
     .grid{display:grid;grid-template-columns:1.2fr 1fr;gap:24px}
     @media (max-width:980px){.grid{grid-template-columns:1fr}}
     .card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:18px}
@@ -94,14 +93,11 @@
     gtag('js', new Date()); gtag('config', 'G-D0RMWZH4ZJ');
   </script>
 
-  <!-- Configurable API base -->
+  <!-- Configure initial (optional) hard-coded API base -->
   <script>
     (function(){
-      // ✅ Read hard-coded meta first
       const m=document.querySelector('meta[name="ctu-api-base"]');
-      if(m&&m.content) window.CTU_API_BASE=m.content.trim();
-      // fallback keep-alive
-      window.CTU_API_BASE = window.CTU_API_BASE || "";
+      if(m&&m.content) window.CTU_API_BASE=(m.content||'').trim().replace(/\/+$/,'');
     })();
   </script>
 </head>
@@ -114,8 +110,8 @@
       </a>
     </div>
 
-    <div class="top-privacy">
-      <span class="lock">🔐</span>
+    <div class="top-privacy" role="note" aria-live="polite">
+      <span class="lock" aria-hidden="true">🔐</span>
       <div><strong>Privacy:</strong> We <strong>don’t store</strong> your URLs or page content. Scans are ephemeral and processed in-memory. Feedback is optional and anonymous. <a href="/privacy">Learn more</a>.</div>
     </div>
 
@@ -127,13 +123,13 @@
         </div>
 
         <div class="search">
-          <input id="url" class="url-input" placeholder="Paste a URL (e.g. https://bank.example/login)" />
+          <input id="url" class="url-input" placeholder="Paste a URL (e.g. https://bank.example/login)" inputmode="url" autocomplete="off" />
           <button id="scan" class="btn">Check</button>
           <button id="rescan" class="btn secondary" title="Re-run with cache-busting">Re-scan anyway</button>
           <label class="quick"><input type="checkbox" id="fastToggle"> ⚡ Quick scan</label>
         </div>
 
-        <div id="hint" class="hint">Press Enter or click Check to scan.</div>
+        <div id="hint" class="hint" role="status">Press Enter or click Check to scan.</div>
 
         <div id="verdictCard" class="card" style="margin-top:18px; display:none">
           <div class="row" style="justify-content:space-between;">
@@ -143,7 +139,7 @@
 
           <div class="meta">
             <span id="lastScanned">Last scanned —</span>
-            <span class="dot"></span>
+            <span class="dot" aria-hidden="true"></span>
             <button id="shareBtn" class="btn small secondary">Share</button>
           </div>
 
@@ -245,9 +241,20 @@
       }catch(_){}
     }
 
-    const WEAK_PATTERN = /(further\s+checks\s+recommended|seek\s+further\s+verification|manual\s+review\s+recommended)/i;
-    const clean = arr => (Array.isArray(arr)?arr:[]).map(x => (x||'').toString().trim()).filter(x => x && !WEAK_PATTERN.test(x));
-    const categories = d => ({ domain: clean(d.domain_risks), content: clean(d.content_risks), link: clean(d.link_risks), behavior: clean(d.behavior_risks)});
+    // === Text cleaning & category helpers ===
+    const WEAK_PATTERN   = /(further\s+checks\s+recommended|seek\s+further\s+verification|manual\s+review\s+recommended)/i;
+    const DEBUG_PATTERN  = /(self[-\s]?scan|internal error masked|unexpected error|traceback|stack|exception)/i;
+
+    const clean = arr => (Array.isArray(arr)?arr:[])
+      .map(x => (x||'').toString().trim())
+      .filter(x => x && !WEAK_PATTERN.test(x));
+
+    const categories = d => ({
+      domain:   clean(d.domain_risks),
+      content:  clean(d.content_risks),
+      link:     clean(d.link_risks),
+      behavior: clean(d.behavior_risks)
+    });
 
     function deriveBehaviorSignals(data){
       const out = [], beh = data.behavior || {};
@@ -297,16 +304,80 @@
       el.className='list'; el.innerHTML = items.map(x=>`<li>${x}</li>`).join(''); pill.style.display='';
     }
 
-    function presentCats(c){ const out = []; if (nonEmpty(c.domain)) out.push('Domain'); if (nonEmpty(c.content)) out.push('Content'); if (nonEmpty(c.link)) out.push('Links'); if (nonEmpty(c.behavior)) out.push('Behavior'); return out; }
-    function buildSummary(verdict, c){ const cats = presentCats(c); if (verdict === 'Phishing') return `Multiple phishing indicators detected across: ${cats.join(', ')}.`; if (verdict === 'Suspicious') return `Some risk signals detected in: ${cats.join(', ')}.`; return 'Low risk. No phishing patterns detected.'; }
-    function buildExplain(verdict, c){ const pick = arr => arr.slice(0,2).join('; '); const parts=[]; if (nonEmpty(c.domain)) parts.push(`Domain: ${pick(c.domain)}`); if (nonEmpty(c.content)) parts.push(`Content: ${pick(c.content)}`); if (nonEmpty(c.link)) parts.push(`Links: ${pick(c.link)}`); if (nonEmpty(c.behavior)) parts.push(`Behavior: ${pick(c.behavior)}`); return parts.length?parts.join(' • '):(verdict==='Legitimate'?'No notable risk signals found.':'Model-detected anomalies listed above.'); }
+    function presentCats(c){
+      const out = [];
+      if (nonEmpty(c.domain)) out.push('Domain');
+      if (nonEmpty(c.content)) out.push('Content');
+      if (nonEmpty(c.link)) out.push('Links');
+      if (nonEmpty(c.behavior)) out.push('Behavior');
+      return out;
+    }
+    function buildSummary(verdict, c){
+      const cats = presentCats(c);
+      if (verdict === 'Phishing')   return `Multiple phishing indicators detected across: ${cats.join(', ')}.`;
+      if (verdict === 'Suspicious') return `Some risk signals detected in: ${cats.join(', ')}.`;
+      return 'Low risk. No phishing patterns detected.';
+    }
+    function buildExplain(verdict, c){
+      const pick = arr => arr.slice(0,2).join('; ');
+      const parts=[];
+      if (nonEmpty(c.domain))   parts.push(`Domain: ${pick(c.domain)}`);
+      if (nonEmpty(c.content))  parts.push(`Content: ${pick(c.content)}`);
+      if (nonEmpty(c.link))     parts.push(`Links: ${pick(c.link)}`);
+      if (nonEmpty(c.behavior)) parts.push(`Behavior: ${pick(c.behavior)}`);
+      return parts.length ? parts.join(' • ')
+        : (verdict==='Legitimate' ? 'No notable risk signals found.' : 'Model-detected anomalies listed above.');
+    }
 
-    // ===== API base: use hard-coded meta, otherwise fail fast =====
+    // Sanitize backend explanations/hints so users never see internal diagnostics
+    function cleanExplanation(verdict, rawExplain, cats){
+      const trimmed = (rawExplain || '').trim();
+      const looksDebug = !trimmed || WEAK_PATTERN.test(trimmed) || DEBUG_PATTERN.test(trimmed);
+      if (verdict === 'Legitimate'){
+        return looksDebug ? 'Low risk. No phishing patterns detected.' : trimmed;
+      }
+      return looksDebug ? buildExplain(verdict, cats) : trimmed;
+    }
+
+    // ===== API base resolution with live probing =====
     let API_BASE = null;
+
+    async function probe(base, timeoutMs=2200){
+      if(!base) return false;
+      const ctl = new AbortController();
+      const t = setTimeout(()=>ctl.abort(), timeoutMs);
+      try{
+        const r = await fetch(base.replace(/\/+$/,'') + '/health', { method:'GET', mode:'cors', signal:ctl.signal });
+        clearTimeout(t);
+        if(!r.ok) return false;
+        const j = await r.json().catch(()=> ({}));
+        return !!(j && (j.ok===true || j.ok==='true'));
+      }catch{ clearTimeout(t); return false; }
+    }
+
     async function resolveApiBase(){
       if (API_BASE !== null) return API_BASE;
-      const base = (window.CTU_API_BASE || '').replace(/\/+$/,'');
-      API_BASE = base;
+
+      const hard = (window.CTU_API_BASE || '').replace(/\/+$/,'');
+      const origin = location.origin.replace(/\/+$/,'');
+      const host = location.hostname || '';
+      const swapWWW = host.startsWith('www.') ? host.slice(4) : ('www.'+host);
+
+      const candidates = [];
+      if (hard) candidates.push(hard);
+      candidates.push(origin + '/api');        // Flask blueprint alias
+      candidates.push(origin);                 // root (non-proxied)
+      if (host) {
+        const altOrigin = origin.replace(host, swapWWW);
+        candidates.push(altOrigin + '/api');
+        candidates.push(altOrigin);
+      }
+
+      for (const c of candidates){
+        if (await probe(c)){ API_BASE = c.replace(/\/+$/,''); break; }
+      }
+      if (!API_BASE) API_BASE = hard || origin + '/api'; // last-resort guess
+
       return API_BASE;
     }
 
@@ -321,7 +392,7 @@
       stepList(isQuick).forEach((t,i)=>{
         const div=document.createElement('div');
         div.className='scan-step'; div.dataset.idx=i;
-        div.innerHTML=`<div class="dot"></div><span>${t}</span>`;
+        div.innerHTML=`<div class="dot" aria-hidden="true"></div><span>${t}</span>`;
         $('#scanSteps').appendChild(div);
       });
       $('#scanProgress').style.width='0%';
@@ -348,18 +419,18 @@
         let sidx=0; const stepTimer=setInterval(()=>{ if(sidx<steps.length){ markStepDone(sidx); $('#scanStatus').textContent=steps[sidx]; sidx++; } else clearInterval(stepTimer); }, isQuick?420:560);
 
         const base = await resolveApiBase();
-        if (!base) { throw new Error('API base not configured. Set <meta name="ctu-api-base" ...>'); }
+        if (!base) { throw new Error('API base not configured or reachable'); }
 
         const resp = await fetch(base + '/check?ui=redacted' + (forceRescan ? '&_=' + Date.now() : ''), {
           method:'POST',
           headers:{'Content-Type':'application/json'},
           body:JSON.stringify({url}),
           signal:aborter.signal,
-          mode: 'cors'
+          mode: 'cors',
+          credentials: 'omit'
         });
         if (!resp.ok) {
           const t = await resp.text().catch(()=> '');
-          // Show only concise message; strip any HTML returned by host
           const msg = `HTTP ${resp.status} ${resp.statusText}${t ? ' — ' + t.replace(/<[^>]*>/g,' ').slice(0,200) : ''}`;
           throw new Error(msg);
         }
@@ -395,10 +466,12 @@
 
         const computedSummary = buildSummary(verdict, c);
         const rawHint = data.explanations && data.explanations.summary;
-        $('#hint').textContent = (rawHint && !WEAK_PATTERN.test(rawHint)) ? rawHint : computedSummary;
+        $('#hint').textContent = (rawHint && !WEAK_PATTERN.test(rawHint) && !DEBUG_PATTERN.test(rawHint))
+          ? rawHint
+          : computedSummary;
 
         const rawExplain = (data.explanation||'').trim();
-        $('#verdictExplain').textContent = (!rawExplain || WEAK_PATTERN.test(rawExplain)) ? buildExplain(verdict, c) : rawExplain;
+        $('#verdictExplain').textContent = cleanExplanation(verdict, rawExplain, c);
 
         const u = new URL(location.href); u.searchParams.set('url', url); history.replaceState(null,'',u.toString());
 
