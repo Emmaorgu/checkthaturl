@@ -7,11 +7,11 @@ services:
     dockerfilePath: ./Dockerfile
     autoDeploy: true
 
-    # Use either Dockerfile HEALTHCHECK or this HTTP path (both are fine)
+    # You can keep this even with Dockerfile HEALTHCHECK
     healthCheckPath: /health
 
     envVars:
-      # --- existing flags you already had ---
+      # --- your existing flags preserved ---
       - key: CTU_SELF_HOSTED
         value: "0"
       - key: CTU_BEHAVIOR
@@ -27,8 +27,8 @@ services:
       - key: CTU_FEEDBACK_SALT
         sync: false
 
-      # --- new flags used by app/app.py hardening you deployed ---
-      # (Keep 'off' for first deploy if you want zero risk; then flip to 'auto')
+      # --- new flags used by the hardened backend you deployed ---
+      # First deploy: set to "off" if you want zero risk, then switch to "auto".
       - key: CTU_BEHAVIOR_MODE
         value: "auto"
       - key: CTU_BEHAVIOR_TIMEOUT_SEC
@@ -36,12 +36,11 @@ services:
       - key: CTU_SOFT_WHITELIST_SELF
         value: "1"
 
-      # Render passes PORT to the container; Dockerfile uses it
+      # Render injects PORT; Dockerfile uses it in CMD
       - key: PORT
         value: "10000"
 
     disks:
       - name: ctu-data
-        # Keep your existing mountPath so nothing else changes
         mountPath: /opt/render/project/src/data
         sizeGB: 1

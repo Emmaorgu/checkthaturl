@@ -1,12 +1,12 @@
 # ---------- Base: Python + system deps ----------
-FROM python:3.11-slim AS base
+FROM python:3.11-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
-# System deps for Playwright/Chromium + small utils
+# System deps for Playwright/Chromium + tiny init + curl for healthchecks
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates curl git tini \
     libatk-bridge2.0-0 libnss3 libxkbcommon0 libdrm2 libgbm1 libasound2 libxcomposite1 \
@@ -16,23 +16,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Copy only deps first for layer caching
+# Install Python deps
 COPY requirements.txt /app/requirements.txt
-RUN pip install -r /app/requirements.txt
+RUN pip install --no-cache-dir -r /app/requirements.txt
 
-# Install Playwright browsers into the image (no runtime downloads)
+# Bake browsers into the image (no runtime downloads)
 RUN python -m playwright install --with-deps chromium
 
-# App code
+# Copy app code
 COPY . /app
 
-# Render will pass PORT; we’ll bind gunicorn to it
-ENV PORT=10000
-ENV HOST=0.0.0.0
-
-# Optional container healthcheck (Render can also use /health below)
+# Healthcheck (optional; Render can also use /health)
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD curl -fsS http://localhost:${PORT}/health || exit 1
 
 ENTRYPOINT ["/usr/bin/tini","--"]
-CMD ["gunicorn","-w","2","-k","gthread","--threads","4","-b","0.0.0.0:${PORT}","app.app:app"]
+
+# Use shell form so ${PORT} is expanded by the shell Render sets
+CMD gunicorn -w 2 -k gthread --threads 4 -b 0.0.0.0:${PORT} app.app:app
