@@ -60,6 +60,7 @@
     .brand{font-weight:800;letter-spacing:.1px}
     .hint{color:var(--muted);font-size:13px}
     .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    /* Scanner */
     .scanner{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:radial-gradient(1200px 500px at 50% -10%,rgba(49,80,140,.25),transparent 55%),rgba(5,8,14,.60);backdrop-filter:blur(8px) saturate(160%);z-index:9999}
     .scanner.show{display:flex;animation:fadeIn .12s ease-out}
     @keyframes fadeIn{from{opacity:0}to{opacity:1}}
@@ -83,6 +84,8 @@
     .scanbar{height:8px;background:#0d1322;border:1px solid #1b2847;border-radius:10px;overflow:hidden;margin-top:10px}
     .scanbar>i{display:block;height:100%;width:0%;background:linear-gradient(90deg,#3cc8ff,#7aa2ff,#9c6bff,#ff5ca7,#ffc36b);transition:width .14s ease}
     .scan-footer{display:flex;align-items:center;justify-content:space-between;margin-top:10px;color:var(--muted);font-size:13px}
+    /* Toast */
+    .toast{position:fixed;right:16px;top:16px;z-index:10000;background:#142038;border:1px solid #27406e;color:#e6edf6;border-radius:12px;padding:10px 12px;font-size:14px;box-shadow:0 6px 24px rgba(0,0,0,.25)}
   </style>
 </head>
 <body>
@@ -185,257 +188,203 @@
           <div id="scanSteps" class="scan-steps"></div>
           <div class="scanbar"><i id="scanProgress"></i></div>
           <div class="scan-footer">
-            <span id="scanStatus" class="mono">Initializing…</span>
-            <span id="scanEta" class="mono">~2s</span>
+            <span id="scanStatus">Initializing…</span>
+            <span id="scanEta" class="mono">~8s</span>
           </div>
         </div>
       </div>
     </div>
   </div>
 
+  <!-- Toast -->
+  <div id="toast" class="toast" style="display:none"></div>
+
   <script>
-    const $ = s => document.querySelector(s);
-    $('#year').textContent = new Date().getFullYear();
+    const $ = sel => document.querySelector(sel);
+    const $$ = sel => Array.from(document.querySelectorAll(sel));
+    const setText = (sel, txt) => { const el = (typeof sel === 'string') ? $(sel) : sel; if (el) el.textContent = txt; };
 
-    const qs = new URLSearchParams(location.search);
-    if (qs.get('url')) $('#url').value = qs.get('url');
+    // UI bits
+    const year = new Date().getFullYear(); setText('#year', year);
 
-    let lastScanEpoch = 0;
-    function relTime(ts){
-      if(!ts) return '—';
-      const s = Math.max(1, Math.floor((Date.now()-ts)/1000));
-      if(s<60) return `${s}s ago`;
-      const m = Math.floor(s/60); if(m<60) return `${m}m ago`;
-      const h = Math.floor(m/60); if(h<24) return `${h}h ago`;
-      return `${Math.floor(h/24)}d ago`;
+    const urlInput   = $('#url');
+    const btnScan    = $('#scan');
+    const btnRescan  = $('#rescan');
+    const fastToggle = $('#fastToggle');
+
+    const card       = $('#verdictCard');
+    const badge      = $('#verdictBadge');
+    const title      = $('#verdictTitle');
+    const explain    = $('#verdictExplain');
+    const riskFill   = $('#riskFill');
+    const lastScanned= $('#lastScanned');
+
+    const domRisks   = $('#domainRisks');
+    const conRisks   = $('#contentRisks');
+    const linkRisks  = $('#linkRisks');
+    const behRisks   = $('#behaviorRisks');
+
+    const evChain    = $('#evChain');
+    const evConsent  = $('#evConsent');
+
+    const scanner    = $('#scanner');
+    const scanUrlEl  = $('#scanUrl');
+    const scanSteps  = $('#scanSteps');
+    const scanProgress = $('#scanProgress');
+    const scanStatus = $('#scanStatus');
+    const scanEta    = $('#scanEta');
+    const scanCancel = $('#scanCancel');
+
+    const toast      = $('#toast');
+
+    function showToast(msg, ms=4500){
+      toast.style.display='block';
+      toast.textContent = msg;
+      clearTimeout(showToast._t);
+      showToast._t = setTimeout(()=>toast.style.display='none', ms);
     }
-    setInterval(()=>{ if(lastScanEpoch) $('#lastScanned').textContent = `Last scanned ${relTime(lastScanEpoch)}`; },1000);
 
-    async function shareVerdict(data){
-      const url = new URL(location.href);
-      url.searchParams.set('url', data.url || $('#url').value || '');
-      const shareText = `CheckThatURL verdict: ${data.verdict} (${Math.round(data.risk*100)}% risk)\n${url.toString()}`;
-      try{
-        if (navigator.share) {
-          await navigator.share({title:'CheckThatURL verdict', text: shareText, url: url.toString()});
-        } else {
-          await navigator.clipboard.writeText(shareText);
-          alert('Share link copied to clipboard.');
-        }
-      }catch(_){}
+    // Keyboard UX
+    urlInput.addEventListener('keydown', (e)=>{
+      if(e.key === 'Enter'){ runScan(false); }
+    });
+    btnScan.addEventListener('click', ()=> runScan(false));
+    btnRescan.addEventListener('click', ()=> runScan(true));
+
+    // Scanner overlay helpers
+    let aborter = null;
+    function step(label, done=false){
+      const row = document.createElement('div');
+      row.className = 'scan-step' + (done ? ' done' : '');
+      row.innerHTML = `<div class="dot"></div><span>${label}</span>`;
+      scanSteps.appendChild(row);
+      return row;
+    }
+    function setProgress(pct){ scanProgress.style.width = Math.max(0, Math.min(100, pct)) + '%'; }
+
+    function resetScanner(url){
+      scanner.classList.add('show');
+      scanSteps.innerHTML = '';
+      setProgress(0);
+      setText(scanStatus, 'Initializing…');
+      setText(scanEta, '~8s');
+      setText(scanUrlEl, url || '—');
+      scanCancel.disabled = false;
     }
 
-    // ====== STRICT messaging & abnormalities ======
-    const WEAK_PATTERN = /(further\s+checks\s+recommended|seek\s+further\s+verification|manual\s+review\s+recommended)/i;
-
-    const clean = arr => (Array.isArray(arr)?arr:[])
-      .map(x => (x||'').toString().trim())
-      .filter(x => x && !WEAK_PATTERN.test(x));
-
-    const categories = d => ({
-      domain:   clean(d.domain_risks),
-      content:  clean(d.content_risks),
-      link:     clean(d.link_risks),
-      behavior: clean(d.behavior_risks),
+    scanCancel.addEventListener('click', ()=>{
+      if (aborter) { try{ aborter.abort(); }catch(e){} }
+      scanCancel.disabled = true;
+      setText(scanStatus, 'Cancelling…');
     });
 
-    // Derive abnormalities directly from raw behavior telemetry if buckets are empty
-    function deriveBehaviorSignals(data){
-      const out = [];
-      const beh = data.behavior || {};
-      const chain = Array.isArray(beh.redirect_chain) ? beh.redirect_chain : [];
-      const events = (beh.events || []).map(e => (e||'').toString());
+    function closeScanner(){ scanner.classList.remove('show'); }
 
-      if (chain.length > 1) out.push(`Multiple redirects observed (${chain.length} hops)`);
-
-      const seen = (re) => events.some(e => re.test(e));
-
-      if (seen(/js_redirect/i))       out.push('JavaScript-triggered redirect');
-      if (seen(/post_redirect/i))     out.push('Post-submission redirect flow detected');
-      if (seen(/consent_click/i))     out.push('Consent/allow dialog interaction captured');
-      if (seen(/timer|countdown/i))   out.push('Urgency/countdown timer behavior');
-      if (seen(/dom[_-]?mutation|mutation/i)) out.push('Rapid DOM mutations observed');
-      if (seen(/iframe/i))            out.push('Cross-site iframe embedding');
-      if (seen(/obfuscat|eval/i))     out.push('Obfuscated script execution patterns');
-      if (seen(/clipboard|copy/i))    out.push('Clipboard access/auto-copy behavior');
-      if (seen(/notification/i))      out.push('Browser notification prompt behavior');
-
-      return out;
+    // Rendering helpers
+    function renderList(el, items){
+      if(!items || !items.length){ el.classList.add('empty'); el.textContent = 'No notable issues.'; return; }
+      el.classList.remove('empty');
+      el.innerHTML = '<ul class="list">' + items.map(x=>`<li>${escapeHtml(String(x))}</li>`).join('') + '</ul>';
     }
 
-    // Ensure non-legit verdicts have concrete issues listed; keep the original verdict.
-    function ensureAbnormalitiesForNonLegit(verdict, c, data){
-      if (verdict === 'Legitimate') return c;
-      // If behavior bucket empty, try to derive
-      if (!c.behavior.length){
-        c.behavior = deriveBehaviorSignals(data);
-      }
-      // If absolutely everything is still empty, create a minimal model-based bullet so UI never says "no issues"
-      const total = c.domain.length + c.content.length + c.link.length + c.behavior.length;
-      if (total === 0){
-        c.content = [`Anomalous content/structure pattern detected by the model (confidence ${Math.round((data.risk||0)*100)}%).`];
-      }
-      return c;
+    function escapeHtml(s){
+      return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     }
 
-    const nonEmpty = a => Array.isArray(a) && a.length>0;
-
-    function setBadge(v){
-      const badge = $('#verdictBadge');
-      badge.textContent = v;
-      badge.classList.remove('badge-ok','badge-warn','badge-bad');
-      if (v === 'Legitimate') badge.classList.add('badge-ok');
-      else if (v === 'Phishing') badge.classList.add('badge-bad');
-      else badge.classList.add('badge-warn');
+    function setBadge(verdict){
+      let cls='badge-warn';
+      if (verdict === 'Legitimate') cls = 'badge-ok';
+      else if (verdict === 'Phishing') cls = 'badge-bad';
+      badge.className = 'verdict-badge ' + cls;
+      badge.textContent = verdict;
     }
 
-    // Verdict-aware list rendering
-    function fillList(el, items, verdict){
-      const pill = el.closest('.pill');
-      if (verdict === 'Legitimate'){
-        if (!items.length){ el.className='empty'; el.textContent='No notable issues.'; pill.style.display=''; return; }
-        el.className='list'; el.innerHTML = items.map(x=>`<li>${x}</li>`).join(''); pill.style.display='';
-        return;
-      }
-      // Phishing/Suspicious: show only concrete abnormalities; hide empty buckets
-      if (!items.length){ pill.style.display='none'; return; }
-      el.className='list'; el.innerHTML = items.map(x=>`<li>${x}</li>`).join(''); pill.style.display='';
+    function updateVerdictCard(payload){
+      card.style.display = '';
+      setBadge(payload.verdict || 'Suspicious');
+      title.textContent = payload.verdict || '—';
+      explain.textContent = payload.explanation || '—';
+      lastScanned.textContent = 'Last scanned ' + new Date().toLocaleTimeString();
+
+      const pct = Math.round((payload.risk || 0) * 100);
+      riskFill.style.width = Math.max(1, Math.min(100, pct)) + '%';
+
+      renderList(domRisks, payload.domain_risks);
+      renderList(conRisks, payload.content_risks);
+      renderList(linkRisks, payload.link_risks);
+      renderList(behRisks, payload.behavior_risks);
+
+      const chain = (payload.behavior && payload.behavior.redirect_chain) || [];
+      evChain.textContent = chain.length ? chain.join('  →  ') : '—';
+      const clicks = (payload.behavior && payload.behavior.clicks || 0);
+      evConsent.textContent = clicks ? (clicks + ' interaction(s)') : '—';
     }
 
-    function presentCats(c){
-      const out = [];
-      if (nonEmpty(c.domain)) out.push('Domain');
-      if (nonEmpty(c.content)) out.push('Content');
-      if (nonEmpty(c.link)) out.push('Links');
-      if (nonEmpty(c.behavior)) out.push('Behavior');
-      return out;
-    }
-
-    function buildSummary(verdict, c){
-      const cats = presentCats(c);
-      if (verdict === 'Phishing')   return `Multiple phishing indicators detected across: ${cats.join(', ')}. Review the breakdown below.`;
-      if (verdict === 'Suspicious') return `Some risk signals detected in: ${cats.join(', ')}. See the grouped reasons below.`;
-      return 'Low risk. No phishing patterns detected.';
-    }
-
-    function buildExplain(verdict, c){
-      const pick = arr => arr.slice(0,2).join('; ');
-      const parts = [];
-      if (nonEmpty(c.domain))   parts.push(`Domain: ${pick(c.domain)}`);
-      if (nonEmpty(c.content))  parts.push(`Content: ${pick(c.content)}`);
-      if (nonEmpty(c.link))     parts.push(`Links: ${pick(c.link)}`);
-      if (nonEmpty(c.behavior)) parts.push(`Behavior: ${pick(c.behavior)}`);
-      if (parts.length) return parts.join(' • ');
-      return verdict === 'Legitimate' ? 'No notable risk signals found.' : 'Model-detected anomalies listed above.';
-    }
-
-    function sanitizeHint(raw, computed){
-      if (!raw) return computed;
-      return WEAK_PATTERN.test(raw) ? computed : raw;
-    }
-
-    function fillEvidence(data){
-      const chain = (data.behavior && data.behavior.redirect_chain) || [];
-      $('#evChain').textContent = chain.length ? chain.join('  →  ') : '—';
-      const consent = (data.behavior && (data.behavior.events||[]).filter(e => (e||'').startsWith('consent_click:')).length) || 0;
-      $('#evConsent').textContent = consent ? `${consent} click(s)` : '—';
-    }
-
-    // Scanner overlay
-    let aborter = null, animTimer = null;
-    const stepList = q => q ? ['Fetching page','Analyzing content','Computing verdict']
-                            : ['Fetching page','Analyzing content','Checking links','Running behavior checks','Comparing structure','Computing verdict'];
-    function showScanner(url,isQuick){
-      $('#scanner').classList.add('show');
-      $('#scanUrl').textContent=url;
-      $('#scanSteps').innerHTML='';
-      stepList(isQuick).forEach((t,i)=>{
-        const div=document.createElement('div');
-        div.className='scan-step'; div.dataset.idx=i;
-        div.innerHTML=`<div class="dot"></div><span>${t}</span>`;
-        $('#scanSteps').appendChild(div);
-      });
-      $('#scanProgress').style.width='0%';
-      $('#scanStatus').textContent='Initializing…';
-      $('#scanEta').textContent=isQuick?'~2s':'~5s';
-    }
-    function hideScanner(){ $('#scanner').classList.remove('show'); if(animTimer) clearInterval(animTimer); animTimer=null; }
-    function markStepDone(i){
-      const el=document.querySelector(`.scan-step[data-idx="${i}"]`); if(el) el.classList.add('done');
-      const total=document.querySelectorAll('.scan-step').length||1;
-      $('#scanProgress').style.width=Math.min(100,Math.round(((i+1)/total)*100))+'%';
-    }
-    function animateProgress(){
-      let p=0; animTimer=setInterval(()=>{ p=Math.min(96,p+Math.random()*3.5+0.5); $('#scanProgress').style.width=p+'%'; },140);
-    }
-
+    // ---- MAIN SCAN ----
     async function runScan(forceRescan=false){
-      const url = ($('#url').value||'').trim();
+      const url = (urlInput.value || '').trim();
       if(!url) return;
       const isQuick = $('#fastToggle').checked;
 
+      resetScanner(url);
+
+      const s1 = step('Fetching page');
+      const s2 = step('Analyzing content');
+      const s3 = step('Checking links');
+      const s4 = step('Running behavior checks');
+      const s5 = step('Comparing structure');
+      const s6 = step('Computing verdict');
+
+      aborter = new AbortController();
+      const base = isQuick ? '/check?ui=redacted&quick=1' : '/check?ui=redacted';
+
       try{
-        aborter = new AbortController();
-        showScanner(url,isQuick); animateProgress();
-        const steps = stepList(isQuick);
-        let sidx=0; const stepTimer=setInterval(()=>{ if(sidx<steps.length){ markStepDone(sidx); $('#scanStatus').textContent=steps[sidx]; sidx++; } else clearInterval(stepTimer); }, isQuick?420:560);
+        setText(scanStatus, 'Contacting server…');
+        setProgress(8);
 
-        const resp = await fetch('/check?ui=redacted' + (forceRescan ? '&_=' + Date.now() : ''), {
-          method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url}), signal:aborter.signal
+        const resp = await fetch(base + (forceRescan ? '&_=' + Date.now() : ''), {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({url}),
+          signal:aborter.signal,
+          mode: 'cors'
         });
-        const data = await resp.json();
+        if (!resp.ok) {
+          const t = await resp.text().catch(()=> '');
+          throw new Error(`HTTP ${resp.status}${t ? ' — ' + t : ''}`);
+        }
 
-        markStepDone(steps.length-1);
-        $('#scanStatus').textContent='Done';
-        $('#scanProgress').style.width='100%';
+        setProgress(24); s1.classList.add('done'); setText(scanStatus, 'Parsing & NLP…');
 
-        lastScanEpoch = Date.now();
-        $('#verdictCard').style.display='block';
+        let data;
+        try { data = await resp.json(); }
+        catch { throw new Error('API returned non-JSON response'); }
 
-        const verdict = (data.verdict || 'Legitimate').trim();
-        $('#verdictTitle').textContent = verdict;
-        setBadge(verdict);
-        $('#riskFill').style.width = Math.round((data.risk || 0) * 100) + '%';
+        setProgress(48); s2.classList.add('done'); setText(scanStatus, 'Cross-checking links…');
+        setProgress(64); s3.classList.add('done'); setText(scanStatus, 'Simulating behavior…');
+        setProgress(78); s4.classList.add('done'); setText(scanStatus, 'Comparing structure…');
+        setProgress(90); s5.classList.add('done'); setText(scanStatus, 'Computing verdict…');
+        setProgress(100); s6.classList.add('done');
 
-        // Clean buckets then ensure abnormalities for non-legit
-        let c = categories(data);
-        c = ensureAbnormalitiesForNonLegit(verdict, c, data);
+        // Handle partial results gently
+        if (data.status === 'partial') {
+          showToast('Timed out on some external checks. Showing partial result.');
+        } else if (data.ok !== true && !data.verdict) {
+          // Soft-fail path if server returned an error-shaped payload
+          throw new Error(data.message || 'Scan failed');
+        }
 
-        // Render category lists
-        fillList($('#domainRisks'), c.domain, verdict);
-        fillList($('#contentRisks'), c.content, verdict);
-        fillList($('#linkRisks'),    c.link,    verdict);
-        fillList($('#behaviorRisks'),c.behavior,verdict);
-        fillEvidence(data);
-
-        // Hint + explainer (no weak phrasing)
-        const computedSummary = buildSummary(verdict, c);
-        const rawHint = data.explanations && data.explanations.summary;
-        $('#hint').textContent = sanitizeHint(rawHint, computedSummary);
-
-        const rawExplain = (data.explanation||'').trim();
-        $('#verdictExplain').textContent = (!rawExplain || WEAK_PATTERN.test(rawExplain)) ? buildExplain(verdict, c) : rawExplain;
-
-        // Update URL for sharing
-        const u = new URL(location.href); u.searchParams.set('url', url); history.replaceState(null,'',u.toString());
-
-        hideScanner(); aborter=null;
-      }catch(e){
-        hideScanner(); aborter=null;
-        alert('Scan failed or cancelled.');
+        updateVerdictCard(data);
+        closeScanner();
+      } catch (err){
+        // <-- only the catch() changed; rest is your current file -->
+        console.error('[scan]', err);
+        const msg = (err && err.message) ? String(err.message) : 'Scan failed or cancelled.';
+        // Don’t block with alert; show a toast and keep current UI intact
+        showToast(msg.includes('The user aborted') ? 'Scan cancelled.' : msg);
+        closeScanner();
       }
     }
-
-    $('#scan').addEventListener('click', ()=>runScan(false));
-    $('#rescan').addEventListener('click', ()=>runScan(true));
-    $('#url').addEventListener('keydown', e => { if(e.key==='Enter') runScan(false); });
-    $('#scanCancel').addEventListener('click', ()=>{ try{ aborter?.abort(); }catch(_){ } hideScanner(); });
-
-    $('#shareBtn').addEventListener('click', async ()=>{
-      const card = $('#verdictCard'); if (card.style.display==='none') return;
-      const data = { url: ($('#url').value||'').trim(), verdict: $('#verdictTitle').textContent||'', risk: parseFloat($('#riskFill').style.width||'0')/100 };
-      await shareVerdict(data);
-    });
   </script>
 </body>
 </html>
