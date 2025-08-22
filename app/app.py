@@ -5,6 +5,7 @@ import glob
 import math
 import socket
 import re
+import threading
 import requests
 import pandas as pd
 import joblib
@@ -59,7 +60,7 @@ if feedback_bp:
     app.register_blueprint(feedback_bp)
 
 # ------------------------------------------------------------------------------
-# Tunables / policy (unchanged logic)
+# Tunables / policy
 # ------------------------------------------------------------------------------
 PHISHING_THRESHOLD = 0.70
 LEGIT_THRESHOLD    = 0.30
@@ -68,7 +69,13 @@ STRICT_SURFACE_GUARD      = True
 STARTUP_EXCEPTION_GUARD   = True
 DOMAIN_ONLY_CAN_PHISH     = False
 
-CTU_BEHAVIOR_MODE         = os.getenv("CTU_BEHAVIOR_MODE", "auto").lower()
+# IMPORTANT: default behavior engine OFF in prod unless explicitly "on"
+#   auto  -> try, but we also enforce a hard timeout
+#   on    -> try (still with timeout)
+#   off   -> skip behavior entirely
+CTU_BEHAVIOR_MODE         = os.getenv("CTU_BEHAVIOR_MODE", "off").lower()
+CTU_BEHAVIOR_TIMEOUT_SEC  = int(os.getenv("CTU_BEHAVIOR_TIMEOUT_SEC", "8"))
+
 CTU_SOFT_WHITELIST_SELF   = os.getenv("CTU_SOFT_WHITELIST_SELF", "1") == "1"
 OUR_HOSTS                 = {"checkthaturl.com", "www.checkthaturl.com"}
 LOCAL_TEMPLATE_INDEX      = os.path.join(os.path.dirname(__file__), "templates", "index.html")
@@ -441,12 +448,36 @@ def redact_ui_payload(payload: dict) -> dict:
     return p
 
 # ------------------------------------------------------------------------------
+# Small utility: run a callable with a hard timeout (thread join)
+# ------------------------------------------------------------------------------
+class _ResultBox:
+    __slots__ = ("value","err")
+    def __init__(self): self.value=None; self.err=None
+
+def run_with_timeout(fn, timeout_sec: int, *args, **kwargs):
+    box = _ResultBox()
+    def _target():
+        try:
+            box.value = fn(*args, **kwargs)
+        except Exception as e:
+            box.err = e
+    t = threading.Thread(target=_target, daemon=True)
+    t.start()
+    t.join(timeout=timeout_sec)
+    if t.is_alive():
+        return None, TimeoutError(f"operation exceeded {timeout_sec}s")
+    if box.err:
+        return None, box.err
+    return box.value, None
+
+# ------------------------------------------------------------------------------
 # API
 # ------------------------------------------------------------------------------
 @app.route("/check", methods=["POST"])
 def check_url():
     try:
-        data = request.json or {}
+        # SAFE JSON PARSE: never let bad JSON bubble into a 500/HTML error
+        data = request.get_json(silent=True) or {}
         url = (data.get("url") or "").strip()
         if not url: return jsonify({"error": "No URL provided"}), 400
 
@@ -551,12 +582,19 @@ def check_url():
         legit_score    = round((1.0 - p_phish) * 100.0, 2)
         confidence     = round(100 * (1 - math.exp(-4 * abs(p_phish - 0.5))), 1)
 
-        # ---------- Behavior ----------
+        # ---------- Behavior (with HARD TIMEOUT) ----------
         behavior = {"mode": "disabled", "score": 0.0, "events": []}
         try:
-            if _behavior_enabled(): behavior = simulate_behavior(url)
+            if _behavior_enabled():
+                # hard timeout wrapper so Render/gunicorn never hangs the request
+                result, err = run_with_timeout(simulate_behavior, CTU_BEHAVIOR_TIMEOUT_SEC, url)
+                if err or result is None:
+                    behavior = {"mode": "timeout", "score": 0.0, "events": [f"behavior_engine_timeout:{CTU_BEHAVIOR_TIMEOUT_SEC}s"]}
+                else:
+                    behavior = result
         except Exception as e:
             behavior = {"mode": "error", "score": 0.0, "events": [f"behavior engine unavailable: {type(e).__name__}"]}
+
         behv_full = _behavior_feature_block(behavior)
 
         chain = behavior.get("redirect_chain") or []
@@ -781,8 +819,9 @@ def check_url():
         return jsonify(resp)
 
     except Exception as e:
+        # Never leak a 500; always return JSON
         resp = {
-            "url": (request.json or {}).get("url") if request.is_json else "",
+            "url": ((request.get_json(silent=True) or {}).get("url") if request.is_json else ""),
             "verdict": "Suspicious",
             "risk": 0.5,
             "confidence": 0.0,
@@ -794,7 +833,7 @@ def check_url():
             "structure": {"score":0.0,"template":None},
             "visual": {"score":0.0,"closest":None}
         }
-        ui_flag = (request.args.get("ui") or ((request.json or {}).get("ui") if request.is_json else "") or "").strip().lower()
+        ui_flag = (request.args.get("ui") or ((request.get_json(silent=True) or {}).get("ui") if request.is_json else "") or "").strip().lower()
         if ui_flag == "redacted":
             resp = redact_ui_payload(resp)
         return jsonify(resp), 200
@@ -821,5 +860,16 @@ def health(): return jsonify({"ok": True})
 def version():
     return jsonify({"model_path": os.path.abspath(MODEL_PATH), "server_time_utc": datetime.utcnow().isoformat() + "Z"})
 
+# ---- API route aliases (for proxying /api/* in production) ----
+@app.route("/api/check", methods=["POST"])
+def api_check(): return check_url()
+
+@app.route("/api/health", methods=["GET"])
+def api_health(): return health()
+
+@app.route("/api/version", methods=["GET"])
+def api_version(): return version()
+
 if __name__ == "__main__":
+    # In dev you’ll see tracebacks; prod (gunicorn) will ignore this.
     app.run(debug=True)

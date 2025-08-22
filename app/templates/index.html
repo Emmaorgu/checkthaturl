@@ -11,6 +11,8 @@
   <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16.png">
   <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
   <meta name="theme-color" content="#0c111a" />
+  <!-- Force UI to use Render API in production -->
+  <meta name="ctu-api-base" content="https://checkthaturl.onrender.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <style>
@@ -121,7 +123,7 @@
             <div id="verdictBadge" class="verdict-badge badge-warn">Suspicious</div>
           </div>
 
-          <div class="meta">
+        <div class="meta">
             <span id="lastScanned">Last scanned —</span>
             <span class="dot"></span>
             <button id="shareBtn" class="btn small secondary">Share</button>
@@ -197,6 +199,34 @@
     const $ = s => document.querySelector(s);
     $('#year').textContent = new Date().getFullYear();
 
+    // --- API base detection ---
+    const META_API = (document.querySelector('meta[name="ctu-api-base"]')?.content || '').trim();
+    const ENV_API  = (window.CTU_API_BASE || '').trim();
+    // Order: explicit → same-origin → /api fallback
+    const API_CANDIDATES = [ENV_API, META_API, '', '/api'].filter(Boolean);
+
+    async function apiFetch(path, opts){
+      let lastErr = null;
+      for (const base of API_CANDIDATES){
+        const b = base.endsWith('/') ? base.slice(0,-1) : base;
+        const url = b + path;
+        try{
+          const resp = await fetch(url, opts);
+          if (!resp.ok){
+            const t = await resp.text().catch(()=> '');
+            throw new Error(`HTTP ${resp.status}${t ? ' — ' + t.slice(0,120) : ''}`);
+          }
+          let data;
+          try { data = await resp.json(); }
+          catch { throw new Error('API returned non-JSON response'); }
+          return data;
+        }catch(e){
+          lastErr = e;
+        }
+      }
+      throw lastErr || new Error('Network error');
+    }
+
     const qs = new URLSearchParams(location.search);
     if (qs.get('url')) $('#url').value = qs.get('url');
 
@@ -239,7 +269,6 @@
       behavior: clean(d.behavior_risks),
     });
 
-    // Derive abnormalities directly from raw behavior telemetry if buckets are empty
     function deriveBehaviorSignals(data){
       const out = [];
       const beh = data.behavior || {};
@@ -247,9 +276,7 @@
       const events = (beh.events || []).map(e => (e||'').toString());
 
       if (chain.length > 1) out.push(`Multiple redirects observed (${chain.length} hops)`);
-
       const seen = (re) => events.some(e => re.test(e));
-
       if (seen(/js_redirect/i))       out.push('JavaScript-triggered redirect');
       if (seen(/post_redirect/i))     out.push('Post-submission redirect flow detected');
       if (seen(/consent_click/i))     out.push('Consent/allow dialog interaction captured');
@@ -263,14 +290,9 @@
       return out;
     }
 
-    // Ensure non-legit verdicts have concrete issues listed; keep the original verdict.
     function ensureAbnormalitiesForNonLegit(verdict, c, data){
       if (verdict === 'Legitimate') return c;
-      // If behavior bucket empty, try to derive
-      if (!c.behavior.length){
-        c.behavior = deriveBehaviorSignals(data);
-      }
-      // If absolutely everything is still empty, create a minimal model-based bullet so UI never says "no issues"
+      if (!c.behavior.length){ c.behavior = deriveBehaviorSignals(data); }
       const total = c.domain.length + c.content.length + c.link.length + c.behavior.length;
       if (total === 0){
         c.content = [`Anomalous content/structure pattern detected by the model (confidence ${Math.round((data.risk||0)*100)}%).`];
@@ -289,7 +311,6 @@
       else badge.classList.add('badge-warn');
     }
 
-    // Verdict-aware list rendering
     function fillList(el, items, verdict){
       const pill = el.closest('.pill');
       if (verdict === 'Legitimate'){
@@ -297,7 +318,6 @@
         el.className='list'; el.innerHTML = items.map(x=>`<li>${x}</li>`).join(''); pill.style.display='';
         return;
       }
-      // Phishing/Suspicious: show only concrete abnormalities; hide empty buckets
       if (!items.length){ pill.style.display='none'; return; }
       el.className='list'; el.innerHTML = items.map(x=>`<li>${x}</li>`).join(''); pill.style.display='';
     }
@@ -380,10 +400,14 @@
         const steps = stepList(isQuick);
         let sidx=0; const stepTimer=setInterval(()=>{ if(sidx<steps.length){ markStepDone(sidx); $('#scanStatus').textContent=steps[sidx]; sidx++; } else clearInterval(stepTimer); }, isQuick?420:560);
 
-        const resp = await fetch('/check?ui=redacted' + (forceRescan ? '&_=' + Date.now() : ''), {
-          method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url}), signal:aborter.signal
+        const data = await apiFetch('/check?ui=redacted' + (forceRescan ? '&_=' + Date.now() : ''), {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({url}),
+          signal:aborter.signal,
+          mode:'cors',
+          credentials:'omit'
         });
-        const data = await resp.json();
 
         markStepDone(steps.length-1);
         $('#scanStatus').textContent='Done';
@@ -397,18 +421,15 @@
         setBadge(verdict);
         $('#riskFill').style.width = Math.round((data.risk || 0) * 100) + '%';
 
-        // Clean buckets then ensure abnormalities for non-legit
         let c = categories(data);
         c = ensureAbnormalitiesForNonLegit(verdict, c, data);
 
-        // Render category lists
         fillList($('#domainRisks'), c.domain, verdict);
         fillList($('#contentRisks'), c.content, verdict);
         fillList($('#linkRisks'),    c.link,    verdict);
         fillList($('#behaviorRisks'),c.behavior,verdict);
         fillEvidence(data);
 
-        // Hint + explainer (no weak phrasing)
         const computedSummary = buildSummary(verdict, c);
         const rawHint = data.explanations && data.explanations.summary;
         $('#hint').textContent = sanitizeHint(rawHint, computedSummary);
@@ -416,13 +437,12 @@
         const rawExplain = (data.explanation||'').trim();
         $('#verdictExplain').textContent = (!rawExplain || WEAK_PATTERN.test(rawExplain)) ? buildExplain(verdict, c) : rawExplain;
 
-        // Update URL for sharing
         const u = new URL(location.href); u.searchParams.set('url', url); history.replaceState(null,'',u.toString());
 
         hideScanner(); aborter=null;
       }catch(e){
         hideScanner(); aborter=null;
-        alert('Scan failed or cancelled.');
+        alert(`Scan failed: ${e?.message || e}`);
       }
     }
 
