@@ -248,7 +248,7 @@ def _find_footer_legal_links(html: str, base_url: str) -> list[str]:
     if not html:
         return []
     out = []
-    for href, inner in ANCHOR_RE.findall(html):
+    for href, inner in ANCHOR_RE.findall(html, flags=re.I):
         text = re.sub(r"<[^>]+>", "", inner or "").strip().lower()
         if any(k in text for k in ("privacy","terms","conditions","policy","cookies","legal","imprint")):
             absu = urljoin(base_url, href)
@@ -286,10 +286,10 @@ def _origin_variants(base_url: str) -> list[str]:
     alts = set()
     alts.add(f"{p.scheme}://{host}")
     if host.startswith("www."):
-        alts.add(f"{p.scheme}://{host[4:]}")
-    else:
         alts.add(f"{p.scheme}://www.{host}")
-    return sorted(alts)
+    else:
+        alts.add(f"{p.scheme}://{host[4:]}")
+    return sorted(list(alts))
 
 def _legal_headers(referer: str) -> dict:
     return {
