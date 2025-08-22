@@ -557,6 +557,17 @@ def check_url():
             html_content = r.text or ""
             url = r.url
 
+        # Add this check to prevent passing a non-string to probe_legal_pages
+        if not isinstance(html_content, str):
+            resp = {
+                "url": url, "verdict": "Suspicious", "confidence": 0.0,
+                "explanation": "Could not fetch valid HTML content for analysis. Returning a cautious verdict.",
+                "diagnostic": {"label": "Invalid content type"}
+            }
+            if ui_flag == "redacted":
+                resp = redact_ui_payload(resp)
+            return jsonify(resp), 200
+
         # ---------- Feature extraction ----------
         features = extract_features(url, html_content)
         features.pop("registrar_name", None)
