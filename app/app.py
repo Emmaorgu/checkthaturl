@@ -1,9 +1,10 @@
 # app/app.py
 import os, sys, glob, math, socket, re, json, requests, pandas as pd, joblib
-from flask import Flask, render_template, request, jsonify, Blueprint
+from flask import Flask, render_template, request, jsonify, Blueprint, make_response
 from flask_cors import CORS
 from datetime import datetime
 from urllib.parse import urlparse, urlunparse, urljoin
+from werkzeug.exceptions import HTTPException
 
 # -------------------- flexible imports --------------------
 if __package__ in (None, "",):
@@ -20,7 +21,6 @@ if __package__ in (None, "",):
         from app.feedback import feedback_bp
     except Exception:
         feedback_bp = None
-    # services
     from app.services.reasons_consistency import build_reasons
     from app.services.response_guard import ensure_reasons_contract
     from app.services.static_detectors import collect_static_reasons
@@ -55,8 +55,6 @@ else:
 app = Flask(__name__, template_folder="templates", static_folder="static")
 
 # ---- Robust CORS & preflight ----
-from flask import make_response
-
 def _add_cors_headers(resp):
     try:
         origin = request.headers.get("Origin", "*")
@@ -81,6 +79,21 @@ def _ensure_cors(resp):
         return _add_cors_headers(resp)
     except Exception:
         return resp
+
+# ---- Global JSON fail-safe (prevents HTML 500 in prod) ----
+@app.errorhandler(Exception)
+def _global_fail_safe(e):
+    code = e.code if isinstance(e, HTTPException) else 500
+    print(f"[GLOBAL-ERROR] {type(e).__name__}: {e}")
+    payload = {
+        "ok": False,
+        "verdict": "Suspicious",
+        "risk": 0.5,
+        "explanation": "Our server hit an unexpected error while scanning. Returning a cautious verdict.",
+        "error": type(e).__name__,
+    }
+    resp = app.response_class(json.dumps(payload), status=code, mimetype="application/json")
+    return _add_cors_headers(resp)
 
 CORS(app)
 if feedback_bp: app.register_blueprint(feedback_bp)
@@ -117,6 +130,7 @@ BROWSER_UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
               "(KHTML, like Gecko) Chrome/124.0 Safari/537.36")
 BROWSER_ACCEPT = "text/html,application/xhtml+xml"
 BROWSER_LANG = "en,en-NG;q=0.9,en-GB;q=0.8"
+HTTP_TIMEOUT = float(os.getenv("CTU_HTTP_TIMEOUT", "8"))
 
 # -------------------- model (LAZY + SAFE) --------------------
 def _latest_model_path():
@@ -138,11 +152,9 @@ def _latest_model_path():
 MODEL_PATH = _latest_model_path()
 
 class _SafeDummyModel:
-    """Always available fallback so the app NEVER fails to start."""
     classes_ = [0, 1]
     feature_names_in_ = tuple()
     def predict_proba(self, X):
-        # Neutral-ish probability to keep UX coherent if real model unavailable
         n = getattr(X, "__len__", lambda: 1)()
         return [[0.65, 0.35] for _ in range(n)]  # [legit, phish]
 
@@ -153,7 +165,6 @@ def get_model():
         return _model
     try:
         _model = joblib.load(MODEL_PATH)
-        # sanity: ensure classes_ includes 0 and 1
         cls = list(getattr(_model, "classes_", []))
         if not set(cls) >= {0,1}:
             raise ValueError("model.classes_ missing {0,1}")
@@ -210,7 +221,6 @@ def align_to_model(df: pd.DataFrame, mdl) -> pd.DataFrame:
 
 # ---- JSON safety ----
 def to_native(obj):
-    """Deep-cast common non-JSON-serializable types to JSON-safe natives."""
     try:
         import numpy as np
         np_f = (np.float_, np.float16, np.float32, np.float64)
@@ -233,7 +243,6 @@ def to_native(obj):
     return obj
 
 def safe_json(payload, status=200):
-    """Return application/json without risking 500 from unserializable types."""
     try:
         body = json.dumps(to_native(payload), ensure_ascii=False, default=str)
     except Exception as e:
@@ -274,8 +283,8 @@ LEGAL_GUESS_BASENAMES = [
     "legal","legal/terms","legal/privacy-policy","cookies","cookie-policy","policies/cookies","policy/cookies",
     "policies","disclosure","imprint"
 ]
-LEGAL_MAX_TOTAL_CHECKS = 24
-LEGAL_PROBE_TIMEOUT = 6
+LEGAL_MAX_TOTAL_CHECKS = int(os.getenv("CTU_LEGAL_MAX_CHECKS", "6"))
+LEGAL_PROBE_TIMEOUT = int(os.getenv("CTU_LEGAL_TIMEOUT", "2"))
 def _looks_like_policy_url(u: str) -> bool:
     low = (u or "").lower()
     return any(k in low for k in ("privacy","terms","cookie","policy","legal","imprint"))
@@ -438,7 +447,7 @@ def redact_ui_payload(payload: dict) -> dict:
 @app.route('/check', methods=["POST", 'OPTIONS'])
 def check_url():
     try:
-        model = get_model()  # <-- LAZY model retrieval (never crashes app)
+        model = get_model()
         data = request.get_json(silent=True) or {}
         url = (data.get("url") or "").strip()
         if not url: return safe_json({"error": "No URL provided"}, 400)
@@ -469,12 +478,12 @@ def check_url():
         if not html_content:
             headers = {"User-Agent": BROWSER_UA, "Accept": BROWSER_ACCEPT, "Accept-Language": BROWSER_LANG, "Connection": "keep-alive"}
             try:
-                r = requests.get(url, headers=headers, timeout=10, allow_redirects=True)
+                r = requests.get(url, headers=headers, timeout=HTTP_TIMEOUT, allow_redirects=True)
                 status = r.status_code
             except (requests.exceptions.SSLError, requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
                 if url.startswith("https://"):
                     try:
-                        r = requests.get(to_http(url), headers=headers, timeout=10, allow_redirects=True)
+                        r = requests.get(to_http(url), headers=headers, timeout=HTTP_TIMEOUT, allow_redirects=True)
                         status = r.status_code; url = r.url
                     except requests.RequestException:
                         resp = {"url": url, "verdict": "Unreachable", "confidence": 0.0,
@@ -500,7 +509,11 @@ def check_url():
             html_content = r.text or ""; url = r.url
 
         # ---------- features ----------
-        features = extract_features(url, html_content)
+        try:
+            features = extract_features(url, html_content)
+        except Exception as ex:
+            print("[ERR] extract_features failed:", type(ex).__name__, str(ex)[:400])
+            raise
         features.pop("registrar_name", None)
 
         if OUR_SCAN and CTU_SOFT_WHITELIST_SELF:
@@ -533,6 +546,7 @@ def check_url():
         try:
             if _behavior_enabled(): behavior = simulate_behavior(url)
         except Exception as e:
+            print("[WARN] behavior simulate failed:", type(e).__name__, str(e)[:200])
             behavior = {"mode": "error", "score": 0.0, "events": [f"behavior engine unavailable: {type(e).__name__}"]}
         behv_full = _behavior_feature_block(behavior)
 
@@ -566,12 +580,13 @@ def check_url():
             if s >= 0.55 and tmpl and not (OUR_SCAN or is_benign):
                 structure_guard = "high" if s >= 0.75 else "medium"
                 features["non_surface_red_flags"] = int(features.get("non_surface_red_flags", 0)) + 1
-        except Exception:
+        except Exception as ex:
+            print("[WARN] structure_similarity failed:", type(ex).__name__)
             structure = {"score": 0.0, "template": None}
 
         visual = {"score": 0.0, "closest": None}
         try: visual = visual_similarity(url)
-        except Exception: pass
+        except Exception as ex: print("[WARN] visual_similarity failed:", type(ex).__name__)
 
         # ---------- risk / verdict ----------
         blended_risk = _blend_risk(p_phish, behv_for_blend)
@@ -754,7 +769,6 @@ def check_url():
 
     except Exception as e:
         # Fail-safe JSON (NEVER return HTML 500)
-        # If the URL is ours, never flag as Suspicious on internal errors.
         raw = request.get_json(silent=True) or {}
         try:
             candidate = resolve_url((raw.get("url") or "").strip())
@@ -762,7 +776,6 @@ def check_url():
             candidate = None
 
         if candidate and _is_our_domain(candidate):
-            # Soft-whitelist own domain on unexpected errors
             resp = {
                 "url": candidate,
                 "verdict": "Legitimate",
@@ -784,7 +797,6 @@ def check_url():
                 resp = redact_ui_payload(resp)
             return safe_json(resp)
 
-        # Default cautious behavior for non-self URLs
         resp = {
             "url": (raw or {}).get("url", ""),
             "verdict": "Suspicious",
@@ -802,8 +814,7 @@ def check_url():
             "visual": {"score": 0.0, "closest": None}
         }
         ui_flag = (request.args.get("ui") or "").strip().lower()
-        if ui_flag == "redacted":
-            resp = redact_ui_payload(resp)
+        if ui_flag == "redacted": resp = redact_ui_payload(resp)
         return safe_json(resp)
 
 # -------------------- pages & health --------------------
@@ -820,38 +831,15 @@ def health(): return safe_json({"ok": True})
 @app.route("/version", methods=["GET"])
 def version(): return safe_json({"model_path": os.path.abspath(MODEL_PATH), "server_time_utc": datetime.utcnow().isoformat() + "Z"})
 
-# -------------------- API aliases under /api/* (reverse-proxy friendly) --------------------
-try:
-    api  # type: ignore
-except NameError:
-    api = Blueprint("api", __name__)
-
+# -------------------- API aliases under /api/* --------------------
+api = Blueprint("api", __name__)
 @api.route("/check", methods=["POST", "OPTIONS"])
-def api_check():
-    return check_url()
-
+def api_check(): return check_url()
 @api.route("/health", methods=["GET"])
-def api_health():
-    # Prefer the safer JSON wrapper if available
-    try:
-        return health()
-    except Exception:
-        return jsonify({"ok": True})
-
+def api_health(): return health()
 @api.route("/version", methods=["GET"])
-def api_version():
-    return version()
-
-try:
-    app.blueprints["api"]  # already registered?
-except Exception:
-    app.register_blueprint(api, url_prefix="/api")
+def api_version(): return version()
+app.register_blueprint(api, url_prefix="/api")
 
 if __name__ == "__main__":
-    # Use threaded server to avoid blocking during external fetches
     app.run(debug=True, threaded=True, host="0.0.0.0", port=int(os.getenv("PORT", "5000")))
-
-
-@app.route("/health", methods=["GET"])
-def _ctu_health():
-    return jsonify({"ok": True, "server_time_utc": datetime.utcnow().isoformat() + "Z"})
