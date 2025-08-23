@@ -68,7 +68,6 @@
     .hint{color:var(--muted);font-size:13px}
     .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 
-    /* Scanner overlay */
     .scanner{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:radial-gradient(1200px 500px at 50% -10%,rgba(49,80,140,.25),transparent 55%),rgba(5,8,14,.60);backdrop-filter:blur(8px) saturate(160%);z-index:9999}
     .scanner.show{display:flex;animation:fadeIn .12s ease-out}
     @keyframes fadeIn{from{opacity:0}to{opacity:1}}
@@ -93,7 +92,6 @@
     .scanbar>i{display:block;height:100%;width:0%;background:linear-gradient(90deg,#3cc8ff,#7aa2ff,#9c6bff,#ff5ca7,#ffc36b);transition:width .14s ease}
     .scan-footer{display:flex;align-items:center;justify-content:space-between;margin-top:10px;color:var(--muted);font-size:13px}
 
-    /* Toast */
     .toast{position:fixed;right:16px;top:16px;z-index:10000;background:#142038;border:1px solid #27406e;color:#e6edf6;border-radius:12px;padding:10px 12px;font-size:14px;box-shadow:0 6px 24px rgba(0,0,0,.25)}
   </style>
 </head>
@@ -119,7 +117,8 @@
         </div>
 
         <div class="search">
-          <input id="url" class="url-input" placeholder="Paste a URL (e.g. https://bank.example/login)" value="https://www.checkthaturl.com/"/>
+          <!-- START EMPTY: no hardcoded value -->
+          <input id="url" class="url-input" placeholder="Paste a URL (e.g. https://bank.example/login)" />
           <button id="scan" class="btn">Check</button>
           <button id="rescan" class="btn secondary" title="Re-run with cache-busting">Re-scan anyway</button>
           <label class="quick"><input type="checkbox" id="fastToggle"> ⚡ Quick scan</label>
@@ -142,9 +141,7 @@
           <div id="verdictTitle" style="font-size:28px;font-weight:800;letter-spacing:-.02em;margin:2px 0 6px;">—</div>
           <div id="verdictExplain" style="color:var(--muted);margin-bottom:12px;">—</div>
 
-          <div class="scorebar" style="margin:8px 0 16px;">
-            <i id="riskFill"></i>
-          </div>
+          <div class="scorebar" style="margin:8px 0 16px;"><i id="riskFill"></i></div>
 
           <div class="section">
             <div class="pill" id="pill-domain"><h4>🌐 Domain Risks</h4><div id="domainRisks" class="empty">No notable issues.</div></div>
@@ -205,11 +202,9 @@
     </div>
   </div>
 
-  <!-- Toast -->
   <div id="toast" class="toast" style="display:none"></div>
 
   <script>
-    // ---------- tiny helpers ----------
     const $ = s => document.querySelector(s);
     const setText = (sel, txt) => { const el = (typeof sel === 'string') ? $(sel) : sel; if (el) el.textContent = txt; };
     setText('#year', new Date().getFullYear());
@@ -219,20 +214,22 @@
       clearTimeout(showToast._t); showToast._t=setTimeout(()=>t.style.display='none', ms);
     }
 
-    // ---------- elements ----------
+    // Elements
     const urlInput = $('#url'), btnScan = $('#scan'), btnRescan = $('#rescan'), fastToggle = $('#fastToggle');
     const card = $('#verdictCard'), badge = $('#verdictBadge'), title = $('#verdictTitle'), explain = $('#verdictExplain'), riskFill = $('#riskFill'), lastScanned = $('#lastScanned');
     const domRisks = $('#domainRisks'), conRisks = $('#contentRisks'), linkRisks = $('#linkRisks'), behRisks = $('#behaviorRisks');
     const evChain = $('#evChain'), evConsent = $('#evConsent');
     const scanner = $('#scanner'), scanUrlEl = $('#scanUrl'), scanSteps = $('#scanSteps'), scanProgress = $('#scanProgress'), scanStatus = $('#scanStatus'), scanCancel = $('#scanCancel');
 
-    // ---------- behavior ----------
-    let scanning = false;
-    let tickTimer = null;
-    let aborter = null;
+    // Allow ?u=... prefill (optional), otherwise keep empty
+    try {
+      const u = new URLSearchParams(location.search).get('u');
+      if (u) urlInput.value = u;
+    } catch {}
+
+    let scanning = false, tickTimer = null, aborter = null;
     const STEP_LABELS = ['Fetching page','Analyzing content','Checking links','Running behavior checks','Comparing structure','Computing verdict'];
 
-    // allow self-scan (no guard that blocks current origin)
     function startScanner(url){
       scanning = true;
       scanner.classList.add('show');
@@ -259,12 +256,10 @@
       row.className = 'scan-step';
       row.innerHTML = `<div class="dot"></div><span>${label}</span>`;
       scanSteps.appendChild(row);
-      return row;
     }
     function markStepDone(i){ const row = scanSteps.children[i]; if (row) row.classList.add('done'); }
     function setProgress(pct){ scanProgress.style.width = Math.max(0, Math.min(100, pct)) + '%'; }
 
-    // Cancel handler
     scanCancel.addEventListener('click', ()=>{
       if (!scanning) return;
       if (aborter) { try { aborter.abort(); } catch(e){} }
@@ -272,20 +267,14 @@
       stopScanner();
     });
 
-    // ---------- verdict rendering ----------
     function escapeHtml(s){ return s.replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
     function setBadge(verdict){ let cls='badge-warn'; if (verdict==='Legitimate') cls='badge-ok'; else if (verdict==='Phishing') cls='badge-bad'; badge.className='verdict-badge '+cls; badge.textContent=verdict; }
 
     function renderList(el, items, verdict){
       const pill = el.closest('.pill');
       if(!items || !items.length){
-        // For Legitimate, keep the pill visible and say "No notable issues."
-        if (verdict === 'Legitimate'){
-          el.classList.add('empty'); el.textContent = 'No notable issues.'; pill.style.display='';
-        } else {
-          // For non-legit, hide truly empty groups
-          el.classList.remove('empty'); el.innerHTML = ''; pill.style.display='none';
-        }
+        if (verdict === 'Legitimate'){ el.classList.add('empty'); el.textContent='No notable issues.'; pill.style.display=''; }
+        else { el.classList.remove('empty'); el.innerHTML=''; pill.style.display='none'; }
         return;
       }
       pill.style.display='';
@@ -300,32 +289,26 @@
       explain.textContent = p.explanation || '—';
       lastScanned.textContent = 'Last scanned ' + new Date().toLocaleTimeString();
       const pct = Math.round((p.risk || 0) * 100); riskFill.style.width = Math.max(1, Math.min(100, pct)) + '%';
-
       renderList(domRisks, p.domain_risks, p.verdict);
       renderList(conRisks, p.content_risks, p.verdict);
       renderList(linkRisks, p.link_risks, p.verdict);
       renderList(behRisks, p.behavior_risks, p.verdict);
-
       const chain = (p.behavior && p.behavior.redirect_chain) || [];
       evChain.textContent = chain.length ? chain.join('  →  ') : '—';
       const clicks = (p.behavior && p.behavior.clicks || 0);
-      $('#evConsent').textContent = clicks ? (clicks + ' interaction(s)') : '—';
+      evConsent.textContent = clicks ? (clicks + ' interaction(s)') : '—';
     }
 
-    // Normalize any API shape into something renderable (no “partial only” surprises)
     function normalizePayload(data){
       try { if (typeof data === 'string') data = JSON.parse(data); } catch {}
       const p = data && typeof data === 'object' ? data : {};
       let v = (typeof p.verdict === 'string' && p.verdict.trim()) ? p.verdict.trim() : null;
-
       if (!v) {
         const r = (typeof p.risk === 'number') ? p.risk : (typeof p.phishing_score === 'number' ? p.phishing_score/100 : null);
         if (r !== null) v = r >= 0.70 ? 'Phishing' : r <= 0.30 ? 'Legitimate' : 'Suspicious';
         else if (p.ok === true) v = 'Suspicious';
       }
-
       let explanation = p.explanation || (p.ok === false ? (p.message || 'Scan failed.') : 'Result synthesized from available checks.');
-
       return {
         ok: (p.ok !== false),
         status: p.status || 'ok',
@@ -344,21 +327,18 @@
       };
     }
 
-    // ---------- main scan flow ----------
     urlInput.addEventListener('keydown', e => { if (e.key === 'Enter') runScan(false); });
     btnScan.addEventListener('click', () => runScan(false));
     btnRescan.addEventListener('click', () => runScan(true));
 
     async function runScan(forceRescan=false){
-      if (scanning) return; // prevent overlapping scans
+      if (scanning) return;
       const raw = (urlInput.value || '').trim();
       if(!raw) return;
 
-      // No self-scan block — scanning same origin is allowed
       startScanner(raw);
       aborter = new AbortController();
 
-      // optimistic progress (visual only)
       let optimisticIdx = 0;
       const optimistic = setInterval(()=>{
         if (!scanning) { clearInterval(optimistic); return; }
@@ -376,27 +356,19 @@
           signal: aborter.signal,
           mode: 'cors'
         });
-
         if (!resp.ok) {
           const t = await resp.text().catch(()=> '');
           throw new Error(`HTTP ${resp.status}${t ? ' — ' + t : ''}`);
         }
-
         const data = await resp.json();
         for(let i=optimisticIdx; i<STEP_LABELS.length; i++) markStepDone(i);
         setProgress(100);
         setText('#scanStatus','Done');
-
-        const normalized = normalizePayload(data);
-        updateVerdictCard(normalized);
+        updateVerdictCard(normalizePayload(data));
         stopScanner();
       } catch (err){
-        if (err && err.name === 'AbortError'){
-          showToast('Scan cancelled.');
-        } else {
-          console.error('[scan]', err);
-          showToast((err && err.message) ? String(err.message) : 'Scan failed.');
-        }
+        if (err && err.name === 'AbortError') showToast('Scan cancelled.');
+        else { console.error('[scan]', err); showToast((err && err.message) ? String(err.message) : 'Scan failed.'); }
         stopScanner();
       }
     }
