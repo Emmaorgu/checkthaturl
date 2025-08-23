@@ -27,6 +27,9 @@
     .top-privacy{background:#0b1526;border:1px solid var(--border);padding:12px 16px;border-radius:12px;display:flex;gap:10px;align-items:center;margin:12px auto 28px}
     .top-privacy .lock{font-size:18px}
 
+    .grid{display:grid;grid-template-columns:1.25fr .95fr;gap:24px}
+    @media (max-width:980px){.grid{grid-template-columns:1fr}}
+
     .hero h1{font-size:clamp(32px,5.6vw,56px);line-height:1.05;margin:4px 0 10px;font-weight:800;letter-spacing:-.02em}
     .hero h1 .accent{color:var(--brand)}
     .hero p{margin:10px 0 24px;color:var(--muted);font-size:18px}
@@ -38,9 +41,6 @@
     .btn.small{padding:8px 12px;font-weight:600}
     .btn:disabled{opacity:.55;cursor:not-allowed}
     .quick{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px;margin-left:auto}
-
-    .grid{display:grid;grid-template-columns:1.2fr 1fr;gap:24px}
-    @media (max-width:980px){.grid{grid-template-columns:1fr}}
 
     .card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:18px}
     .verdict-badge{float:right;padding:6px 10px;border-radius:999px;font-weight:700;font-size:13px;border:1px solid var(--border);background:var(--chip)}
@@ -119,7 +119,7 @@
         </div>
 
         <div class="search">
-          <input id="url" class="url-input" placeholder="Paste a URL (e.g. https://bank.example/login)" />
+          <input id="url" class="url-input" placeholder="Paste a URL (e.g. https://bank.example/login)" value="https://www.checkthaturl.com/"/>
           <button id="scan" class="btn">Check</button>
           <button id="rescan" class="btn secondary" title="Re-run with cache-busting">Re-scan anyway</button>
           <label class="quick"><input type="checkbox" id="fastToggle"> ⚡ Quick scan</label>
@@ -214,31 +214,25 @@
     const setText = (sel, txt) => { const el = (typeof sel === 'string') ? $(sel) : sel; if (el) el.textContent = txt; };
     setText('#year', new Date().getFullYear());
 
+    function showToast(msg, ms=3500){
+      const t = $('#toast'); t.style.display='block'; t.textContent = msg;
+      clearTimeout(showToast._t); showToast._t=setTimeout(()=>t.style.display='none', ms);
+    }
+
     // ---------- elements ----------
     const urlInput = $('#url'), btnScan = $('#scan'), btnRescan = $('#rescan'), fastToggle = $('#fastToggle');
     const card = $('#verdictCard'), badge = $('#verdictBadge'), title = $('#verdictTitle'), explain = $('#verdictExplain'), riskFill = $('#riskFill'), lastScanned = $('#lastScanned');
     const domRisks = $('#domainRisks'), conRisks = $('#contentRisks'), linkRisks = $('#linkRisks'), behRisks = $('#behaviorRisks');
     const evChain = $('#evChain'), evConsent = $('#evConsent');
     const scanner = $('#scanner'), scanUrlEl = $('#scanUrl'), scanSteps = $('#scanSteps'), scanProgress = $('#scanProgress'), scanStatus = $('#scanStatus'), scanCancel = $('#scanCancel');
-    const toast = $('#toast');
 
-    function showToast(msg, ms=3500){
-      toast.style.display='block'; toast.textContent = msg;
-      clearTimeout(showToast._t); showToast._t = setTimeout(()=>toast.style.display='none', ms);
-    }
-
-    // keyboard & clicks
-    urlInput.addEventListener('keydown', e => { if (e.key === 'Enter') runScan(false); });
-    btnScan.addEventListener('click', () => runScan(false));
-    btnRescan.addEventListener('click', () => runScan(true));
-
-    // ---------- scanner UI ----------
+    // ---------- behavior ----------
+    let scanning = false;
     let tickTimer = null;
-    let aborter = null;   // AbortController for the active fetch
-    let scanning = false; // prevent overlapping scans
-
+    let aborter = null;
     const STEP_LABELS = ['Fetching page','Analyzing content','Checking links','Running behavior checks','Comparing structure','Computing verdict'];
 
+    // allow self-scan (no guard that blocks current origin)
     function startScanner(url){
       scanning = true;
       scanner.classList.add('show');
@@ -253,16 +247,13 @@
       clearInterval(tickTimer);
       tickTimer = setInterval(()=>{ pct = Math.min(97, pct + 0.6); setProgress(pct); }, 220);
     }
-
     function stopScanner(){
       scanning = false;
       scanner.classList.remove('show');
-      clearInterval(tickTimer);
-      tickTimer = null;
+      clearInterval(tickTimer); tickTimer = null;
       aborter = null;
       scanCancel.disabled = true;
     }
-
     function addStep(label){
       const row = document.createElement('div');
       row.className = 'scan-step';
@@ -273,7 +264,7 @@
     function markStepDone(i){ const row = scanSteps.children[i]; if (row) row.classList.add('done'); }
     function setProgress(pct){ scanProgress.style.width = Math.max(0, Math.min(100, pct)) + '%'; }
 
-    // Cancel handler — abort the in‑flight request and close overlay
+    // Cancel handler
     scanCancel.addEventListener('click', ()=>{
       if (!scanning) return;
       if (aborter) { try { aborter.abort(); } catch(e){} }
@@ -282,12 +273,17 @@
     });
 
     // ---------- verdict rendering ----------
+    function escapeHtml(s){ return s.replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+    function setBadge(verdict){ let cls='badge-warn'; if (verdict==='Legitimate') cls='badge-ok'; else if (verdict==='Phishing') cls='badge-bad'; badge.className='verdict-badge '+cls; badge.textContent=verdict; }
+
     function renderList(el, items, verdict){
       const pill = el.closest('.pill');
       if(!items || !items.length){
+        // For Legitimate, keep the pill visible and say "No notable issues."
         if (verdict === 'Legitimate'){
           el.classList.add('empty'); el.textContent = 'No notable issues.'; pill.style.display='';
         } else {
+          // For non-legit, hide truly empty groups
           el.classList.remove('empty'); el.innerHTML = ''; pill.style.display='none';
         }
         return;
@@ -296,8 +292,6 @@
       el.classList.remove('empty');
       el.innerHTML = '<ul class="list">' + items.map(x=>`<li>${escapeHtml(String(x))}</li>`).join('') + '</ul>';
     }
-    function escapeHtml(s){ return s.replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-    function setBadge(verdict){ let cls='badge-warn'; if (verdict==='Legitimate') cls='badge-ok'; else if (verdict==='Phishing') cls='badge-bad'; badge.className='verdict-badge '+cls; badge.textContent=verdict; }
 
     function updateVerdictCard(p){
       card.style.display = '';
@@ -315,9 +309,10 @@
       const chain = (p.behavior && p.behavior.redirect_chain) || [];
       evChain.textContent = chain.length ? chain.join('  →  ') : '—';
       const clicks = (p.behavior && p.behavior.clicks || 0);
-      evConsent.textContent = clicks ? (clicks + ' interaction(s)') : '—';
+      $('#evConsent').textContent = clicks ? (clicks + ' interaction(s)') : '—';
     }
 
+    // Normalize any API shape into something renderable (no “partial only” surprises)
     function normalizePayload(data){
       try { if (typeof data === 'string') data = JSON.parse(data); } catch {}
       const p = data && typeof data === 'object' ? data : {};
@@ -350,16 +345,20 @@
     }
 
     // ---------- main scan flow ----------
+    urlInput.addEventListener('keydown', e => { if (e.key === 'Enter') runScan(false); });
+    btnScan.addEventListener('click', () => runScan(false));
+    btnRescan.addEventListener('click', () => runScan(true));
+
     async function runScan(forceRescan=false){
-      if (scanning) return; // avoid concurrent scans
+      if (scanning) return; // prevent overlapping scans
       const raw = (urlInput.value || '').trim();
       if(!raw) return;
-      const isQuick = fastToggle.checked;
 
+      // No self-scan block — scanning same origin is allowed
       startScanner(raw);
       aborter = new AbortController();
 
-      // optimistic step advancement
+      // optimistic progress (visual only)
       let optimisticIdx = 0;
       const optimistic = setInterval(()=>{
         if (!scanning) { clearInterval(optimistic); return; }
@@ -367,7 +366,7 @@
         else clearInterval(optimistic);
       }, 1800);
 
-      const base = isQuick ? '/check?ui=redacted&quick=1' : '/check?ui=redacted';
+      const base = (fastToggle && fastToggle.checked) ? '/check?ui=redacted&quick=1' : '/check?ui=redacted';
 
       try{
         const resp = await fetch(base + (forceRescan ? '&_=' + Date.now() : ''), {
@@ -384,17 +383,14 @@
         }
 
         const data = await resp.json();
-
-        // finalize UI steps & progress
         for(let i=optimisticIdx; i<STEP_LABELS.length; i++) markStepDone(i);
         setProgress(100);
-        setText(scanStatus,'Done');
+        setText('#scanStatus','Done');
 
         const normalized = normalizePayload(data);
         updateVerdictCard(normalized);
         stopScanner();
       } catch (err){
-        // If cancelled by user, just notify and exit quietly (no partial verdict)
         if (err && err.name === 'AbortError'){
           showToast('Scan cancelled.');
         } else {

@@ -60,7 +60,7 @@ if feedback_bp:
     app.register_blueprint(feedback_bp)
 
 # ------------------------------------------------------------------------------
-# Tunables / policy (raised to ensure FULL scans)
+# Tunables / policy
 # ------------------------------------------------------------------------------
 PHISHING_THRESHOLD = float(os.getenv("PHISHING_THRESHOLD", "0.70"))
 LEGIT_THRESHOLD    = float(os.getenv("LEGIT_THRESHOLD", "0.30"))
@@ -73,12 +73,12 @@ CTU_BEHAVIOR_MODE         = os.getenv("CTU_BEHAVIOR_MODE", "auto").lower()
 CTU_SOFT_WHITELIST_SELF   = os.getenv("CTU_SOFT_WHITELIST_SELF", "1") == "1"
 OUR_HOSTS                 = {"checkthaturl.com", "www.checkthaturl.com"}
 
-# Generous networking budgets to avoid partials
-CONNECT_TIMEOUT = float(os.getenv("CTU_CONNECT_TIMEOUT", "8.0"))
-READ_TIMEOUT    = float(os.getenv("CTU_READ_TIMEOUT", "25.0"))
-REQUEST_BUDGET  = float(os.getenv("CTU_REQUEST_BUDGET", "300.0"))
-LEGAL_BUDGET    = float(os.getenv("CTU_LEGAL_PROBE_BUDGET", "60.0"))
-BEHAVIOR_BUDGET = float(os.getenv("CTU_BEHAVIOR_BUDGET", "60.0"))
+# Networking budgets (override via env if needed)
+CONNECT_TIMEOUT = float(os.getenv("CTU_CONNECT_TIMEOUT", "2.0"))
+READ_TIMEOUT    = float(os.getenv("CTU_READ_TIMEOUT", "3.0"))
+REQUEST_BUDGET  = float(os.getenv("CTU_REQUEST_BUDGET", "18.0"))   # whole /check request
+LEGAL_BUDGET    = float(os.getenv("CTU_LEGAL_PROBE_BUDGET", "4.0"))
+BEHAVIOR_BUDGET = float(os.getenv("CTU_BEHAVIOR_BUDGET", "6.0"))   # if behavior is enabled
 
 BROWSER_UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
               "(KHTML, like Gecko) Chrome/124.0 Safari/537.36")
@@ -99,7 +99,7 @@ STRUCTURE_BENIGN_PREFIXES   = ("ctu_", "benign_", "safe_", "homepage_")
 STRUCTURE_IGNORE_TEMPLATES  = {"ctu_home"}
 
 # ------------------------------------------------------------------------------
-# Requests session (slightly more forgiving retries)
+# Requests session (fail-fast, small retries)
 # ------------------------------------------------------------------------------
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
@@ -107,7 +107,7 @@ from urllib3.util.retry import Retry
 def _make_session():
     s = requests.Session()
     retry = Retry(
-        total=2, connect=2, read=1, backoff_factor=0.3,
+        total=1, connect=1, read=0, backoff_factor=0.2,
         status_forcelist=(429, 500, 502, 503, 504),
         allowed_methods=frozenset(["HEAD","GET"])
     )
@@ -226,7 +226,7 @@ def dns_preflight(u: str) -> dict:
     except Exception:
         return {"ok": False, "label": "DNS error"}
 
-# --------------------------- Legal probe ----------------------
+# --------------------------- Legal probe (with time budget) ---
 ANCHOR_RE = re.compile(r"<a\b[^>]*href=[\'\"]([^\'\"#]+)[\'\"][^>]*>(.*?)</a>", re.I | re.S)
 
 LEGAL_GUESS_BASENAMES = [
@@ -274,26 +274,58 @@ def _find_footer_legal_links(html: str, base_url: str) -> list[str]:
             seen.add(u); uniq.append(u)
     return uniq
 
-def probe_legal_pages(html: str, base_url: str):
-    """Probe same‑site legal pages exhaustively (no early timeout)."""
+_COUNTRY_HINTS = {
+    "nigeria": "ng",
+    "united kingdom": "uk",
+    "united states": "us",
+    "ghana": "gh",
+    "kenya": "ke",
+}
+
+def _locale_prefixes_from_html(html: str) -> list[str]:
+    prefs = set()
+    for m in re.findall(r'href=["\']\/([a-z]{2})(?:\/|["\'])', html or "", flags=re.I):
+        prefs.add(m.lower())
+    low = (html or "").lower()
+    for k, cc in _COUNTRY_HINTS.items():
+        if k in low:
+            prefs.add(cc)
+    for extra in ("en", "en-ng", "ng-en"):
+        prefs.add(extra)
+    return [""] + sorted(prefs)
+
+def _origin_variants(base_url: str) -> list[str]:
+    p = urlparse(base_url)
+    host = p.netloc.split(":")[0]
+    alts = {f"{p.scheme}://{host}"}
+    if host.startswith("www."):
+        alts.add(f"{p.scheme}://{host[4:]}")
+    else:
+        alts.add(f"{p.scheme}://www.{host}")
+    return sorted(alts)
+
+def _legal_headers(referer: str) -> dict:
+    return {
+        "User-Agent": BROWSER_UA,
+        "Accept": BROWSER_ACCEPT,
+        "Accept-Language": BROWSER_LANG,
+        "Referer": referer,
+        "Connection": "keep-alive",
+    }
+
+def probe_legal_pages(html: str, base_url: str, *, time_left=lambda: 1.0):
     debug = {"candidates": [], "hits": [], "prefixes": [], "origins": []}
     if not CTU_FETCH_LEGAL:
         return {"ok": 0, "pages": [], "debug": debug}
 
-    # Build candidates
     candidates = _find_footer_legal_links(html, base_url)
-    p = urlparse(base_url)
-    host = p.netloc.split(":")[0]
-    origins = sorted({f"{p.scheme}://{host}", f"{p.scheme}://www.{host}" if not host.startswith("www.") else f"{p.scheme}://{host[4:]}"})
+    prefixes = _locale_prefixes_from_html(html)
+    origins = _origin_variants(base_url)
+    debug["prefixes"] = prefixes
     debug["origins"] = origins
 
-    prefixes = [""]
-    for m in re.findall(r'href=["\']\/([a-z]{2})(?:\/|["\'])', html or "", flags=re.I):
-        prefixes.append(m.lower())
-    debug["prefixes"] = sorted(set(prefixes))
-
     for origin in origins:
-        for pre in set(prefixes):
+        for pre in prefixes:
             pre = pre.strip("/")
             for base_name in LEGAL_GUESS_BASENAMES:
                 base_name = base_name.strip("/")
@@ -303,32 +335,31 @@ def probe_legal_pages(html: str, base_url: str):
     reg = _registrable_domain(base_url)
     norm, seen = [], set()
     for u in candidates:
-        if _registrable_domain(u) != reg: continue
+        if _registrable_domain(u) != reg:
+            continue
         if u not in seen:
             seen.add(u); norm.append(u)
 
     norm = norm[:LEGAL_MAX_TOTAL_CHECKS]
-    headers = {
-        "User-Agent": BROWSER_UA,
-        "Accept": BROWSER_ACCEPT,
-        "Accept-Language": BROWSER_LANG,
-        "Referer": base_url,
-        "Connection": "keep-alive",
-    }
-
+    headers = _legal_headers(base_url)
     good = []
+    spent = 0.0
     start = time.monotonic()
+
     for u in norm:
+        if time_left() <= 0 or (spent >= LEGAL_BUDGET):
+            break
         entry = {"url": u}
         try:
             r = _safe_req("GET", u, timeout=(CONNECT_TIMEOUT, READ_TIMEOUT), allow_redirects=True, headers=headers)
+            spent = time.monotonic() - start
             entry["status"] = getattr(r, "status_code", None)
             accept = False
             if r and 200 <= r.status_code < 400:
                 accept = _looks_like_policy(r.text or "", getattr(r, "url", u)) or _looks_like_policy_url(getattr(r, "url", u))
             elif r and r.status_code in (401, 403) and _looks_like_policy_url(getattr(r, "url", u)):
                 accept = True
-            if not accept:
+            if not accept and time_left() > 0 and spent < LEGAL_BUDGET:
                 h = _safe_req("HEAD", u, timeout=(CONNECT_TIMEOUT, READ_TIMEOUT), allow_redirects=True, headers=headers)
                 entry["head_status"] = getattr(h, "status_code", None)
                 if h and (200 <= h.status_code < 400 or h.status_code in (401,403)) and _looks_like_policy_url(getattr(h, "url", u)):
@@ -343,10 +374,6 @@ def probe_legal_pages(html: str, base_url: str):
         except Exception as e:
             entry["error"] = type(e).__name__
         debug["candidates"].append(entry)
-
-        # soft guard: don't exceed LEGAL_BUDGET seconds
-        if (time.monotonic() - start) >= LEGAL_BUDGET:
-            break
 
     return {"ok": 1 if good else 0, "pages": good, "debug": debug}
 
@@ -381,9 +408,14 @@ def _blend_risk(model_prob_phish: float, behv: dict) -> float:
     return clip01(base + bonus)
 
 def _prune_explanations(verdict: str, reasons: list[str], behv: dict, timer_hint_present: bool = False) -> list[str]:
+    """
+    Keep timer/urgency reasons if *any* hint exists (markup, NLP, or behavior).
+    Do not inject fallback reasons for Legitimate.
+    """
     out = []
     for r in reasons or []:
         txt = (r or "").lower()
+        # Only drop timer-ish text if there were no timer hints at all
         if ("timer" in txt or "countdown" in txt or "urgency" in txt) and not timer_hint_present:
             continue
         if verdict == "Legitimate":
@@ -397,11 +429,11 @@ def _prune_explanations(verdict: str, reasons: list[str], behv: dict, timer_hint
         elif verdict == "Suspicious":
             out = ["Some risk signals observed; further checks recommended."]
         else:
-            out = []
+            out = []  # Legitimate => no grouped reasons
     return out
 
 # ------------------------------------------------------------------------------
-# UI redaction helpers (unchanged)
+# UI redaction helpers
 # ------------------------------------------------------------------------------
 LEGAL_SENTENCE_RE = re.compile(
     r'\b(legal\s*pages?|privacy(?:\s+policy| policies)?|terms(?:\s*&\s*conditions| of service| and conditions)?)\b',
@@ -461,6 +493,42 @@ def legal():
 @app.route("/check", methods=["POST"])
 def check_url():
     start = time.monotonic()
+    def time_left():
+        return REQUEST_BUDGET - (time.monotonic() - start)
+
+    def ensure_reason_groups(payload: dict) -> dict:
+        """
+        Guarantee at least one grouped reason for any non-legitimate verdict.
+        (Used for partial timeouts and unreachable paths as well.)
+        """
+        p = dict(payload or {})
+        verdict = p.get("verdict") or "Suspicious"
+        if verdict == "Legitimate":
+            return p
+        # Normalize lists
+        for k in ("domain_risks","content_risks","link_risks","behavior_risks"):
+            if k not in p or not isinstance(p[k], list):
+                p[k] = []
+        # If all empty, add an operational/diagnostic reason
+        if not (p["domain_risks"] or p["content_risks"] or p["link_risks"] or p["behavior_risks"]):
+            status = (p.get("status") or "").lower()
+            if status in ("partial","timeout"):
+                p["behavior_risks"].append("⏱ Partial result: some checks timed out/cancelled, live analysis incomplete.")
+            elif verdict == "Unreachable":
+                p["domain_risks"].append("🔌 Site unreachable (DNS/host/timeout) — could not verify content.")
+            else:
+                p["content_risks"].append("⚠ Risk signalled by model; no single factor dominated.")
+        return p
+
+    def out_partial(payload, msg="Timed out - partial checks only"):
+        payload = dict(payload)
+        payload.setdefault("ok", True)
+        payload["status"] = "partial"
+        payload.setdefault("message", msg)
+        # Ensure grouped reasons for non-legit partials
+        payload.setdefault("verdict", "Suspicious")
+        payload = ensure_reason_groups(payload)
+        return payload
 
     try:
         data = request.json or {}
@@ -471,7 +539,6 @@ def check_url():
         url = resolve_url(raw)
         if not url: return jsonify({"ok": False, "message": "Invalid URL"}), 400
 
-        # DNS preflight
         pre = dns_preflight(url)
         if not pre.get("ok"):
             resp = {
@@ -485,7 +552,7 @@ def check_url():
             if ui_flag == "redacted": resp = redact_ui_payload(resp)
             return jsonify(resp), 200
 
-        # ---------- Fetch page (no early cancellation) ----------
+        # ---------- Fetch page (fast-fail, http fallback) ----------
         html_content = ""
         if _is_our_domain(url):
             try:
@@ -502,6 +569,15 @@ def check_url():
         }
 
         if not html_content:
+            if time_left() <= 0:
+                resp = out_partial({
+                    "url": url, "verdict": "Suspicious", "risk": 0.4, "confidence": 40.0,
+                    "explanation": "Timed out fetching page.",
+                    "behavior_risks": ["⏱ Timed out fetching page; live checks incomplete."],
+                    "domain_risks": [], "content_risks": [], "link_risks": []
+                })
+                if ui_flag == "redacted": resp = redact_ui_payload(resp)
+                return jsonify(resp), 200
             r = _safe_req("GET", url, timeout=(CONNECT_TIMEOUT, READ_TIMEOUT), allow_redirects=True, headers=headers)
             if not r and url.startswith("https://"):
                 r = _safe_req("GET", to_http(url), timeout=(CONNECT_TIMEOUT, READ_TIMEOUT), allow_redirects=True, headers=headers)
@@ -525,15 +601,17 @@ def check_url():
         if _is_our_domain(url) and CTU_SOFT_WHITELIST_SELF:
             for k in ("is_new_domain","suspicious_tld"): features[k] = 0
 
-        # Timer fallback (markup/NLP)
+        # Timer fallback (markup/NLP hints even when behavior is off)
         timer_fallback = detect_urgency_timer(html_content)
         if not int(features.get("has_js_timer", 0)) and timer_fallback["has_js_timer"]: features["has_js_timer"] = 1
         if not int(features.get("has_html_timer", 0)) and timer_fallback["has_html_timer"]: features["has_html_timer"] = 1
         features["timer_urgency_score"] = max(float(features.get("timer_urgency_score", 0.0)),
                                               float(timer_fallback["timer_urgency_score"]))
 
-        # ---------- Legal probe (no early stop except LEGAL_BUDGET) ----------
-        legal_probe = probe_legal_pages(html_content, url)
+        # ---------- Legal probe (budgeted) ----------
+        legal_probe = {"ok": 0, "pages": []}
+        if time_left() > 0.2:
+            legal_probe = probe_legal_pages(html_content, url, time_left=time_left)
         legal_ok = bool(legal_probe.get("ok"))
         features["legal_pages_ok"] = 1 if legal_ok else 0
 
@@ -545,9 +623,9 @@ def check_url():
         legit_score    = round((1.0 - p_phish) * 100.0, 2)
         confidence     = round(100 * (1 - math.exp(-4 * abs(p_phish - 0.5))), 1)
 
-        # ---------- Behavior (always attempted if enabled) ----------
+        # ---------- Behavior (optional, budgeted) ----------
         behavior = {"mode": "disabled", "score": 0.0, "events": []}
-        if _behavior_enabled():
+        if _behavior_enabled() and time_left() > 0.5:
             try:
                 t0 = time.monotonic()
                 behavior = simulate_behavior(url)
@@ -647,12 +725,14 @@ def check_url():
             verdict = "Legitimate"
             blended_risk = min(blended_risk, 0.30)
 
-        # ---------- Reasons ----------
+        # ---------- Reasons (restored timers/http) ----------
         human_reasons = []
 
         if verdict in ("Phishing","Suspicious"):
+            # HTTP (no TLS)
             if int(features.get("has_https", 1)) == 0:
                 human_reasons.append("🔓 Connection not secure (HTTP).")
+
             if features.get("suspicious_keyword_found"): human_reasons.append("🔑 Suspicious keywords present.")
             if features.get("suspicious_tld"):           human_reasons.append("🌐 Suspicious TLD.")
             if features.get("domain_entropy", 0) > 4.0:  human_reasons.append("🎲 Domain name has high entropy.")
@@ -666,13 +746,14 @@ def check_url():
             if float(features.get("external_link_ratio", 0)) > 0.65 and not _is_our_domain(url):
                 human_reasons.append("🌍 Many external links.")
 
-            # Timer hints (markup/NLP)
+            # Markup/NLP timer hints (no behavior engine required)
             if int(features.get("has_html_timer", 0)) == 1 or int(features.get("has_js_timer", 0)) == 1:
                 human_reasons.append("⏱ Timer/countdown present in page markup.")
             if float(features.get("timer_urgency_score", 0.0)) >= 0.25:
                 human_reasons.append("⚠ Urgency language / timer hints detected in content.")
 
-            # Behavior-based
+            # Behavior-based signals (live)
+            chain = behavior.get("redirect_chain") or []
             cross_soft_count = max(0, len(chain) - 1)
             cross_targets = []
             for i in range(len(chain) - 1):
@@ -690,6 +771,7 @@ def check_url():
             if float(behavior.get("dom_mutation_score", 0)) >= 0.10:
                 human_reasons.append("🧪 Significant DOM mutation after load (behavior).")
 
+            # Structure similarity
             tmpl = (structure.get("template") or "").strip()
             is_benign = bool(tmpl.startswith(STRUCTURE_BENIGN_PREFIXES) or tmpl in STRUCTURE_IGNORE_TEMPLATES)
             if tmpl and float(structure.get("score", 0.0)) >= 0.55 and not is_benign and not legal_ok:
@@ -699,6 +781,7 @@ def check_url():
         if legal_ok:
             human_reasons.append("✅ Verified legal pages (privacy/terms) present on this site.")
 
+        # Consider *any* timer hint (markup, NLP, or behavior) as grounds to keep timer reasons
         timer_hint_present = (
             int(features.get("has_html_timer", 0)) == 1 or
             int(features.get("has_js_timer", 0)) == 1 or
@@ -782,13 +865,19 @@ def check_url():
             "elapsed_ms": int((time.monotonic() - start) * 1000),
         }
 
+        if time_left() <= 0:
+            resp = out_partial(resp)
+
+        # Last-line guard: ALWAYS provide grouped reasons for non-legit
+        resp = ensure_reason_groups(resp)
+
         if ui_flag == "redacted":
             resp = redact_ui_payload(resp)
 
         return jsonify(resp), 200
 
     except Exception as e:
-        # Return a hard error (not "partial")
+        # Keep message for UI and leave room for frontend fallback group reasons
         return jsonify({"ok": False, "status": "error", "message": f"{type(e).__name__}: {e}"}), 200
 
 
