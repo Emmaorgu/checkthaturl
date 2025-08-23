@@ -197,8 +197,8 @@
           <div id="scanSteps" class="scan-steps"></div>
           <div class="scanbar"><i id="scanProgress"></i></div>
           <div class="scan-footer">
-            <span id="scanStatus">Scanning In Progress, Please Wait</span>
-            <span id="scanEta" class="mono">~8s</span>
+            <span id="scanStatus">Scanning In Progress, Please Wait...</span>
+            <span id="scanEta" class="mono">—</span>
           </div>
         </div>
       </div>
@@ -219,10 +219,13 @@
     const card = $('#verdictCard'), badge = $('#verdictBadge'), title = $('#verdictTitle'), explain = $('#verdictExplain'), riskFill = $('#riskFill'), lastScanned = $('#lastScanned');
     const domRisks = $('#domainRisks'), conRisks = $('#contentRisks'), linkRisks = $('#linkRisks'), behRisks = $('#behaviorRisks');
     const evChain = $('#evChain'), evConsent = $('#evConsent');
-    const scanner = $('#scanner'), scanUrlEl = $('#scanUrl'), scanSteps = $('#scanSteps'), scanProgress = $('#scanProgress'), scanStatus = $('#scanStatus'), scanEta = $('#scanEta'), scanCancel = $('#scanCancel');
+    const scanner = $('#scanner'), scanUrlEl = $('#scanUrl'), scanSteps = $('#scanSteps'), scanProgress = $('#scanProgress'), scanStatus = $('#scanStatus'), scanCancel = $('#scanCancel');
     const toast = $('#toast');
 
-    function showToast(msg, ms=4500){ toast.style.display='block'; toast.textContent = msg; clearTimeout(showToast._t); showToast._t = setTimeout(()=>toast.style.display='none', ms); }
+    function showToast(msg, ms=3500){
+      toast.style.display='block'; toast.textContent = msg;
+      clearTimeout(showToast._t); showToast._t = setTimeout(()=>toast.style.display='none', ms);
+    }
 
     // keyboard & clicks
     urlInput.addEventListener('keydown', e => { if (e.key === 'Enter') runScan(false); });
@@ -230,35 +233,34 @@
     btnRescan.addEventListener('click', () => runScan(true));
 
     // ---------- scanner UI ----------
-    let aborter = null, tickTimer = null, timeoutTimer = null;
-    const UI_TIMEOUT_MS = 22000; // hard client-side ceiling to prevent infinite spinner
+    let tickTimer = null;
+    let aborter = null;   // AbortController for the active fetch
+    let scanning = false; // prevent overlapping scans
+
     const STEP_LABELS = ['Fetching page','Analyzing content','Checking links','Running behavior checks','Comparing structure','Computing verdict'];
 
     function startScanner(url){
+      scanning = true;
       scanner.classList.add('show');
       scanSteps.innerHTML = '';
       STEP_LABELS.forEach(l => addStep(l));
       setProgress(2);
-      setText(scanStatus,'Scanning in Progress, Please Wait...');
-      setText(scanEta,'~8s');
+      setText(scanStatus,'Scanning In Progress, Please Wait...');
       setText(scanUrlEl,url||'—');
       scanCancel.disabled = false;
 
-      // animate progress up to 85% while waiting
       let pct = 2;
       clearInterval(tickTimer);
-      tickTimer = setInterval(()=>{ pct = Math.min(85, pct + 0.9); setProgress(pct); }, 180);
-
-      // client-side timeout
-      clearTimeout(timeoutTimer);
-      timeoutTimer = setTimeout(()=>{ if (aborter) aborter.abort(); }, UI_TIMEOUT_MS);
+      tickTimer = setInterval(()=>{ pct = Math.min(97, pct + 0.6); setProgress(pct); }, 220);
     }
 
     function stopScanner(){
+      scanning = false;
       scanner.classList.remove('show');
       clearInterval(tickTimer);
-      clearTimeout(timeoutTimer);
+      tickTimer = null;
       aborter = null;
+      scanCancel.disabled = true;
     }
 
     function addStep(label){
@@ -271,16 +273,28 @@
     function markStepDone(i){ const row = scanSteps.children[i]; if (row) row.classList.add('done'); }
     function setProgress(pct){ scanProgress.style.width = Math.max(0, Math.min(100, pct)) + '%'; }
 
+    // Cancel handler — abort the in‑flight request and close overlay
     scanCancel.addEventListener('click', ()=>{
-      if (aborter) try{ aborter.abort(); }catch(e){}
-      scanCancel.disabled = true;
-      setText(scanStatus,'Cancelling…');
+      if (!scanning) return;
+      if (aborter) { try { aborter.abort(); } catch(e){} }
+      showToast('Scan cancelled.');
+      stopScanner();
     });
 
     // ---------- verdict rendering ----------
-    function renderList(el, items){
-      if(!items || !items.length){ el.classList.add('empty'); el.textContent = 'No notable issues.'; return; }
-      el.classList.remove('empty'); el.innerHTML = '<ul class="list">' + items.map(x=>`<li>${escapeHtml(String(x))}</li>`).join('') + '</ul>';
+    function renderList(el, items, verdict){
+      const pill = el.closest('.pill');
+      if(!items || !items.length){
+        if (verdict === 'Legitimate'){
+          el.classList.add('empty'); el.textContent = 'No notable issues.'; pill.style.display='';
+        } else {
+          el.classList.remove('empty'); el.innerHTML = ''; pill.style.display='none';
+        }
+        return;
+      }
+      pill.style.display='';
+      el.classList.remove('empty');
+      el.innerHTML = '<ul class="list">' + items.map(x=>`<li>${escapeHtml(String(x))}</li>`).join('') + '</ul>';
     }
     function escapeHtml(s){ return s.replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
     function setBadge(verdict){ let cls='badge-warn'; if (verdict==='Legitimate') cls='badge-ok'; else if (verdict==='Phishing') cls='badge-bad'; badge.className='verdict-badge '+cls; badge.textContent=verdict; }
@@ -292,12 +306,18 @@
       explain.textContent = p.explanation || '—';
       lastScanned.textContent = 'Last scanned ' + new Date().toLocaleTimeString();
       const pct = Math.round((p.risk || 0) * 100); riskFill.style.width = Math.max(1, Math.min(100, pct)) + '%';
-      renderList(domRisks, p.domain_risks); renderList(conRisks, p.content_risks); renderList(linkRisks, p.link_risks); renderList(behRisks, p.behavior_risks);
-      const chain = (p.behavior && p.behavior.redirect_chain) || []; evChain.textContent = chain.length ? chain.join('  →  ') : '—';
-      const clicks = (p.behavior && p.behavior.clicks || 0); evConsent.textContent = clicks ? (clicks + ' interaction(s)') : '—';
+
+      renderList(domRisks, p.domain_risks, p.verdict);
+      renderList(conRisks, p.content_risks, p.verdict);
+      renderList(linkRisks, p.link_risks, p.verdict);
+      renderList(behRisks, p.behavior_risks, p.verdict);
+
+      const chain = (p.behavior && p.behavior.redirect_chain) || [];
+      evChain.textContent = chain.length ? chain.join('  →  ') : '—';
+      const clicks = (p.behavior && p.behavior.clicks || 0);
+      evConsent.textContent = clicks ? (clicks + ' interaction(s)') : '—';
     }
 
-    // Normalize any API shape into something renderable
     function normalizePayload(data){
       try { if (typeof data === 'string') data = JSON.parse(data); } catch {}
       const p = data && typeof data === 'object' ? data : {};
@@ -306,15 +326,10 @@
       if (!v) {
         const r = (typeof p.risk === 'number') ? p.risk : (typeof p.phishing_score === 'number' ? p.phishing_score/100 : null);
         if (r !== null) v = r >= 0.70 ? 'Phishing' : r <= 0.30 ? 'Legitimate' : 'Suspicious';
-        else if (p.status === 'partial' || p.ok === true) v = 'Suspicious';
+        else if (p.ok === true) v = 'Suspicious';
       }
 
-      let explanation = p.explanation;
-      if (!explanation) {
-        if (p.status === 'partial') explanation = 'Some checks timed out. Showing partial result.';
-        else if (p.ok === false)    explanation = p.message || 'Scan failed.';
-        else                        explanation = 'Result synthesized from available checks.';
-      }
+      let explanation = p.explanation || (p.ok === false ? (p.message || 'Scan failed.') : 'Result synthesized from available checks.');
 
       return {
         ok: (p.ok !== false),
@@ -336,6 +351,7 @@
 
     // ---------- main scan flow ----------
     async function runScan(forceRescan=false){
+      if (scanning) return; // avoid concurrent scans
       const raw = (urlInput.value || '').trim();
       if(!raw) return;
       const isQuick = fastToggle.checked;
@@ -343,9 +359,10 @@
       startScanner(raw);
       aborter = new AbortController();
 
-      // optimistic step advancement (leaves last step for server completion)
+      // optimistic step advancement
       let optimisticIdx = 0;
       const optimistic = setInterval(()=>{
+        if (!scanning) { clearInterval(optimistic); return; }
         if (optimisticIdx < STEP_LABELS.length - 1) markStepDone(optimisticIdx++);
         else clearInterval(optimistic);
       }, 1800);
@@ -366,42 +383,24 @@
           throw new Error(`HTTP ${resp.status}${t ? ' — ' + t : ''}`);
         }
 
-        let data;
-        try { data = await resp.json(); }
-        catch { throw new Error('API returned non-JSON response'); }
+        const data = await resp.json();
 
         // finalize UI steps & progress
         for(let i=optimisticIdx; i<STEP_LABELS.length; i++) markStepDone(i);
         setProgress(100);
         setText(scanStatus,'Done');
 
-        // Normalize & render regardless of exact payload shape
-        console.debug('[checkthaturl] raw payload:', data);
         const normalized = normalizePayload(data);
-
-        if (normalized.status === 'partial') {
-          showToast('Timed out on some external checks. Showing partial result.');
-        }
-        if (normalized.ok === false && !normalized.verdict) {
-          throw new Error(normalized.explanation || 'Scan failed');
-        }
-
         updateVerdictCard(normalized);
         stopScanner();
       } catch (err){
-        console.error('[scan]', err);
-        const msg = (err && err.name === 'AbortError') ? 'Scan cancelled or timed out.' :
-                    (err && err.message) ? String(err.message) : 'Scan failed.';
-
-        // Soft error card so users still see something
-        updateVerdictCard({
-          verdict: 'Suspicious',
-          explanation: msg,
-          risk: 0.5,
-          domain_risks: [], content_risks: [], link_risks: [], behavior_risks: [],
-          behavior: {}
-        });
-        showToast(msg);
+        // If cancelled by user, just notify and exit quietly (no partial verdict)
+        if (err && err.name === 'AbortError'){
+          showToast('Scan cancelled.');
+        } else {
+          console.error('[scan]', err);
+          showToast((err && err.message) ? String(err.message) : 'Scan failed.');
+        }
         stopScanner();
       }
     }
