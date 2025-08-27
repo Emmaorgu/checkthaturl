@@ -1,13 +1,13 @@
 services:
   - type: web
-    name: checkthaturl
+    name: checkthaturl-clean
     env: python
     plan: free
     region: oregon
     buildCommand: |
       python -V
       pip --version
-      # Normalize requirements.txt to UTF-8 (idempotent)
+      # normalize requirements to UTF-8 (idempotent)
       python - <<'PY'
 import pathlib
 p=pathlib.Path("requirements.txt")
@@ -21,23 +21,30 @@ for enc in ("utf-8","utf-8-sig","utf-16","utf-16-le","utf-16-be"):
         pass
 PY
       pip install --no-cache-dir -r requirements.txt
-    startCommand: gunicorn app.app:app -w 2 -k gthread -b 0.0.0.0:$PORT --timeout 180
+    startCommand: gunicorn app.app:app --workers=2 --threads=4 --timeout=180 --bind 0.0.0.0:$PORT
+    healthCheckPath: /
     envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
       - key: CTU_SELF_HOSTED
         value: "0"
-      - key: CTU_BEHAVIOR
+      - key: CTU_BEHAVIOR_MODE        # matches app.py
+        value: "auto"
+      - key: CTU_FETCH_LEGAL
         value: "1"
-      - key: CTU_PLAYWRIGHT
-        value: "0"
-      - key: CTU_PLAYWRIGHT_HEADLESS
-        value: "1"
-      - key: CTU_VISUAL
-        value: "0"
+      - key: CTU_TRUSTED_PSP
+        value: "paypal.com,stripe.com,paystack.com,flutterwave.com,interswitchgroup.com,monnify.com,accounts.google.com,google.com,live.com,microsoftonline.com,apple.com,amazon.com"
+      - key: CTU_TRUSTED_DOMAINS
+        value: ""
+      - key: CTU_CONNECT_TIMEOUT
+        value: "2.0"
+      - key: CTU_READ_TIMEOUT
+        value: "3.0"
+      - key: CTU_REQUEST_BUDGET
+        value: "18.0"
+      - key: CTU_BEHAVIOR_BUDGET
+        value: "6.0"
       - key: CTU_FEEDBACK
         value: "1"
       - key: CTU_FEEDBACK_SALT
         sync: false
-    disks:
-      - name: ctu-data
-        mountPath: /opt/render/project/src/data
-        sizeGB: 1
