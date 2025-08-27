@@ -520,6 +520,25 @@ def legal():
 def faq():
     return render_template("faq.html") if os.path.exists(os.path.join(app.template_folder or "templates", "faq.html")) else ("<h1>FAQ</h1>", 200)
 
+@app.get("/healthz")
+def healthz():
+    return "ok", 200
+
+@app.get("/diag")
+def diag():
+    import platform, sys, pkgutil, json, os
+    from playwright.sync_api import __version__ as pwv
+    info = {
+        "python": sys.version,
+        "platform": platform.platform(),
+        "playwright": pwv,
+        "scan_mode": os.getenv("SCAN_MODE"),
+        "headless": os.getenv("HEADLESS"),
+        "timeout_secs": os.getenv("REQUEST_TIMEOUT_SECS"),
+        "installed": sorted([m.name for m in pkgutil.iter_modules() if m.name in ("playwright","pandas","sklearn","xgboost","bs4","tldextract")])
+    }
+    return json.dumps(info), 200, {"Content-Type":"application/json"}
+
 # ------------------------------------------------------------------------------
 # API
 # ------------------------------------------------------------------------------
@@ -912,6 +931,7 @@ def check_url():
     except Exception as e:
         # Keep message for UI and leave room for frontend fallback group reasons
         return jsonify({"ok": False, "status": "error", "message": f"{type(e).__name__}: {e}"}), 200
+
 
 
 if __name__ == "__main__":
