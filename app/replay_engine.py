@@ -1,10 +1,28 @@
 # app/replay_engine.py
 from __future__ import annotations
-import re, time
+
+"""
+Resilient Playwright-based behavior engine for CheckThatURL.
+
+Key improvements (keeps public fields & logic intact):
+- Safe Chromium flags via CTU_PW_ARGS (defaults included) for container hosts.
+- Stealth hardening to reduce headless/automation fingerprinting.
+- Env-configurable budgets/timeouts (CTU_BEHAVIOR_BUDGET, CTU_CONNECT_TIMEOUT, etc.).
+- More robust redirect & DOM-mutation capture with MutationObserver and size deltas.
+- Cookie/consent auto-click; conservative CTA clicker avoids commerce/payment CTAs.
+- Graceful partial results on time budget exhaustion instead of silent failures.
+"""
+
+import os
+import re
+import time
 from dataclasses import dataclass, asdict
 from typing import List, Dict, Any, Optional
 from urllib.parse import urlparse
 
+# -----------------------------
+# Playwright import (safe)
+# -----------------------------
 try:
     from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
     _PLAYWRIGHT_IMPORT_ERR = None
@@ -14,10 +32,54 @@ except Exception as e:
     _PLAYWRIGHT_IMPORT_ERR = f"{type(e).__name__}: {e}"
 
 # -----------------------------
+# Env / tunables
+# -----------------------------
+def _env_bool(name: str, default: bool = True) -> bool:
+    v = os.getenv(name, str(int(default))).strip().lower()
+    return v not in {"0", "false", "no", ""}
+
+def _env_float(name: str, default: float) -> float:
+    try:
+        return float(os.getenv(name, str(default)))
+    except Exception:
+        return default
+
+# Overall behavior budget (seconds)
+BEHAVIOR_BUDGET = _env_float("CTU_BEHAVIOR_BUDGET", 6.0)
+
+# Default page timeout (ms) for operations inside Playwright
+PAGE_TIMEOUT_MS = int(_env_float("CTU_PAGE_TIMEOUT_MS", 30000))
+
+# Headless flag (Render should be headless=1)
+HEADLESS = _env_bool("HEADLESS", True)
+
+# Safe Chromium flags for containers
+DEFAULT_PW_ARGS = (
+    "--no-sandbox,"
+    "--disable-dev-shm-usage,"
+    "--disable-gpu,"
+    "--disable-setuid-sandbox,"
+    "--single-process,"
+    "--disable-features=IsolateOrigins,site-per-process,"
+    "--disable-blink-features=AutomationControlled"
+)
+PW_ARGS = [a.strip() for a in os.getenv("CTU_PW_ARGS", DEFAULT_PW_ARGS).split(",") if a.strip()]
+
+# Locale / timezone
+TZ = os.getenv("TZ", "Africa/Lagos")
+LOCALE = os.getenv("CTU_LOCALE", "en-GB")
+
+# Browser UA (close to stable Chrome)
+BROWSER_UA = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+)
+
+# -----------------------------
 # Heuristics / keyword patterns
 # -----------------------------
 
-# Removed overly-generic "open" (was causing benign clicks)
+# CTA candidates (keep 'open' out to avoid benign clicks)
 CTA_KEYWORDS = [
     "apply","login","log in","verify","continue","proceed","start","get started","claim",
     "submit","next","update","confirm","access","unlock","activate",
@@ -26,10 +88,10 @@ CTA_KEYWORDS = [
 ]
 CLICK_CANDIDATE_RE = re.compile("|".join(re.escape(k) for k in CTA_KEYWORDS), re.I)
 
-# Explicitly avoid clicking commerce CTAs
+# Explicitly avoid commerce/payment CTAs
 ECOMMERCE_AVOID = [
     "pay","buy","checkout","add to cart","add-to-cart","cart","top up","top-up",
-    "deposit","fund wallet","fund-wallet","transfer","send money","pay now","buy now"
+    "deposit","fund wallet","fund-wallet","transfer","send money","pay now","buy now",
 ]
 AVOID_RE = re.compile("|".join(re.escape(k) for k in ECOMMERCE_AVOID), re.I)
 
@@ -67,6 +129,9 @@ def _registrable_domain(u: str) -> str:
     except Exception:
         return ""
 
+# -----------------------------
+# Result container
+# -----------------------------
 @dataclass
 class BehaviorResult:
     mode: str = "disabled"
@@ -98,6 +163,9 @@ class BehaviorResult:
         d["js_redirects_detected"] = int(d.get("js_redirects_cross_site", 0)) + int(d.get("js_redirects_same_site", 0))
         return d
 
+# -----------------------------
+# Scoring
+# -----------------------------
 def _score_from_signals(
     has_click: bool,
     post_redirects_form: int,
@@ -117,6 +185,9 @@ def _score_from_signals(
     if timer_decreasing: score += 0.18
     return max(0.0, min(1.0, score))
 
+# -----------------------------
+# Init scripts (mutation + stealth)
+# -----------------------------
 def _inject_mutation_observer_script() -> str:
     return """
         (() => {
@@ -133,6 +204,29 @@ def _inject_mutation_observer_script() -> str:
         })();
     """
 
+def _stealth_script() -> str:
+    # Minimal stealth to reduce automation fingerprints
+    return """
+        // webdriver flag
+        Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+        // chrome object
+        window.chrome = { runtime: {} };
+        // languages/plugins
+        Object.defineProperty(navigator, 'languages', { get: () => ['en-US','en'] });
+        Object.defineProperty(navigator, 'plugins', { get: () => [1,2,3,4,5] });
+        // permissions query stub
+        const originalQuery = window.navigator.permissions && window.navigator.permissions.query;
+        if (originalQuery) {
+            window.navigator.permissions.query = (parameters) =>
+              parameters.name === 'notifications'
+                ? Promise.resolve({ state: Notification.permission })
+                : originalQuery(parameters);
+        }
+    """
+
+# -----------------------------
+# Frame helpers
+# -----------------------------
 def _frame_text(frame) -> str:
     try:
         return frame.evaluate("() => (document.body && document.body.innerText) || ''")
@@ -168,7 +262,7 @@ def _scroll_frame(frame, bumps=(800, 1600, 2600, 3600)) -> None:
     for y in bumps:
         try:
             frame.evaluate(f"window.scrollBy(0,{y});")
-            time.sleep(0.35)
+            time.sleep(0.30)
         except Exception:
             break
 
@@ -181,7 +275,7 @@ def _click_consent_if_present(page, events) -> bool:
                 if el and el.count() > 0:
                     el.first.click(timeout=900)
                     events.append(f"consent_click:{w}")
-                    time.sleep(0.3)
+                    time.sleep(0.25)
                     return True
             except Exception:
                 continue
@@ -189,7 +283,7 @@ def _click_consent_if_present(page, events) -> bool:
             try:
                 page.locator(css).first.click(timeout=900)
                 events.append(f"consent_click_css:{css}")
-                time.sleep(0.3)
+                time.sleep(0.25)
                 return True
             except Exception:
                 continue
@@ -213,6 +307,7 @@ def _avoid_ecommerce(text: str) -> bool:
         return False
 
 def _try_clicks(frame, events) -> bool:
+    # Target buttons/links with CTA words but avoid commerce/payment CTAs
     try:
         btns = frame.get_by_role("button")
         n = min(btns.count(), 100)
@@ -323,10 +418,28 @@ def _sample_timer_seconds(page) -> Optional[int]:
         pass
     return min(mins) if mins else None
 
-def simulate(url: str, max_time: float = 16.0) -> Dict[str, Any]:
+# -----------------------------
+# Main entry
+# -----------------------------
+def simulate(url: str, max_time: float | None = None) -> Dict[str, Any]:
+    """
+    Returns dict with keys expected by app.py:
+    - score, events, dom_mutation_score
+    - js_redirects_detected, http_redirects
+    - client_redirects(_same_site/_cross_site), js_redirects_(...)
+    - post_action_redirects_form, post_action_redirects_click
+    - redirect_chain
+    mode: "playwright" or "error"
+    """
     if sync_playwright is None:
         msg = _PLAYWRIGHT_IMPORT_ERR or "playwright not installed"
         return BehaviorResult(mode="error", events=[f"playwright import failed: {msg}"]).to_dict()
+
+    budget = float(max_time) if max_time is not None else BEHAVIOR_BUDGET
+    t_start = time.monotonic()
+
+    def time_left() -> float:
+        return budget - (time.monotonic() - t_start)
 
     events: List[str] = []
     chain: List[str] = []
@@ -342,28 +455,45 @@ def simulate(url: str, max_time: float = 16.0) -> Dict[str, Any]:
     try:
         with sync_playwright() as p:
             browser = p.chromium.launch(
-                headless=True,
-                args=["--disable-gpu","--no-sandbox","--disable-dev-shm-usage"]
+                headless=HEADLESS,
+                args=PW_ARGS
             )
             context = browser.new_context(
                 ignore_https_errors=True,
-                viewport={"width":1366,"height":900},
-                user_agent=("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                            "(KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36")
+                viewport={"width": 1366, "height": 900},
+                user_agent=BROWSER_UA,
+                locale=LOCALE,
+                timezone_id=TZ,
+                extra_http_headers={
+                    "Accept-Language": "en,en-GB;q=0.9,en-NG;q=0.8",
+                    "Upgrade-Insecure-Requests": "1",
+                }
             )
+            # Install scripts
+            context.add_init_script(_stealth_script())
             context.add_init_script(_inject_mutation_observer_script())
             page = context.new_page()
+            page.set_default_timeout(PAGE_TIMEOUT_MS)
+            page.add_init_script(_stealth_script())
             page.add_init_script(_inject_mutation_observer_script())
 
+            # Prevent blocking dialogs
+            try:
+                page.on("dialog", lambda d: d.dismiss())
+            except Exception:
+                pass
+
+            # HTTP redirect detector
             def on_response(resp):
                 nonlocal http_redirs
                 try:
-                    if resp.status in (301,302,303,307,308):
+                    if resp.status in (301, 302, 303, 307, 308):
                         http_redirs += 1
                 except Exception:
                     pass
             context.on("response", on_response)
 
+            # Client-side navigation tracker
             main_nav_seen = False
             def on_framenav(frame):
                 nonlocal client_cross, client_same, main_nav_seen
@@ -374,7 +504,7 @@ def simulate(url: str, max_time: float = 16.0) -> Dict[str, Any]:
                             main_nav_seen = True
                             if curr:
                                 chain.clear()
-                                chain.append(curr)  # seed chain, don't count as redirect
+                                chain.append(curr)  # seed chain (not a redirect)
                             return
                         prev = chain[-1] if chain else ""
                         if curr and curr != prev:
@@ -389,10 +519,12 @@ def simulate(url: str, max_time: float = 16.0) -> Dict[str, Any]:
                     pass
             page.on("framenavigated", on_framenav)
 
-            page.set_default_timeout(10000)
+            # Navigate
             page.goto(url, wait_until="domcontentloaded")
-            try: page.wait_for_load_state("networkidle", timeout=4000)
-            except Exception: pass
+            try:
+                page.wait_for_load_state("networkidle", timeout=4000)
+            except Exception:
+                pass
 
             if not chain:
                 chain.append(page.url)
@@ -401,16 +533,21 @@ def simulate(url: str, max_time: float = 16.0) -> Dict[str, Any]:
 
             _click_consent_if_present(page, events)
 
+            # Early DOM size samples
             for _ in range(2):
-                time.sleep(0.7)
+                if time_left() <= 0: break
+                time.sleep(0.6)
                 try: dom_sizes.append(len(page.content()))
                 except Exception: dom_sizes.append(0)
 
+            # Scroll to trigger lazy JS
             for f in [page.main_frame] + [f for f in page.frames if f != page.main_frame]:
                 _scroll_frame(f)
 
+            # Timer hint detection (text + common selectors)
             try:
                 for f in page.frames:
+                    if time_left() <= 0: break
                     txt = _frame_text(f)
                     if TIMER_HINT_RE.search(txt) or MMSS_RE.search(txt) or MINSEC_RE.search(txt) or PLAIN_SECS_RE.search(txt):
                         timer_found = True; break
@@ -422,11 +559,12 @@ def simulate(url: str, max_time: float = 16.0) -> Dict[str, Any]:
             except Exception:
                 pass
 
-            # Try clicks/forms (only FORM redirects will affect behavior score)
+            # Try clicks/forms (form redirects influence score more)
             for f in [page.main_frame] + [f for f in page.frames if f != page.main_frame]:
+                if time_left() <= 0: break
                 if _try_clicks(f, events):
                     clicked = True
-                    time.sleep(1.0)
+                    time.sleep(0.9)
                     if chain and page.url != chain[-1]:
                         prev, curr = chain[-1], page.url
                         post_redirs_click += 1
@@ -434,7 +572,7 @@ def simulate(url: str, max_time: float = 16.0) -> Dict[str, Any]:
                         chain.append(curr)
                         break
                 if _try_form_submit(f, events):
-                    time.sleep(1.0)
+                    time.sleep(0.9)
                     if chain and page.url != chain[-1]:
                         prev, curr = chain[-1], page.url
                         post_redirs_form += 1
@@ -442,9 +580,11 @@ def simulate(url: str, max_time: float = 16.0) -> Dict[str, Any]:
                         chain.append(curr)
                         break
 
+            # Observe ongoing JS navigations + DOM growth
             last_url = chain[-1] if chain else page.url
             for _ in range(5):
-                time.sleep(0.9)
+                if time_left() <= 0: break
+                time.sleep(0.8)
                 try: dom_sizes.append(len(page.content()))
                 except Exception: dom_sizes.append(0)
                 if page.url != last_url:
@@ -458,13 +598,15 @@ def simulate(url: str, max_time: float = 16.0) -> Dict[str, Any]:
                     chain.append(curr)
                     last_url = curr
 
-            t0 = _sample_timer_seconds(page); time.sleep(1.2)
-            t1 = _sample_timer_seconds(page); time.sleep(1.2)
+            # Decreasing timer sampler
+            t0 = _sample_timer_seconds(page); time.sleep(1.0)
+            t1 = _sample_timer_seconds(page); time.sleep(1.0)
             t2 = _sample_timer_seconds(page)
             samples = [t for t in (t0, t1, t2) if t is not None]
             if len(samples) >= 2 and min(samples[1:]) < samples[0]:
                 timer_decreasing = True; events.append("timer_decreasing_confirmed")
 
+            # Build DOM mutation score (observer + size variation)
             html_span = (max(dom_sizes) - min(dom_sizes)) if dom_sizes else 0
             baseline = max(5000, min(dom_sizes) if dom_sizes else 5000)
             size_component = min(1.0, html_span / max(5000, baseline))
@@ -473,6 +615,7 @@ def simulate(url: str, max_time: float = 16.0) -> Dict[str, Any]:
             obs_component = 1.0 - pow(0.998, max(0, obs_total))
             dom_mutation = max(size_component, obs_component)
 
+            # Deduplicate redirect chain
             cleaned: List[str] = []
             for u in chain:
                 if not cleaned or cleaned[-1] != u:
@@ -510,4 +653,5 @@ def simulate(url: str, max_time: float = 16.0) -> Dict[str, Any]:
     except Exception as e:
         events.append(f"error:{type(e).__name__}:{e}")
 
+    # On error, return a structured payload (mode=error) so app.py can still blend safely.
     return BehaviorResult(mode="error", score=0.0, events=events).to_dict()
