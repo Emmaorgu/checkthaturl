@@ -51,10 +51,39 @@ else:
     except Exception:
         feedback_bp = None
 
+
+BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+
+# Prefer ./app/templates if it exists (your layout), otherwise fallback to ./templates
+CANDIDATE_TEMPLATES = [
+    os.path.join(BASE_DIR, "templates"),
+    os.path.join(BASE_DIR, "app", "templates"),
+    os.path.join(os.path.dirname(BASE_DIR), "app", "templates"),
+]
+for p in CANDIDATE_TEMPLATES:
+    if os.path.exists(os.path.join(p, "index.html")):
+        TEMPLATE_DIR = p
+        break
+else:
+    TEMPLATE_DIR = CANDIDATE_TEMPLATES[0]
+
+# Static directory detection
+CANDIDATE_STATIC = [
+    os.path.join(BASE_DIR, "static"),
+    os.path.join(BASE_DIR, "app", "static"),
+    os.path.join(os.path.dirname(BASE_DIR), "app", "static"),
+]
+for p in CANDIDATE_STATIC:
+    if os.path.exists(p):
+        STATIC_DIR = p
+        break
+else:
+    STATIC_DIR = CANDIDATE_STATIC[0]
+
 # ------------------------------------------------------------------------------
 # Flask
 # ------------------------------------------------------------------------------
-app = Flask(__name__, template_folder="templates", static_folder="static")
+app = Flask(__name__, template_folder=TEMPLATE_DIR, static_folder=STATIC_DIR)
 CORS(app)
 if feedback_bp:
     app.register_blueprint(feedback_bp)
@@ -486,6 +515,10 @@ def privacy():
 @app.route("/legal")
 def legal():
     return render_template("legal.html") if os.path.exists(os.path.join(app.template_folder or "templates", "legal.html")) else ("<h1>Legal</h1>", 200)
+
+@app.route("/faq")
+def faq():
+    return render_template("faq.html") if os.path.exists(os.path.join(app.template_folder or "templates", "faq.html")) else ("<h1>FAQ</h1>", 200)
 
 # ------------------------------------------------------------------------------
 # API
