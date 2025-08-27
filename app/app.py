@@ -932,6 +932,62 @@ def check_url():
         # Keep message for UI and leave room for frontend fallback group reasons
         return jsonify({"ok": False, "status": "error", "message": f"{type(e).__name__}: {e}"}), 200
 
+# --- Hard self-tests to verify Playwright/behavior in PROD ---
+
+@app.get("/selftest/playwright")
+def selftest_playwright():
+    """
+    Launch Chromium with safe flags and load a simple page.
+    If this fails in Render, your behavior engine can't run.
+    """
+    try:
+        from playwright.sync_api import sync_playwright
+        t0 = time.monotonic()
+        with sync_playwright() as pw:
+            browser = pw.chromium.launch(
+                headless=True,
+                args=[
+                    "--no-sandbox",
+                    "--disable-dev-shm-usage",
+                    "--disable-gpu",
+                    "--disable-setuid-sandbox",
+                    "--disable-web-security",
+                    "--no-first-run",
+                    "--no-zygote",
+                    "--single-process",
+                ],
+            )
+            ctx = browser.new_context(ignore_https_errors=True, user_agent=BROWSER_UA, locale="en-GB")
+            page = ctx.new_page()
+            page.set_default_timeout(30000)
+            page.goto("https://example.com", wait_until="load")
+            title = page.title()
+            final_url = page.url
+            browser.close()
+        return jsonify({
+            "ok": True,
+            "elapsed_ms": int((time.monotonic()-t0)*1000),
+            "title": title,
+            "final_url": final_url,
+            "note": "If ok==True here, Chromium can launch in prod."
+        }), 200
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"{type(e).__name__}: {e}"}), 200
+
+
+@app.get("/selftest/behavior")
+def selftest_behavior():
+    """
+    Run your simulate_behavior() on a known redirect; report what it saw.
+    """
+    try:
+        t0 = time.monotonic()
+        test_url = "https://httpbin.org/redirect-to?url=https://example.com"
+        b = simulate_behavior(test_url)  # uses your replay_engine
+        b["elapsed_ms"] = int((time.monotonic()-t0)*1000)
+        return jsonify({"ok": True, "behavior": b}), 200
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"{type(e).__name__}: {e}"}), 200
 
 
 if __name__ == "__main__":

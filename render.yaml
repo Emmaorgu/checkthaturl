@@ -24,3 +24,9 @@ services:
         sync: false
       - key: VIRUSTOTAL_API_KEY
         sync: false
+
+CTU_PW_ARGS: --no-sandbox,--disable-dev-shm-usage,--disable-gpu,--disable-setuid-sandbox,--single-process
+CTU_BEHAVIOR_BUDGET: 8.0
+CTU_REQUEST_BUDGET: 22.0
+CTU_CONNECT_TIMEOUT: 3.0
+CTU_READ_TIMEOUT: 5.0
