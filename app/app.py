@@ -602,10 +602,13 @@ def check_url():
                 "content_risks": [], "link_risks": [], "behavior_risks": []
             }
             if ui_flag == "redacted": resp = redact_ui_payload(resp)
+            app.logger.info("SCAN status=unreachable reason=dns label=%s url=%s", pre.get("label"), url)
             return jsonify(resp), 200
 
         # ---------- Fetch page (fast-fail, http fallback) ----------
         html_content = ""
+        fetch_error = None
+
         if _is_our_domain(url):
             try:
                 with open(LOCAL_TEMPLATE_INDEX, "r", encoding="utf-8") as f:
@@ -620,31 +623,78 @@ def check_url():
             "Connection": "keep-alive",
         }
 
+        def _try_get(u, c_to, r_to, ua=None):
+            try:
+                h = dict(headers)
+                if ua: h["User-Agent"] = ua
+                return _safe_req("GET", u, timeout=(c_to, r_to), allow_redirects=True, headers=h)
+            except Exception as e:
+                return None
+
         if not html_content:
-            if time_left() <= 0:
-                resp = out_partial({
-                    "url": url, "verdict": "Suspicious", "risk": 0.4, "confidence": 40.0,
-                    "explanation": "Timed out fetching page.",
-                    "behavior_risks": ["⏱ Timed out fetching page; live checks incomplete."],
-                    "domain_risks": [], "content_risks": [], "link_risks": []
-                })
-                if ui_flag == "redacted": resp = redact_ui_payload(resp)
-                return jsonify(resp), 200
-            r = _safe_req("GET", url, timeout=(CONNECT_TIMEOUT, READ_TIMEOUT), allow_redirects=True, headers=headers)
+            # 1st attempt (current small timeouts)
+            r = _try_get(url, CONNECT_TIMEOUT, READ_TIMEOUT)
+
+            # Retry with longer timeouts if first attempt failed
+            if not r and time_left() > 0.5:
+                r = _try_get(url, max(6.0, CONNECT_TIMEOUT), max(8.0, READ_TIMEOUT),
+                             ua=BROWSER_UA.replace("Chrome/124.0", "Chrome/122.0"))
+
+            # Fallback to http:// if https failed to connect at all
             if not r and url.startswith("https://"):
-                r = _safe_req("GET", to_http(url), timeout=(CONNECT_TIMEOUT, READ_TIMEOUT), allow_redirects=True, headers=headers)
-            if not r:
+                r = _try_get(to_http(url), max(6.0, CONNECT_TIMEOUT), max(8.0, READ_TIMEOUT))
+
+            # If still nothing, try a lightweight Playwright rescue (short budget)
+            if not r and time_left() > 3.0:
+                try:
+                    from playwright.sync_api import sync_playwright
+                    with sync_playwright() as p:
+                        browser = p.chromium.launch(headless=True, args=[
+                            "--no-sandbox", "--disable-dev-shm-usage", "--disable-blink-features=AutomationControlled"
+                        ])
+                        ctx = browser.new_context(user_agent=BROWSER_UA, ignore_https_errors=True)
+                        page = ctx.new_page()
+                        page.goto(url, timeout=int(min(15000, max(3000, time_left() * 1000))))
+                        html_content = page.content()
+                        url = page.url
+                        ctx.close();
+                        browser.close()
+                except Exception as e:
+                    fetch_error = f"playwright:{type(e).__name__}"
+
+            if r:
+                html_content = r.text or ""
+                url = r.url
+
+            # If we reached the server but got non-2xx or empty body, don’t call it unreachable—return partial with reasons
+            if (r and (r.status_code >= 400 or not (html_content or "").strip())) and not html_content:
                 resp = {
-                    "ok": True, "status": "ok", "url": url, "verdict": "Unreachable", "risk": 0.0, "confidence": 0.0,
-                    "explanation": "We couldn’t reach this site.",
-                    "diagnostic": {"label": "connect_error"},
-                    "domain_risks": ["🔌 Connection error — could not fetch content for analysis."],
+                    "ok": True, "status": "partial", "url": url, "verdict": "Suspicious",
+                    "risk": 0.4, "confidence": 40.0,
+                    "explanation": "Fetched the site but response was not OK (non-2xx or empty).",
+                    "domain_risks": [f"HTTP {r.status_code} while fetching."],
+                    "content_risks": [], "link_risks": [],
+                    "behavior_risks": ["⏱ Live checks limited due to response quality."]
+                }
+                if ui_flag == "redacted": resp = redact_ui_payload(resp)
+                app.logger.info("SCAN status=partial reason=http_%s url=%s", r.status_code, url)
+                return jsonify(resp), 200
+
+            # Total failure → label as partial instead of unreachable, with a clear diagnostic
+            if not (html_content or "").strip():
+                diag_label = "connect_error"
+                if fetch_error: diag_label = fetch_error
+                resp = {
+                    "ok": True, "status": "partial", "url": url, "verdict": "Suspicious",
+                    "risk": 0.35, "confidence": 35.0,
+                    "explanation": "Network fetch was unreliable; returning partial checks instead of Unreachable.",
+                    "diagnostic": {"label": diag_label},
+                    "domain_risks": ["🔌 Fetch instability — could not reliably retrieve content within budget."],
                     "content_risks": [], "link_risks": [], "behavior_risks": []
                 }
                 if ui_flag == "redacted": resp = redact_ui_payload(resp)
+                app.logger.info("SCAN status=partial reason=%s url=%s", diag_label, url)
                 return jsonify(resp), 200
-            html_content = r.text or ""
-            url = r.url
 
         # ---------- Feature extraction ----------
         features = extract_features(url, html_content)
@@ -926,10 +976,22 @@ def check_url():
         if ui_flag == "redacted":
             resp = redact_ui_payload(resp)
 
+        # ---------- Observability: single structured log line ----------
+        app.logger.info(
+            "SCAN verdict=%s risk=%.3f conf=%.1f http=%s struct=%s beh=%.2f psp_neutral=%s legal=%s url=%s",
+            resp.get("verdict"), resp.get("risk"), resp.get("confidence"),
+            resp.get("behavior", {}).get("http_status", None),
+            resp.get("structure", {}).get("template", None),
+            float(behavior_score),
+            bool(psp_neutral), bool(legal_ok),
+            resp.get("url"),
+        )
+
         return jsonify(resp), 200
 
     except Exception as e:
         # Keep message for UI and leave room for frontend fallback group reasons
+        app.logger.exception("SCAN fatal error: %s", e)
         return jsonify({"ok": False, "status": "error", "message": f"{type(e).__name__}: {e}"}), 200
 
 # --- Hard self-tests to verify Playwright/behavior in PROD ---
