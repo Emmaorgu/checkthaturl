@@ -4,31 +4,15 @@ services:
     env: python
     plan: free
     region: oregon
-    buildCommand: |
-      python -V
-      pip --version
-      # normalize requirements to UTF-8 (idempotent)
-      python - <<'PY'
-import pathlib
-p=pathlib.Path("requirements.txt")
-b=p.read_bytes()
-for enc in ("utf-8","utf-8-sig","utf-16","utf-16-le","utf-16-be"):
-    try:
-        t=b.decode(enc)
-        p.write_text(t, encoding="utf-8")
-        break
-    except Exception:
-        pass
-PY
-      pip install --no-cache-dir -r requirements.txt
-    startCommand: gunicorn app.app:app --workers=2 --threads=4 --timeout=180 --bind 0.0.0.0:$PORT
+    buildCommand: pip install --no-cache-dir -r requirements.txt
+    startCommand: gunicorn app.app:app -w 2 -k gthread --threads 4 --timeout 180 --bind 0.0.0.0:$PORT
     healthCheckPath: /
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.9
       - key: CTU_SELF_HOSTED
         value: "0"
-      - key: CTU_BEHAVIOR_MODE        # matches app.py
+      - key: CTU_BEHAVIOR_MODE
         value: "auto"
       - key: CTU_FETCH_LEGAL
         value: "1"
