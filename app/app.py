@@ -255,6 +255,26 @@ def dns_preflight(u: str) -> dict:
     except Exception:
         return {"ok": False, "label": "DNS error"}
 
+# --------------------------- WAF detector (Fix 1) --------------
+def _is_waf_block(r) -> str | None:
+    """
+    Return a string key for a known WAF if the response indicates an anti-bot block.
+    Currently detects Cloudflare via status + headers.
+    """
+    try:
+        if not r:
+            return None
+        code = getattr(r, "status_code", None)
+        headers = {k.lower(): v for k, v in (getattr(r, "headers", {}) or {}).items()}
+        server = (headers.get("server") or "").lower()
+        cf_ray = headers.get("cf-ray")
+        cf_mitigated = (headers.get("cf-mitigated") or "").lower()
+        if code in (403, 503) and ("cloudflare" in server or cf_ray or "challenge" in cf_mitigated):
+            return "cloudflare"
+        return None
+    except Exception:
+        return None
+
 # --------------------------- Legal probe (with time budget) ---
 ANCHOR_RE = re.compile(r"<a\b[^>]*href=[\'\"]([^\'\"#]+)[\'\"][^>]*>(.*?)</a>", re.I | re.S)
 
@@ -657,10 +677,33 @@ def check_url():
                         page.goto(url, timeout=int(min(15000, max(3000, time_left() * 1000))))
                         html_content = page.content()
                         url = page.url
-                        ctx.close();
-                        browser.close()
+                        ctx.close(); browser.close()
                 except Exception as e:
                     fetch_error = f"playwright:{type(e).__name__}"
+
+            # --- Fix 1: WAF detection (Cloudflare) ------------------
+            if r:
+                waf = _is_waf_block(r)
+                if waf == "cloudflare":
+                    resp = {
+                        "ok": True,
+                        "status": "partial",
+                        "url": getattr(r, "url", url),
+                        "verdict": "Suspicious",  # keep category, but clarify it's an access block
+                        "risk": 0.30,
+                        "confidence": 30.0,
+                        "explanation": "Site is protected by Cloudflare (anti-bot) and blocked automated access from our server. Content couldn’t be fetched for full analysis.",
+                        "domain_risks": ["🚧 WAF/anti-bot protection (Cloudflare) blocked content retrieval from datacenter IP."],
+                        "content_risks": [],
+                        "link_risks": [],
+                        "behavior_risks": []
+                    }
+                    if ui_flag == "redacted":
+                        resp = redact_ui_payload(resp)
+                    app.logger.info("SCAN status=partial reason=cloudflare_block http=%s url=%s",
+                                    r.status_code, getattr(r, "url", url))
+                    return jsonify(resp), 200
+            # --------------------------------------------------------
 
             if r:
                 html_content = r.text or ""
