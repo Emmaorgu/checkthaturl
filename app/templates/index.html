@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>CheckThatURL — Scan any link. Instant verdicts. Clear reasons.</title>
-  <meta name="description" content="CheckThatURL is an enterprise-ready phishing and malicious link detection platform with explainable results, SIEM integrations, API, email scanner, and browser extensions." />
+  <title>CheckThatURL — The Behavior-First Link Defense Platform</title>
+  <meta name="description" content="CheckThatURL is a behavior-first, explainable, privacy-by-design link defense platform. Inspect domain, content, links and live behavior — with analyst-ready reasons and SOC integrations." />
   <meta name="color-scheme" content="dark light" />
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
   <link rel="alternate icon" href="/static/favicon.ico" sizes="any">
@@ -16,8 +16,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 
   <!-- Open Graph -->
-  <meta property="og:title" content="CheckThatURL — Enterprise-grade phishing detection" />
-  <meta property="og:description" content="Scan links with AI. Get instant verdicts, clear reasons, and enterprise integrations (SIEM, API, email scanner, browser extensions)." />
+  <meta property="og:title" content="CheckThatURL — The Behavior-First Link Defense Platform" />
+  <meta property="og:description" content="Not just a scanner. Behavior-first inspection, explainable verdicts, and SOC-ready integration." />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://www.checkthaturl.com" />
   <meta property="og:image" content="/static/og-card.png" />
@@ -97,7 +97,6 @@
     @media (max-width:980px){
       .nav{display:none}
       .mobile-nav-btn{display:inline-flex}
-      /* Keep only Menu on mobile header (Docs/Sign-in live in drawer) */
       .hdr-cta .btn.ghost,
       .hdr-cta .btn.secondary{display:none !important}
       .hdr-in{gap:10px; padding-right:14px}
@@ -158,7 +157,7 @@
     .quick{display:flex;align-items:center;gap:8px;color:#b8c9e6;font-size:13px;margin-left:auto}
     .hint{color:#9fb0c7;font-size:13px}
 
-    /* ===== Mobile: make URL input full-width row, actions stacked below ===== */
+    /* ===== Mobile: full-row input, actions below ===== */
     @media (max-width:780px){
       .search{
         display:grid;
@@ -222,7 +221,7 @@
       box-shadow:inset 0 1px 0 rgba(0,0,0,.22), inset 0 -1px 0 rgba(0,0,0,.24)}
     .band .section-wrap{padding-top:28px;padding-bottom:28px}
 
-    /* ===== Spark Capsules (Stats, Features, Compliance) ===== */
+    /* ===== Spark Capsules & Cards ===== */
     .spark{position:relative;border-radius:22px;padding:18px;border:1px solid rgba(255,255,255,.06);
       background:
         radial-gradient(120% 180% at 10% -20%, rgba(0,224,230,.18), transparent 50%),
@@ -279,6 +278,35 @@
     .brand{font-weight:800;letter-spacing:.1px;color:#fff}
     .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 
+    /* ===== New: Platform Differentiation & Compare ===== */
+    .why-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+    @media (max-width:1080px){.why-grid{grid-template-columns:repeat(2,1fr)}}
+    @media (max-width:700px){.why-grid{grid-template-columns:1fr}}
+    .why-card{border:1px solid rgba(255,255,255,.06);border-radius:22px;padding:18px;background:
+      radial-gradient(160% 140% at 0% -10%, rgba(0,224,230,.18), transparent 60%),
+      radial-gradient(120% 160% at 120% 120%, rgba(30,144,255,.20), transparent 60%),
+      linear-gradient(180deg, rgba(14,44,112,.95), rgba(12,36,96,.92));box-shadow:var(--shadow-md);position:relative;overflow:hidden}
+    .why-card:before{content:""; position:absolute; inset:0; background:var(--gloss); pointer-events:none}
+
+    .split{display:grid;grid-template-columns:1.1fr .9fr;gap:16px}
+    @media (max-width:980px){.split{grid-template-columns:1fr}}
+
+    .compare{border:1px solid rgba(255,255,255,.06);border-radius:22px;padding:18px;background:
+      linear-gradient(180deg, rgba(16,46,110,.95), rgba(14,40,95,.9)); box-shadow:var(--shadow-md)}
+    .compare h4{margin:0 0 8px;color:#fff}
+    .checklist{list-style:none;margin:10px 0 0;padding:0}
+    .checklist li{display:flex;gap:10px;align-items:flex-start;margin:8px 0;color:#cfe1ff}
+    .check{width:16px;height:16px;border-radius:4px;background:var(--ok);display:inline-block;margin-top:3px}
+    .warn{width:16px;height:16px;border-radius:50%;background:transparent;border:2px solid #ff8a8d;display:inline-block;margin-top:3px}
+
+    /* ===== Under the Hood (pipeline) ===== */
+    .pipe{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+    @media (max-width:980px){.pipe{grid-template-columns:1fr;gap:10px}}
+    .step{position:relative;border:1px solid var(--border);border-radius:16px;padding:14px;background:
+      linear-gradient(180deg, rgba(20,54,132,.85), rgba(16,42,104,.72)), var(--gloss);box-shadow:var(--shadow-sm)}
+    .step .h{font-weight:800;color:#fff;margin:0 0 6px}
+    .step .d{color:#c6daf9;margin:0}
+
     /* ===== Scanner Overlay ===== */
     .scanner{position:fixed;inset:0;display:none;align-items:center;justify-content:center;
       background:radial-gradient(900px 400px at 50% -10%,rgba(30,144,255,.28),transparent 55%),rgba(5,8,14,.55);
@@ -320,7 +348,7 @@
       .hero-in{padding:52px 18px 24px}
       .grid{gap:18px}
       .grid-frame{padding:16px}
-      .spark,.fcard,.comp,.stat,.card,.hero-card{border-radius:18px}
+      .spark,.fcard,.comp,.stat,.card,.hero-card,.why-card,.compare{border-radius:18px}
       .eyebrow{transform:translateY(-2px)}
     }
     @media (max-width:560px){
@@ -329,7 +357,7 @@
       .hero-ctas .btn, .cta-actions .btn{flex:1 1 100%; width:100%}
       .i-badge{padding:10px 12px}
       .feature-grid,.comp-grid,.stat-grid{gap:12px}
-      .spark,.fcard,.comp,.stat,.card,.hero-card{padding:14px}
+      .spark,.fcard,.comp,.stat,.card,.hero-card,.why-card,.compare{padding:14px}
       .top-privacy{align-items:flex-start}
       .gridlines{opacity:.25}
       .glow-rings{opacity:.35}
@@ -370,6 +398,7 @@
         <a class="name" href="/" aria-label="Go to CheckThatURL home">CheckThatURL</a>
       </div>
       <nav class="nav" aria-label="Primary">
+        <a href="#why">Why CheckThatURL</a>
         <a href="#capabilities">Capabilities</a>
         <a href="#integrations">Integrations</a>
         <a href="#compliance">Compliance</a>
@@ -385,6 +414,7 @@
   </header>
   <aside id="mobileDrawer" class="mobile-drawer" aria-hidden="true">
     <nav>
+      <a href="#why" onclick="closeDrawer()">Why CheckThatURL</a>
       <a href="#capabilities" onclick="closeDrawer()">Capabilities</a>
       <a href="#integrations" onclick="closeDrawer()">Integrations</a>
       <a href="#compliance" onclick="closeDrawer()">Compliance</a>
@@ -400,8 +430,8 @@
     <div class="hero-in">
       <div class="hero">
         <span class="eyebrow">Enterprise phishing defense</span>
-        <h1>Stop risky clicks with <span class="accent">instant, explainable</span> verdicts.</h1>
-        <p class="sub">Industry-grade link inspection across domain, content, links, and live behavior — with reasons your security team can audit.</p>
+        <h1>Not just a scanner — a <span class="accent">behavior-first</span> link defense platform.</h1>
+        <p class="sub">Inspect domain, content, links and live behavior. Get instant, explainable verdicts your SOC can trust and audit.</p>
         <div class="hero-ctas">
           <a class="btn" href="#scanner-anchor" onclick="document.getElementById('url').focus()">Start scanning</a>
           <a class="btn secondary" href="/contact">Talk to Sales</a>
@@ -409,20 +439,20 @@
         <div class="trust-row" role="list">
           <span class="trust-chip" role="listitem">✅ No URL storage by default</span>
           <span class="trust-chip" role="listitem">🧪 Headless browser behavior checks</span>
-          <span class="trust-chip" role="listitem">🔎 LLM-assisted explanations</span>
+          <span class="trust-chip" role="listitem">🔎 Explainable reasons, grouped</span>
           <span class="trust-chip" role="listitem">🔗 Redirect & consent capture</span>
         </div>
       </div>
 
       <!-- Right explainer -->
       <div class="hero-card">
-        <h3 style="margin:0 0 6px;color:#fff">Built for Security Teams</h3>
-        <p style="margin:0 0 10px;color:var(--muted)">Deploy everywhere: API, browser extension, and email scanner. Pipe outcomes into your SIEM to investigate at speed.</p>
+        <h3 style="margin:0 0 6px;color:#fff">The new standard for link defense</h3>
+        <p style="margin:0 0 10px;color:var(--muted)">Blocklists alone miss dynamic threats. CheckThatURL simulates real user behavior to surface zero-day techniques and explains exactly why a link is risky.</p>
         <div class="badge-row" style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
-          <span class="i-badge">REST API</span>
-          <span class="i-badge">Browser Extension</span>
-          <span class="i-badge">Email Scanner</span>
-          <span class="i-badge">SIEM/SOC</span>
+          <span class="i-badge">Behavior-first</span>
+          <span class="i-badge">Explainable AI</span>
+          <span class="i-badge">Privacy by design</span>
+          <span class="i-badge">SIEM/SOC ready</span>
         </div>
       </div>
     </div>
@@ -511,24 +541,92 @@
     </div>
   </div>
 
-  <!-- ===== Enterprise sections ===== -->
-  <section class="band">
+  <!-- ===== Why CheckThatURL: Platform framing ===== -->
+  <section class="band" id="why" aria-labelledby="why-title">
     <div class="section-wrap">
-      <div class="trustbar" aria-labelledby="capabilities" style="color:#caddff">
-        <h2 id="capabilities" style="position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden">Capabilities</h2>
-        <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center">
-          <span class="i-badge">SIEM-ready outcomes</span>
-          <span class="i-badge">Headless browser engine</span>
-          <span class="i-badge">Explainable AI</span>
-          <span class="i-badge">Ephemeral scans</span>
+      <h3 id="why-title" class="section-title">Why CheckThatURL — built as a platform, not a point tool</h3>
+      <div class="why-grid">
+        <div class="why-card">
+          <h4>Behavior-first detection</h4>
+          <p>We don’t just “look up” a URL. We <strong>simulate user behavior</strong> in a headless browser to surface dynamic threats (redirect mazes, timers, popups, consent traps).</p>
+        </div>
+        <div class="why-card">
+          <h4>Explainable by design</h4>
+          <p>Verdicts are grouped across domain, content, links, and behavior so <strong>analysts can audit</strong> the “why” — not just accept a score.</p>
+        </div>
+        <div class="why-card">
+          <h4>Privacy without compromise</h4>
+          <p><strong>Zero URL storage</strong> by default, in-memory processing, and a self-hostable mode. Optional intel connectors can be enabled per tenant.</p>
+        </div>
+        <div class="why-card">
+          <h4>Hybrid signal fusion</h4>
+          <p>Heuristics + ML + LLM-assisted rationale combine with live sandbox signals to reduce noise and capture <strong>zero-day</strong> techniques.</p>
+        </div>
+        <div class="why-card">
+          <h4>SOC-ready outcomes</h4>
+          <p>Forward outcomes and evidence to your SIEM. Export redirect chains, consent clicks, and grouped reasons to case files.</p>
+        </div>
+        <div class="why-card">
+          <h4>Built for change</h4>
+          <p>Evaluation, drift checks, and safe defaults help maintain quality as attacker patterns evolve — with clear controls for enterprises.</p>
         </div>
       </div>
     </div>
   </section>
 
+  <!-- ===== Compare: Not just a scanner ===== -->
+  <section>
+    <div class="section-wrap split">
+      <div class="compare">
+        <h4>What simple “checkers” typically do</h4>
+        <ul class="checklist">
+          <li><span class="warn"></span> Rely mainly on blocklists / static reputation.</li>
+          <li><span class="warn"></span> Limited or no browser behavior simulation.</li>
+          <li><span class="warn"></span> Opaque scores without analyst-friendly reasons.</li>
+          <li><span class="warn"></span> Privacy trade-offs and heavy data retention.</li>
+        </ul>
+      </div>
+      <div class="compare spark">
+        <h4>What CheckThatURL does differently</h4>
+        <ul class="checklist">
+          <li><span class="check"></span> <strong>Behavior-first</strong> inspection with redirect, timer, popup, and consent capture.</li>
+          <li><span class="check"></span> <strong>Explainable</strong> verdicts grouped by signal class.</li>
+          <li><span class="check"></span> <strong>Zero-retention</strong> default with self-hosted option.</li>
+          <li><span class="check"></span> <strong>SIEM-ready</strong> outcomes and exportable evidence.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Under the Hood ===== -->
+  <section class="band" aria-labelledby="hood-title">
+    <div class="section-wrap">
+      <h3 id="hood-title" class="section-title">Under the hood — how a verdict is produced</h3>
+      <div class="pipe">
+        <div class="step">
+          <p class="h">1) Signal Collection</p>
+          <p class="d">Domain features, page content, link graph, and live behavior signals are collected. Optional intel connectors can be enabled per tenant.</p>
+        </div>
+        <div class="step">
+          <p class="h">2) Behavioral Simulation</p>
+          <p class="d">Headless browser follows redirects, detects timers/popups, and records consent clicks to surface dynamic threats.</p>
+        </div>
+        <div class="step">
+          <p class="h">3) Hybrid Fusion</p>
+          <p class="d">Heuristics + ML models + LLM-assisted rationale combine to reduce false noise and highlight attacker intent.</p>
+        </div>
+        <div class="step">
+          <p class="h">4) Explainable Output</p>
+          <p class="d">Verdict + grouped reasons + evidence, ready for analyst review and SIEM forwarding.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Existing capabilities grid (preserved) ===== -->
   <section>
     <div class="section-wrap">
-      <h3 class="section-title">Product Capabilities</h3>
+      <h3 id="capabilities" class="section-title">Product Capabilities</h3>
       <div class="feature-grid">
         <div class="fcard spark">
           <h4>Behavioral Simulation</h4>
@@ -569,9 +667,9 @@
     </div>
   </section>
 
-  <section aria-labelledby="compliance-title">
+  <section aria-labelledby="compliance-title" id="compliance">
     <div class="section-wrap">
-      <h3 id="compliance-title" class="section-title">Compliance & Trust</h3>
+      <h3 id="compliance-title" class="section-title">Assurance & Reliability</h3>
       <div class="comp-grid">
         <div class="comp spark">
           <h4>Audit-ready Evidence</h4>
@@ -582,8 +680,8 @@
           <p class="hint">Ephemeral by default. Configurable retention in enterprise deployments.</p>
         </div>
         <div class="comp spark">
-          <h4>Controls & Access</h4>
-          <p class="hint">SSO/SAML support and RBAC for secure, least-privileged access.</p>
+          <h4>Engineering for Trust</h4>
+          <p class="hint">Evaluation, drift checks, safe defaults, and change control — designed for SOC workflows.</p>
         </div>
       </div>
     </div>
@@ -603,6 +701,7 @@
     </div>
   </section>
 
+  <!-- CTA -->
   <section>
     <div class="section-wrap">
       <div class="cta-band">
