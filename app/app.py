@@ -15,6 +15,24 @@ from datetime import datetime
 from urllib.parse import urlparse, urlunparse, urljoin
 
 # ------------------------------------------------------------------------------
+# IPv4 preference (prod egress reliability)
+# ------------------------------------------------------------------------------
+_PREFER_IPV4 = os.getenv("PREFER_IPV4", "1") in {"1", "true", "yes"}
+if _PREFER_IPV4:
+    _orig_getaddrinfo = socket.getaddrinfo
+    def _ipv4_first(host, port, family=0, type=0, proto=0, flags=0):
+        # Force AF_INET to avoid flaky IPv6 routes in some DCs
+        try:
+            v4 = _orig_getaddrinfo(host, port, socket.AF_INET, type, proto, flags)
+            if v4:
+                return v4
+        except Exception:
+            pass
+        # Fallback to default resolver if v4 fails
+        return _orig_getaddrinfo(host, port, family, type, proto, flags)
+    socket.getaddrinfo = _ipv4_first
+
+# ------------------------------------------------------------------------------
 # Flexible imports (works as `python -m app.app` or `python app/app.py`)
 # ------------------------------------------------------------------------------
 if __package__ in (None, "",):
@@ -109,6 +127,10 @@ REQUEST_BUDGET  = float(os.getenv("CTU_REQUEST_BUDGET", "18.0"))   # whole /chec
 LEGAL_BUDGET    = float(os.getenv("CTU_LEGAL_PROBE_BUDGET", "4.0"))
 BEHAVIOR_BUDGET = float(os.getenv("CTU_BEHAVIOR_BUDGET", "6.0"))   # if behavior is enabled
 
+# New: control retries from env (defaults gentle)
+CTU_RETRY_TOTAL = int(os.getenv("CTU_RETRY_TOTAL", "2"))
+CTU_POOL_MAXSIZE = int(os.getenv("CTU_POOL_MAXSIZE", "32"))
+
 BROWSER_UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
               "(KHTML, like Gecko) Chrome/124.0 Safari/537.36")
 BROWSER_ACCEPT = "text/html,application/xhtml+xml"
@@ -128,7 +150,7 @@ STRUCTURE_BENIGN_PREFIXES   = ("ctu_", "benign_", "safe_", "homepage_")
 STRUCTURE_IGNORE_TEMPLATES  = {"ctu_home"}
 
 # ------------------------------------------------------------------------------
-# Requests session (fail-fast, small retries)
+# Requests session (fail-fast, env-tuned retries)
 # ------------------------------------------------------------------------------
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
@@ -136,13 +158,19 @@ from urllib3.util.retry import Retry
 def _make_session():
     s = requests.Session()
     retry = Retry(
-        total=1, connect=1, read=0, backoff_factor=0.2,
+        total=CTU_RETRY_TOTAL, connect=CTU_RETRY_TOTAL, read=0, backoff_factor=0.25,
         status_forcelist=(429, 500, 502, 503, 504),
         allowed_methods=frozenset(["HEAD","GET"])
     )
-    s.mount("http://", HTTPAdapter(max_retries=retry, pool_maxsize=32))
-    s.mount("https://", HTTPAdapter(max_retries=retry, pool_maxsize=32))
-    s.headers.update({"User-Agent": "CheckThatURL/1.0 (+https://www.checkthaturl.com/bot)"})
+    s.mount("http://", HTTPAdapter(max_retries=retry, pool_maxsize=CTU_POOL_MAXSIZE))
+    s.mount("https://", HTTPAdapter(max_retries=retry, pool_maxsize=CTU_POOL_MAXSIZE))
+    # Browser-like headers reduce bot-challenges compared to a custom UA
+    s.headers.update({
+        "User-Agent": BROWSER_UA,
+        "Accept": BROWSER_ACCEPT,
+        "Accept-Language": BROWSER_LANG,
+        "Connection": "keep-alive",
+    })
     return s
 
 SESSION = _make_session()
@@ -255,12 +283,8 @@ def dns_preflight(u: str) -> dict:
     except Exception:
         return {"ok": False, "label": "DNS error"}
 
-# --------------------------- WAF detector (Fix 1) --------------
+# --------------------------- WAF detector (Cloudflare) --------
 def _is_waf_block(r) -> str | None:
-    """
-    Return a string key for a known WAF if the response indicates an anti-bot block.
-    Currently detects Cloudflare via status + headers.
-    """
     try:
         if not r:
             return None
@@ -457,14 +481,9 @@ def _blend_risk(model_prob_phish: float, behv: dict) -> float:
     return clip01(base + bonus)
 
 def _prune_explanations(verdict: str, reasons: list[str], behv: dict, timer_hint_present: bool = False) -> list[str]:
-    """
-    Keep timer/urgency reasons if *any* hint exists (markup, NLP, or behavior).
-    Do not inject fallback reasons for Legitimate.
-    """
     out = []
     for r in reasons or []:
         txt = (r or "").lower()
-        # Only drop timer-ish text if there were no timer hints at all
         if ("timer" in txt or "countdown" in txt or "urgency" in txt) and not timer_hint_present:
             continue
         if verdict == "Legitimate":
@@ -478,7 +497,7 @@ def _prune_explanations(verdict: str, reasons: list[str], behv: dict, timer_hint
         elif verdict == "Suspicious":
             out = ["Some risk signals observed; further checks recommended."]
         else:
-            out = []  # Legitimate => no grouped reasons
+            out = []
     return out
 
 # ------------------------------------------------------------------------------
@@ -569,19 +588,13 @@ def check_url():
         return REQUEST_BUDGET - (time.monotonic() - start)
 
     def ensure_reason_groups(payload: dict) -> dict:
-        """
-        Guarantee at least one grouped reason for any non-legitimate verdict.
-        (Used for partial timeouts and unreachable paths as well.)
-        """
         p = dict(payload or {})
         verdict = p.get("verdict") or "Suspicious"
         if verdict == "Legitimate":
             return p
-        # Normalize lists
         for k in ("domain_risks","content_risks","link_risks","behavior_risks"):
             if k not in p or not isinstance(p[k], list):
                 p[k] = []
-        # If all empty, add an operational/diagnostic reason
         if not (p["domain_risks"] or p["content_risks"] or p["link_risks"] or p["behavior_risks"]):
             status = (p.get("status") or "").lower()
             if status in ("partial","timeout"):
@@ -597,7 +610,6 @@ def check_url():
         payload.setdefault("ok", True)
         payload["status"] = "partial"
         payload.setdefault("message", msg)
-        # Ensure grouped reasons for non-legit partials
         payload.setdefault("verdict", "Suspicious")
         payload = ensure_reason_groups(payload)
         return payload
@@ -625,7 +637,7 @@ def check_url():
             app.logger.info("SCAN status=unreachable reason=dns label=%s url=%s", pre.get("label"), url)
             return jsonify(resp), 200
 
-        # ---------- Fetch page (fast-fail, http fallback) ----------
+        # ---------- Fetch page (robust HTTP with IPv4 + retries) ----------
         html_content = ""
         fetch_error = None
 
@@ -648,23 +660,19 @@ def check_url():
                 h = dict(headers)
                 if ua: h["User-Agent"] = ua
                 return _safe_req("GET", u, timeout=(c_to, r_to), allow_redirects=True, headers=h)
-            except Exception as e:
+            except Exception:
                 return None
 
         if not html_content:
-            # 1st attempt (current small timeouts)
             r = _try_get(url, CONNECT_TIMEOUT, READ_TIMEOUT)
 
-            # Retry with longer timeouts if first attempt failed
             if not r and time_left() > 0.5:
                 r = _try_get(url, max(6.0, CONNECT_TIMEOUT), max(8.0, READ_TIMEOUT),
                              ua=BROWSER_UA.replace("Chrome/124.0", "Chrome/122.0"))
 
-            # Fallback to http:// if https failed to connect at all
             if not r and url.startswith("https://"):
                 r = _try_get(to_http(url), max(6.0, CONNECT_TIMEOUT), max(8.0, READ_TIMEOUT))
 
-            # If still nothing, try a lightweight Playwright rescue (short budget)
             if not r and time_left() > 3.0:
                 try:
                     from playwright.sync_api import sync_playwright
@@ -681,7 +689,7 @@ def check_url():
                 except Exception as e:
                     fetch_error = f"playwright:{type(e).__name__}"
 
-            # --- Fix 1: WAF detection (Cloudflare) ------------------
+            # WAF/Cloudflare → partial, never 'unreachable'
             if r:
                 waf = _is_waf_block(r)
                 if waf == "cloudflare":
@@ -689,7 +697,7 @@ def check_url():
                         "ok": True,
                         "status": "partial",
                         "url": getattr(r, "url", url),
-                        "verdict": "Suspicious",  # keep category, but clarify it's an access block
+                        "verdict": "Suspicious",
                         "risk": 0.30,
                         "confidence": 30.0,
                         "explanation": "Site is protected by Cloudflare (anti-bot) and blocked automated access from our server. Content couldn’t be fetched for full analysis.",
@@ -703,13 +711,11 @@ def check_url():
                     app.logger.info("SCAN status=partial reason=cloudflare_block http=%s url=%s",
                                     r.status_code, getattr(r, "url", url))
                     return jsonify(resp), 200
-            # --------------------------------------------------------
 
             if r:
                 html_content = r.text or ""
                 url = r.url
 
-            # If we reached the server but got non-2xx or empty body, don’t call it unreachable—return partial with reasons
             if (r and (r.status_code >= 400 or not (html_content or "").strip())) and not html_content:
                 resp = {
                     "ok": True, "status": "partial", "url": url, "verdict": "Suspicious",
@@ -723,7 +729,6 @@ def check_url():
                 app.logger.info("SCAN status=partial reason=http_%s url=%s", r.status_code, url)
                 return jsonify(resp), 200
 
-            # Total failure → label as partial instead of unreachable, with a clear diagnostic
             if not (html_content or "").strip():
                 diag_label = "connect_error"
                 if fetch_error: diag_label = fetch_error
@@ -753,7 +758,7 @@ def check_url():
         features["timer_urgency_score"] = max(float(features.get("timer_urgency_score", 0.0)),
                                               float(timer_fallback["timer_urgency_score"]))
 
-        # ---------- Legal probe (budgeted) ----------
+        # ---------- Legal probe ----------
         legal_probe = {"ok": 0, "pages": []}
         if time_left() > 0.2:
             legal_probe = probe_legal_pages(html_content, url, time_left=time_left)
@@ -870,11 +875,10 @@ def check_url():
             verdict = "Legitimate"
             blended_risk = min(blended_risk, 0.30)
 
-        # ---------- Reasons (restored timers/http) ----------
+        # ---------- Reasons (timers/http restored) ----------
         human_reasons = []
 
         if verdict in ("Phishing","Suspicious"):
-            # HTTP (no TLS)
             if int(features.get("has_https", 1)) == 0:
                 human_reasons.append("🔓 Connection not secure (HTTP).")
 
@@ -891,13 +895,11 @@ def check_url():
             if float(features.get("external_link_ratio", 0)) > 0.65 and not _is_our_domain(url):
                 human_reasons.append("🌍 Many external links.")
 
-            # Markup/NLP timer hints (no behavior engine required)
             if int(features.get("has_html_timer", 0)) == 1 or int(features.get("has_js_timer", 0)) == 1:
                 human_reasons.append("⏱ Timer/countdown present in page markup.")
             if float(features.get("timer_urgency_score", 0.0)) >= 0.25:
                 human_reasons.append("⚠ Urgency language / timer hints detected in content.")
 
-            # Behavior-based signals (live)
             chain = behavior.get("redirect_chain") or []
             cross_soft_count = max(0, len(chain) - 1)
             cross_targets = []
@@ -916,7 +918,6 @@ def check_url():
             if float(behavior.get("dom_mutation_score", 0)) >= 0.10:
                 human_reasons.append("🧪 Significant DOM mutation after load (behavior).")
 
-            # Structure similarity
             tmpl = (structure.get("template") or "").strip()
             is_benign = bool(tmpl.startswith(STRUCTURE_BENIGN_PREFIXES) or tmpl in STRUCTURE_IGNORE_TEMPLATES)
             if tmpl and float(structure.get("score", 0.0)) >= 0.55 and not is_benign and not legal_ok:
@@ -926,7 +927,6 @@ def check_url():
         if legal_ok:
             human_reasons.append("✅ Verified legal pages (privacy/terms) present on this site.")
 
-        # Consider *any* timer hint (markup, NLP, or behavior) as grounds to keep timer reasons
         timer_hint_present = (
             int(features.get("has_html_timer", 0)) == 1 or
             int(features.get("has_js_timer", 0)) == 1 or
@@ -1013,13 +1013,11 @@ def check_url():
         if time_left() <= 0:
             resp = out_partial(resp)
 
-        # Last-line guard: ALWAYS provide grouped reasons for non-legit
         resp = ensure_reason_groups(resp)
 
         if ui_flag == "redacted":
             resp = redact_ui_payload(resp)
 
-        # ---------- Observability: single structured log line ----------
         app.logger.info(
             "SCAN verdict=%s risk=%.3f conf=%.1f http=%s struct=%s beh=%.2f psp_neutral=%s legal=%s url=%s",
             resp.get("verdict"), resp.get("risk"), resp.get("confidence"),
@@ -1033,18 +1031,13 @@ def check_url():
         return jsonify(resp), 200
 
     except Exception as e:
-        # Keep message for UI and leave room for frontend fallback group reasons
         app.logger.exception("SCAN fatal error: %s", e)
         return jsonify({"ok": False, "status": "error", "message": f"{type(e).__name__}: {e}"}), 200
 
-# --- Hard self-tests to verify Playwright/behavior in PROD ---
+# --- Self-tests ---
 
 @app.get("/selftest/playwright")
 def selftest_playwright():
-    """
-    Launch Chromium with safe flags and load a simple page.
-    If this fails in Render, your behavior engine can't run.
-    """
     try:
         from playwright.sync_api import sync_playwright
         t0 = time.monotonic()
@@ -1082,13 +1075,10 @@ def selftest_playwright():
 
 @app.get("/selftest/behavior")
 def selftest_behavior():
-    """
-    Run your simulate_behavior() on a known redirect; report what it saw.
-    """
     try:
         t0 = time.monotonic()
         test_url = "https://httpbin.org/redirect-to?url=https://example.com"
-        b = simulate_behavior(test_url)  # uses your replay_engine
+        b = simulate_behavior(test_url)
         b["elapsed_ms"] = int((time.monotonic()-t0)*1000)
         return jsonify({"ok": True, "behavior": b}), 200
     except Exception as e:
