@@ -1,4 +1,4 @@
-# ---- Dockerfile (CBN-ready) ----
+# ---- Dockerfile (stable, CBN-demo ready) ----
 FROM python:3.11-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -8,7 +8,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# System deps for Chromium/Playwright (current Debian names)
+# System libs for Chromium/Playwright (current Debian names)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates curl gnupg procps \
     libnss3 libnspr4 libxkbcommon0 libx11-6 libxcb1 libxcomposite1 libxdamage1 \
@@ -18,12 +18,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     xdg-utils fonts-liberation fonts-unifont fonts-noto-color-emoji \
     && rm -rf /var/lib/apt/lists/*
 
-# Prefer IPv4 at OS level (helps with CDN/WAF flakiness from DC IPs)
+# Prefer IPv4 at OS level (helps with CDN/WAF over DC IPv6 ranges)
 RUN sed -i 's/^#precedence ::ffff:0:0\/96 100/precedence ::ffff:0:0\/96 100/' /etc/gai.conf || true
 
 # Python deps
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt playwright
 
 # Install the Chromium browser for Playwright (no legacy --with-deps)
 RUN python -m playwright install chromium
@@ -31,8 +31,8 @@ RUN python -m playwright install chromium
 # App code
 COPY . .
 
-# Render injects $PORT at runtime; bind to it
+# (EXPOSE is informational; Render injects $PORT at runtime)
 EXPOSE 10000
-CMD ["gunicorn", "app.app:app",
-     "--bind", "0.0.0.0:${PORT}",
-     "--workers", "2", "--threads", "4", "--timeout", "180"]
+
+# Use shell-form so $PORT expands on Render
+CMD ["sh", "-c", "gunicorn app.app:app --bind 0.0.0.0:${PORT} --workers 2 --threads 4 --timeout 180"]
