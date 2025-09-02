@@ -1,28 +1,33 @@
-# ✅ Ships Chromium + all native deps for Playwright out of the box
-FROM mcr.microsoft.com/playwright/python:v1.45.0-jammy
+# --- Base ---
+FROM python:3.11-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    PIP_NO_CACHE_DIR=1 \
-    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
-    TZ=Africa/Lagos \
-    SCAN_MODE=playwright \
-    CTU_BEHAVIOR_MODE=auto \
-    REQUEST_TIMEOUT_SECS=60 \
-    HEADLESS=1
+    PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
-# 1) Use the *exact* deps from your working venv (run `pip freeze > requirements.txt` locally first)
-COPY requirements.txt /app/requirements.txt
-RUN pip install --upgrade pip && pip install -r requirements.txt
+# --- System deps incl. Chromium deps for Playwright (kept) ---
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates curl gnupg procps \
+    libnss3 libnspr4 libxkbcommon0 libx11-6 libxcb1 libxcomposite1 libxdamage1 \
+    libxext6 libxfixes3 libxrandr2 libasound2 libpangocairo-1.0-0 libatk1.0-0 \
+    libgtk-3-0 fonts-liberation libgbm1 xdg-utils \
+    && rm -rf /var/lib/apt/lists/*
 
-# 2) Copy app
-COPY . /app
+# --- Prefer IPv4 for DNS/address selection (no code change needed) ---
+# This sets glibc address selection to pick IPv4 first.
+RUN sed -i 's/^#precedence ::ffff:0:0\/96 100/precedence ::ffff:0:0\/96 100/' /etc/gai.conf || true
 
-# Healthcheck route exists in app/app.py as /healthz
+# --- Python deps ---
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# (keep Playwright available for when you re-enable behavior mode)
+RUN python -m playwright install --with-deps chromium
+
+# --- App code ---
+COPY . .
+
+# Render injects $PORT at runtime; we bind to it.
 EXPOSE 10000
-
-# Gunicorn entry for your structure (module path: app/app.py → app.app:app)
-CMD ["gunicorn", "app.app:app", "--bind", "0.0.0.0:10000", "--workers", "2", "--threads", "4", "--timeout", "180"]
+CMD ["gunicorn", "app.app:app", "--bind", "0.0.0.0:${PORT}", "--workers", "2", "--threads", "4", "--timeout", "180"]
