@@ -4,7 +4,7 @@
 FROM python:3.11-slim
 
 # Bump to force cache bust when needed
-ARG CACHEBUST=2025-09-09-04
+ARG CACHEBUST=2025-09-09-05
 
 # --------------------------------------------
 # OS basics + Chromium runtime deps (Debian names)
@@ -64,13 +64,11 @@ RUN pip install --no-cache-dir playwright \
 COPY . /app
 
 # --------------------------------------------
-# Start command
+# Start command (use bash so $PORT expands on Render)
 # --------------------------------------------
 ENV PORT=10000
 # Default app entry; set APP_MODULE to "app.app:create_app()" if you use a factory.
 ENV APP_MODULE="app.app:app"
 
-# Use dumb-init so Gunicorn handles signals properly
-CMD ["dumb-init", "gunicorn", "-k", "gthread", "-w", "2", "-b", "0.0.0.0:${PORT}", "app.app:app"]
-# Or, to honor APP_MODULE env instead of hardcoding:
-# CMD ["dumb-init", "gunicorn", "-k", "gthread", "-w", "2", "-b", "0.0.0.0:${PORT}", "${APP_MODULE}"]
+# Use bash so $PORT and APP_MODULE expand correctly
+CMD bash -lc 'gunicorn -k gthread -w ${WEB_CONCURRENCY:-2} -b 0.0.0.0:${PORT:-10000} ${APP_MODULE:-app.app:app}'
