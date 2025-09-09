@@ -1,91 +1,91 @@
 # app/hunter/workers/discover.py
 from __future__ import annotations
-import argparse, sys, datetime as dt
-from typing import Iterable, List
 
-from flask import current_app
-from app.app import app as flask_app  # use the already-initialized Flask app
-from app.db import db
+import argparse
+import hashlib
+from datetime import datetime
+from urllib.parse import urlparse
+
+from app.app import app as flask_app, db
 from app.hunter.models import DiscoveredURL, URLStatus
-from app.hunter.sources.base import Candidate, normalize_url
-from app.hunter.sources import openphish as op
-from app.hunter.sources import urlhaus as uh
-from app.hunter.sources import typosquat as ts
 
-def _pull_from_sources(sources: list[str], limit: int, brands: list[str], tlds: list[str]) -> list[Candidate]:
-    cands: list[Candidate] = []
-    for src in sources:
-        if src == "openphish":
-            cands += op.pull(limit=limit)
-        elif src == "urlhaus":
-            cands += uh.pull(limit=limit)
-        elif src == "typosquat":
-            cands += ts.generate(brands=brands, tlds=tlds, max_per_brand=max(10, limit // max(1, len(brands))))
-    return cands
+BRANDS = [
+    "firstbank", "zenith", "gtbank", "access", "uba", "kuda", "opay", "palmpay",
+    "moniepoint", "wema", "polaris", "stanbic", "sterling", "fcmb", "fidelity",
+    "union", "jaiz", "keystone"
+]
+TLDS = [".ng", ".com", ".co", ".net"]
+SUFFIXES = ["-login", "-verify", "-secure", "-support", "-update", "-card", "-auth"]
+PREFIXES = ["my-", "online-", "secure-", "customer-", "ibanking-"]
+PATHS = ["", "/login", "/signin", "/update", "/account/verify"]
 
-def persist(cands: Iterable[Candidate]) -> dict:
-    """
-    Normalize, de-dupe by url_hash, and insert new rows.
-    Returns a small summary dict for visibility.
-    """
-    inserted = 0
-    skipped_dupe = 0
-    errors = 0
+def _norm_url(url: str) -> str:
+    # strip fragments and spaces
+    return url.strip().split("#", 1)[0]
 
-    for c in cands:
-        try:
-            norm, domain, url_hash = normalize_url(c.url)
-        except Exception:
-            errors += 1
-            continue
+def _hash(s: str) -> str:
+    return hashlib.sha256(s.encode("utf-8")).hexdigest()
 
-        # Up-front fast check to avoid unique constraint hits
-        exists = db.session.execute(
-            db.select(DiscoveredURL.id).where(DiscoveredURL.url_hash == url_hash)
-        ).first()
-        if exists:
-            skipped_dupe += 1
-            continue
+def _build_candidates(limit: int):
+    # Generate deterministic-ish typosquats until limit
+    out = []
+    for b in BRANDS:
+        for t in TLDS:
+            # three patterns per brand/tld family
+            bases = [
+                f"{b}{t}",
+                f"{b}{t}".replace("bank", "bnk"),
+                f"{b.replace('bank','bnk')}{t}",
+            ]
+            for base in bases:
+                # prefix/suffix combos
+                for pre in [""] + PREFIXES:
+                    for suf in [""] + SUFFIXES:
+                        host = f"{pre}{base.replace(t, '')}{suf}{t}"
+                        for p in PATHS:
+                            url = f"https://{host}{p}"
+                            out.append(url)
+                            if len(out) >= limit:
+                                return out
+    return out[:limit]
 
-        row = DiscoveredURL(
-            url=c.url,
-            domain=domain,
-            source=c.source,
-            first_seen=c.first_seen,
-            url_hash=url_hash,
-            normalized=norm,
-            status=URLStatus.NEW,
-        )
-        db.session.add(row)
-        try:
-            db.session.commit()
-            inserted += 1
-        except Exception:
-            db.session.rollback()
-            skipped_dupe += 1  # if race/unique constraint triggers
-    return {"inserted": inserted, "dupes": skipped_dupe, "errors": errors}
-
-def main(argv=None):
-    parser = argparse.ArgumentParser(description="Hunter discovery worker")
-    parser.add_argument("--limit", type=int, default=200, help="per-source limit")
-    parser.add_argument("--sources", type=str, default="openphish,urlhaus,typosquat",
-                        help="comma list: openphish,urlhaus,typosquat")
-    parser.add_argument("--brands", type=str,
-                        default="firstbank,zenithbank,gtbank,accessbank,uba,wema,kuda,opay,palmpay,moniepoint",
-                        help="comma list for typosquat generator")
-    parser.add_argument("--tlds", type=str, default=".ng,.com,.net,.co,.biz",
-                        help="comma list of TLDs for typosquat generator")
-    args = parser.parse_args(argv)
-
-    srcs = [s.strip().lower() for s in args.sources.split(",") if s.strip()]
-    brands = [b.strip() for b in args.brands.split(",") if b.strip()]
-    tlds = [t.strip() for t in args.tlds.split(",") if t.strip()]
+def run(limit: int):
+    inserted = dupes = errors = 0
+    now = datetime.utcnow()
 
     with flask_app.app_context():
-        result = persist(_pull_from_sources(srcs, args.limit, brands, tlds))
-        current_app.logger.info("DISCOVER summary inserted=%s dupes=%s errors=%s",
-                                result["inserted"], result["dupes"], result["errors"])
-        print(result)
+        urls = _build_candidates(limit)
+        for url in urls:
+            try:
+                u = _norm_url(url)
+                h = _hash(u)
+                parsed = urlparse(u)
+                domain = parsed.netloc.lower()
+                rec = DiscoveredURL(
+                    url=u,
+                    domain=domain,
+                    source="typosquat",
+                    first_seen=now,
+                    url_hash=h,
+                    normalized=u,
+                    status=URLStatus.NEW.value,
+                )
+                db.session.add(rec)
+                db.session.commit()
+                inserted += 1
+            except Exception:
+                db.session.rollback()
+                # likely duplicate on unique(url_hash)
+                dupes += 1
+                # continue loop
+        return {"inserted": inserted, "dupes": dupes, "errors": errors, "limit": limit}
+
+def main():
+    p = argparse.ArgumentParser(description="Generate typosquat candidates for Hunter.")
+    p.add_argument("--limit", type=int, default=1000)
+    args = p.parse_args()
+    stats = run(limit=args.limit)
+    print(stats)
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()

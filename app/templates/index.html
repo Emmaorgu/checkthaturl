@@ -24,53 +24,39 @@
 
   <style>
     /* =========================================================
-       Ocean Steel — cool, analytical (no red/purple)
+       Ocean Steel — cool, analytical with Nigeria-first accents
        ========================================================= */
     :root{
-      /* Palette (as requested) */
       --bg:#0D1B2A;
       --panel:#11253E;
       --border:#1B3C6E;
-
       --text:#E6F0FF;
       --muted:#A9C0E7;
-
-      --primary:#38BDF8;      /* sky */
-      --primary-600:#0EA5E9;  /* deeper sky */
-
-      --ok:#2BD184;           /* green */
-      --warn:#F5A524;         /* amber */
-      --danger:#F79009;       /* burnt orange */
-
-      /* Derived */
-      --paper:#0F2036;        /* card surface */
-      --panel-2:#0E1E33;
+      --primary:#38BDF8;
+      --primary-600:#0EA5E9;
+      --ok:#22C55E;          /* green */
+      --warn:#F5A524;        /* amber */
+      --danger:#F97316;      /* orange */
+      --ng:#24C08A;          /* Nigeria green */
+      --paper:#0F2036;
       --chip:#0A192C;
-
-      --text-soft:#D9E7FF;
-      --muted-2:#C7D7F1;
-
       --shadow-sm:0 8px 20px rgba(1,10,22,.35);
       --shadow-md:0 16px 44px rgba(1,10,22,.45);
       --shadow-lg:0 28px 84px rgba(1,10,22,.55);
-
-      /* Ocean mesh background */
       --bg-grad:
         radial-gradient(900px 380px at 12% -10%, rgba(56,189,248,.16), transparent 60%),
         radial-gradient(700px 340px at 92% -6%, rgba(14,165,233,.12), transparent 60%),
         linear-gradient(180deg,#0D1B2A 0%, #0D1B2A 100%);
       --gridline:rgba(120,170,220,.14);
       --gloss:linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,0));
-
       --tap:44px;
     }
 
-    /* ===== Base ===== */
     *{box-sizing:border-box}
-    html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial,"Noto Sans",sans-serif;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;overflow-x:hidden}
+    html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;overflow-x:hidden}
     a{color:var(--primary);text-decoration:none}
     a:hover{text-decoration:underline}
-    *[id]{scroll-margin-top:84px}
+    *[id]{scroll-margin-top:90px}
     :focus-visible{outline:3px solid var(--primary); outline-offset:2px; border-radius:8px}
 
     .site-bg{position:fixed; inset:0; z-index:-3; background:var(--bg-grad)}
@@ -86,7 +72,7 @@
     .brandpair img{width:22px;height:22px}
     .brandpair .name{font-weight:800;color:#fff}
     .nav{display:flex;align-items:center;gap:18px}
-    .nav a{color:#cfe0ff;font-weight:600;font-size:14px}
+    .nav a{color:#cfe0ff;font-weight:700;font-size:14px}
     .nav a:hover{color:#fff}
     .hdr-cta{display:flex;align-items:center;gap:10px}
     .btn{background:var(--primary);color:#052235;border:none;padding:12px 16px;font-weight:800;border-radius:12px;cursor:pointer;box-shadow:var(--shadow-sm);min-height:var(--tap)}
@@ -97,12 +83,7 @@
     .btn.ghost{background:transparent;border:1px solid var(--border);color:#e6f0ff}
     .btn.ghost:hover{background:rgba(255,255,255,.06)}
     .mobile-nav-btn{display:none}
-    @media (max-width:980px){
-      .nav{display:none}
-      .mobile-nav-btn{display:inline-flex}
-      .hdr-cta .btn.ghost,.hdr-cta .btn.secondary{display:none!important}
-      .hdr-in{gap:10px;padding-right:14px}
-    }
+    @media (max-width:980px){ .nav{display:none} .mobile-nav-btn{display:inline-flex} .hdr-cta .btn.ghost,.hdr-cta .btn.secondary{display:none!important} .hdr-in{gap:10px;padding-right:14px} }
     @media (max-width:420px){ .hdr-in{padding:10px 12px} .mobile-nav-btn{padding:10px 14px} .brandpair .name{font-size:16px} }
     .mobile-drawer{position:fixed;inset:0 0 0 auto;width:min(92vw,380px);background:rgba(10,24,44,.98);border-left:1px solid var(--border);box-shadow:var(--shadow-lg);transform:translateX(105%);transition:transform .18s ease;z-index:2500}
     .mobile-drawer.show{transform:translateX(0)}
@@ -110,22 +91,17 @@
     .mobile-drawer nav a{padding:14px 12px;border-radius:12px;color:#fff;border:1px solid transparent;min-height:var(--tap)}
     .mobile-drawer nav a:hover{border-color:var(--border);background:rgba(255,255,255,.06)}
 
-    /* ===== Hero ===== */
+    /* ===== Hero (short + direct to core features) ===== */
     .mega-hero{position:relative}
-    .hero-in{max-width:1180px;margin:0 auto;padding:70px 24px 34px;display:grid;grid-template-columns:1.18fr .92fr;gap:28px}
+    .hero-in{max-width:1180px;margin:0 auto;padding:48px 24px 10px;display:grid;grid-template-columns:1.1fr .9fr;gap:24px}
     @media (max-width:980px){.hero-in{grid-template-columns:1fr}}
-    .eyebrow{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;background:rgba(56,189,248,.14);border:1px solid var(--border);color:#e6fbff;font-weight:800;font-size:12px;letter-spacing:.4px;text-transform:uppercase}
-    .hero h1{font-size:clamp(28px,6vw,60px);line-height:1.07;margin:12px 0 10px;font-weight:800;letter-spacing:-.02em;color:#fff}
-    .hero h1 .accent{color:var(--primary)}
-    .sub{margin:6px 0 20px;color:var(--muted);font-size:clamp(15px,2.7vw,18px)}
-    .hero-ctas{display:flex;flex-wrap:wrap;gap:10px;margin:6px 0 16px}
-    .trust-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;color:#d6e8ff;font-size:13px}
-    .trust-chip{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--border);border-radius:999px;background:rgba(6,18,34,.60);box-shadow:var(--shadow-sm)}
+    .eyebrow{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;background:rgba(36,192,138,.18);border:1px solid var(--border);color:#e6fbff;font-weight:900;font-size:12px;letter-spacing:.4px;text-transform:uppercase}
+    .hero h1{font-size:clamp(28px,6vw,56px);line-height:1.05;margin:10px 0 10px;font-weight:900;letter-spacing:-.02em;color:#fff}
+    .hero h1 .accent{color:var(--ng)}
+    .sub{margin:6px 0 14px;color:var(--muted);font-size:clamp(15px,2.7vw,18px)}
+    .hero-ctas{display:flex;flex-wrap:wrap;gap:10px;margin:8px 0 8px}
 
-    .hero-card{background:linear-gradient(180deg, rgba(17,45,78,.84), rgba(14,34,64,.78)), var(--gloss);border:1px solid var(--border);border-radius:16px;padding:18px;box-shadow:var(--shadow-md)}
-    .hero-card h3{margin:0 0 6px;color:#fff}
-
-    /* ===== App/Product Surface ===== */
+    /* ===== Core Surface: Scanner first, then Hunter (prominent) ===== */
     .brandbar{display:flex;align-items:center;justify-content:space-between;margin:6px 0 14px}
     .brand-link{display:inline-flex;align-items:center;gap:8px;font-weight:800;color:#fff}
     .brand-link img{width:20px;height:20px}
@@ -133,23 +109,18 @@
     .top-privacy{display:flex;gap:10px;align-items:flex-start;margin:6px 0 20px;padding:14px 16px;border-radius:14px;border:1px solid var(--border);background:linear-gradient(180deg, rgba(17,45,78,.92), rgba(14,34,64,.88)), var(--gloss);box-shadow:var(--shadow-sm)}
     .top-privacy strong{color:#fff}
 
-    .grid-frame{border:1px solid var(--border);border-radius:18px;background:linear-gradient(180deg, rgba(17,37,62,.96), rgba(14,32,54,.94)), var(--gloss);box-shadow:var(--shadow-md);padding:20px}
-    .grid{display:grid;grid-template-columns:1.25fr .95fr;gap:24px}
+    .grid-frame{border:2px solid var(--border);border-radius:18px;background:linear-gradient(180deg, rgba(17,37,62,.96), rgba(14,32,54,.94)), var(--gloss);box-shadow:var(--shadow-md);padding:22px}
+    .grid{display:grid;grid-template-columns:1.2fr .8fr;gap:24px}
     @media (max-width:980px){.grid{grid-template-columns:1fr}}
 
-    .search{display:flex;gap:12px;align-items:center;margin:6px 0 10px;flex-wrap:wrap;background:linear-gradient(180deg, rgba(12,30,56,.9), rgba(10,26,48,.88));border:1px solid var(--border);padding:14px;border-radius:14px}
-    .url-input{flex:1;background:#0d2646;color:#e6f0ff;border:1px solid var(--border);padding:16px 14px;font-size:16px;border-radius:10px;outline:none;min-width:260px;min-height:var(--tap)}
+    /* Scanner Input: Always stacked actions under input (large) */
+    .search{display:grid;grid-template-columns:1fr;gap:12px;margin:8px 0 8px;background:linear-gradient(180deg, rgba(12,30,56,.9), rgba(10,26,48,.88));border:1px solid var(--border);padding:16px;border-radius:16px}
+    .url-input{width:100%;background:#0d2646;color:#e6f0ff;border:1px solid var(--border);padding:20px 16px;font-size:18px;border-radius:12px;outline:none;min-height:72px}
     .url-input::placeholder{color:#a9c0e7}
-    .url-input:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(56,189,248,.22)}
-    .quick{display:flex;align-items:center;gap:8px;color:#c5d6f0;font-size:13px;margin-left:auto}
+    .url-input:focus{border-color:var(--ng);box-shadow:0 0 0 4px rgba(36,192,138,.18)}
+    .action-stack{display:grid;grid-template-columns:1fr;gap:10px}
+    .quick{display:flex;align-items:center;gap:8px;color:#c5d6f0;font-size:13px}
     .hint{color:#a9bddd;font-size:13px}
-
-    @media (max-width:780px){
-      .search{display:grid;grid-template-columns:1fr;gap:10px;padding:16px}
-      .url-input{width:100%;min-width:0;font-size:18px;padding:18px 16px;border-radius:12px}
-      #scan,#rescan{width:100%;justify-content:center}
-      .quick{margin:0;justify-content:flex-start;order:4;padding-top:2px}
-    }
 
     .card{background:linear-gradient(180deg, rgba(17,45,78,.9), rgba(14,34,64,.86)), var(--gloss);border:1px solid var(--border);border-radius:16px;padding:18px;box-shadow:var(--shadow-sm)}
     .verdict-badge{float:right;padding:6px 10px;border-radius:999px;font-weight:800;font-size:13px;border:1px solid var(--border);background:rgba(6,18,34,.55);color:#e6f0ff}
@@ -164,19 +135,11 @@
     .pill h4{margin:0 0 6px;font-size:14px;color:#e6f0ff;font-weight:800;display:flex;gap:8px;align-items:center}
     .list{margin:0;padding-left:18px;font-size:14px;color:#d1e3ff}
     .empty{color:#a9bddd;font-size:14px}
-    details.evidence{margin-top:16px}
-    details.evidence summary{cursor:pointer;user-select:none;list-style:none;display:flex;gap:8px;align-items:center;font-weight:800;color:#fff;padding:10px 12px;background:linear-gradient(180deg, rgba(12,30,56,.92), rgba(10,26,48,.90));border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-sm)}
-    details.evidence[open] summary{border-bottom-left-radius:0;border-bottom-right-radius:0}
-    .evidence-body{border:1px solid var(--border);border-top:none;border-bottom-left-radius:12px;border-bottom-right-radius:12px;background:var(--chip);padding:12px;font-size:14px;color:#cfe1ff}
-    .kv{display:grid;grid-template-columns:200px 1fr;gap:8px 12px}
-    @media (max-width:560px){.kv{grid-template-columns:1fr}}
-    .mono{font-family:ui-monospace,"SFMono-Regular",Menlo,Consolas,"JetBrains Mono","Liberation Mono",monospace;color:#e1eeff}
 
-    /* ===== Banded sections ===== */
+    /* ===== Banded sections (kept) ===== */
     .band{background:linear-gradient(180deg, #0E2238, #0B1D30);border-top:1px solid var(--border);border-bottom:1px solid var(--border);box-shadow:inset 0 1px 0 rgba(0,0,0,.22), inset 0 -1px 0 rgba(0,0,0,.24)}
     .band .section-wrap{padding:28px 24px}
 
-    /* Feature/compare cards */
     .spark{position:relative;border-radius:20px;padding:18px;border:1px solid var(--border);background:
       radial-gradient(120% 180% at -10% -10%, rgba(56,189,248,.14), transparent 60%),
       radial-gradient(120% 160% at 110% 120%, rgba(14,165,233,.12), transparent 60%),
@@ -184,20 +147,15 @@
     .feature-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
     @media (max-width:1080px){.feature-grid{grid-template-columns:repeat(2,1fr)}}
     @media (max-width:620px){.feature-grid{grid-template-columns:1fr;gap:12px}}
-    .fcard{border:1px solid var(--border);border-radius:20px;padding:18px;box-shadow:var(--shadow-sm);background:linear-gradient(180deg, rgba(17,45,78,.92), rgba(14,34,64,.86))}
 
     .comp-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:12px}
     @media (max-width:980px){.comp-grid{grid-template-columns:1fr}}
     @media (max-width:620px){.comp-grid{gap:12px}}
-    .comp{border:1px solid var(--border);border-radius:20px;padding:18px;box-shadow:var(--shadow-sm);background:linear-gradient(180deg, rgba(17,40,68,.96), rgba(14,34,60,.92))}
 
     .stats{max-width:1180px;margin:0 auto;padding:0 24px}
     .stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
     @media (max-width:980px){.stat-grid{grid-template-columns:repeat(2,1fr)}}
     @media (max-width:480px){.stat-grid{grid-template-columns:1fr;gap:12px}}
-    .stat{border:1px solid var(--border);border-radius:20px;padding:22px;text-align:center;box-shadow:var(--shadow-sm);background:linear-gradient(180deg, rgba(17,40,68,.96), rgba(14,34,60,.92))}
-    .stat .num{font-size:clamp(20px,6vw,28px);font-weight:800;letter-spacing:-.02em;color:#fff}
-    .stat .lbl{color:#d1e3ff;font-size:13px}
 
     .integrations{max-width:1180px;margin:0 auto;padding:0 24px}
     .badge-row{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px}
@@ -209,84 +167,89 @@
       radial-gradient(120% 140% at 110% 120%, rgba(14,165,233,.12), transparent 60%),
       linear-gradient(180deg, rgba(17,45,78,.95), rgba(14,36,70,.92)); padding:18px;display:flex;align-items:center;justify-content:space-between;gap:12px;box-shadow:var(--shadow-md)}
     @media (max-width:820px){.cta-in{flex-direction:column;align-items:flex-start}}
-    .cta-actions{display:flex;gap:10px;flex-wrap:wrap}
 
     h3.section-title{margin:8px 0 10px 2px;font-size:clamp(18px,3.8vw,22px);font-weight:800;letter-spacing:-.02em;color:#fff}
     footer{margin:36px 0 20px;color:#c6d9f3;font-size:14px;display:flex;align-items:center;justify-content:space-between;gap:12px;border-top:1px dashed var(--border);padding-top:14px;flex-wrap:wrap}
     .brand{font-weight:800;color:#fff}
     .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 
-    /* ===== Why / Compare / Pipeline ===== */
-    .why-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
-    @media (max-width:1080px){.why-grid{grid-template-columns:repeat(2,1fr)}}
-    @media (max-width:700px){.why-grid{grid-template-columns:1fr}}
-    .why-card{border:1px solid var(--border);border-radius:20px;padding:18px;background:linear-gradient(180deg, rgba(17,45,78,.92), rgba(14,34,64,.86));box-shadow:var(--shadow-sm)}
+    .tbl{width:100%;border-collapse:separate;border-spacing:0}
+    .tbl th,.tbl td{padding:10px 12px;border-bottom:1px solid var(--border);font-size:14px}
+    .tbl th{color:#CFE4FF;text-align:left}
+    .tbl td{color:#E1EEFF}
+    .status-badge{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border:1px solid var(--border);border-radius:999px;font-weight:800}
+    .status-ok{color:var(--ok)} .status-warn{color:var(--warn)} .status-bad{color:var(--danger)}
 
-    .split{display:grid;grid-template-columns:1.1fr .9fr;gap:16px}
-    @media (max-width:980px){.split{grid-template-columns:1fr}}
-    .compare{border:1px solid var(--border);border-radius:20px;padding:18px;background:linear-gradient(180deg, rgba(17,45,78,.95), rgba(14,36,70,.92));box-shadow:var(--shadow-sm)}
-    .checklist{list-style:none;margin:10px 0 0;padding:0}
-    .checklist li{display:flex;gap:10px;align-items:flex-start;margin:8px 0;color:#d8e8ff}
-    .check{width:16px;height:16px;border-radius:4px;background:var(--ok);display:inline-block;margin-top:3px}
-    .warn{width:16px;height:16px;border-radius:50%;background:transparent;border:2px solid var(--danger);display:inline-block;margin-top:3px}
+    /* ===== Scanner overlay — step rows like the reference ===== */
+.scan-steps{
+  display:grid;
+  gap:10px;
+  margin-top:2px;
+}
 
-    .pipe{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
-    @media (max-width:980px){.pipe{grid-template-columns:1fr;gap:10px}}
-    .step{position:relative;border:1px solid var(--border);border-radius:16px;padding:14px;background:linear-gradient(180deg, rgba(17,45,78,.88), rgba(14,34,64,.82));box-shadow:var(--shadow-sm)}
-    .step .h{font-weight:800;color:#fff;margin:0 0 6px}
-    .step .d{color:#d1e3ff;margin:0}
+.scan-step{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:10px 12px;
+  border-radius:12px;
+  background:linear-gradient(180deg, rgba(10,26,48,.88), rgba(8,22,42,.86));
+  border:1px solid var(--border);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.04);
+  transition:background .18s ease, border-color .18s ease;
+}
 
-    /* ===== Docs & Pricing ===== */
-    .doc-grid{display:grid;grid-template-columns:1.1fr .9fr;gap:16px}
-    @media (max-width:980px){.doc-grid{grid-template-columns:1fr}}
-    .doc-card{border:1px solid var(--border);border-radius:20px;padding:18px;background:linear-gradient(180deg, rgba(17,45,78,.95), rgba(14,36,70,.92));box-shadow:var(--shadow-sm)}
-    pre.code{margin:0;padding:14px;border-radius:12px;background:#0d2646;border:1px solid #2b558f;color:#d8e8ff;overflow:auto}
+.scan-step .dot{
+  width:14px; height:14px; border-radius:50%;
+  background:#38BDF8;
+  box-shadow:0 0 12px rgba(56,189,248,.65);
+  flex:0 0 14px;
+  transition:all .18s ease;
+}
 
-    .price-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
-    @media (max-width:980px){.price-grid{grid-template-columns:1fr}}
-    .price{border:1px solid var(--border);border-radius:20px;padding:18px;background:linear-gradient(180deg, rgba(17,40,68,.96), rgba(14,34,60,.92));box-shadow:var(--shadow-sm)}
-    .price h4{margin:0 0 2px;color:#fff}
-    .price .amt{font-weight:800;font-size:28px;letter-spacing:-.02em;color:#fff;margin:6px 0}
-    .price .meta{color:#d1e3ff;margin:0 0 10px}
-    .price ul{margin:8px 0 12px;padding-left:18px;color:#e1eeff}
-    .tag{display:inline-flex;gap:8px;align-items:center;padding:6px 10px;border-radius:999px;background:rgba(56,189,248,.14);border:1px solid var(--border);color:#e6f0ff;font-weight:700;font-size:12px;letter-spacing:.2px;text-transform:uppercase}
+.scan-step span{
+  color:#e6f0ff; font-weight:700; letter-spacing:.1px;
+}
 
-    /* ===== Scanner overlay ===== */
-    .scanner{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:radial-gradient(900px 400px at 50% -10%,rgba(56,189,248,.22),transparent 55%),rgba(4,10,18,.62);backdrop-filter:blur(6px) saturate(140%);z-index:9999}
-    .scanner[hidden]{display:none!important}
-    .scanner.show{display:flex}
-    .scan-card{width:min(660px,92vw);background:linear-gradient(180deg,rgba(17,45,78,.98),rgba(14,38,80,.96));border:1px solid var(--border);border-radius:18px;padding:18px;box-shadow:var(--shadow-lg)}
-    .scan-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px}
-    .scan-title{font-weight:800;font-size:18px;color:#fff}
-    .scan-url{color:#d1e3ff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60%}
-    .scan-cancel{background:#0f2b4e;color:#e6f0ff;border:1px solid var(--border);border-radius:10px;padding:8px 12px;cursor:pointer;min-height:var(--tap)}
-    .scan-cancel:hover{background:#0c2442}
-    .scan-cancel:disabled{opacity:.55;cursor:not-allowed}
-    .scan-body{display:grid;grid-template-columns:170px 1fr;gap:14px}
-    @media (max-width:720px){.scan-body{grid-template-columns:1fr}}
-    .ring-wrap{display:flex;align-items:center;justify-content:center}
-    .ring{width:140px;height:140px;border-radius:50%;background:conic-gradient(from 0deg,#38BDF8,#0EA5E9 38%,#F5A524 70%,#F79009 88%,#38BDF8 100%);-webkit-mask:radial-gradient(circle at center,transparent 56%,#000 57%);mask:radial-gradient(circle at center,transparent 56%,#000 57%);animation:spin 1.2s linear infinite;box-shadow:inset 0 0 18px rgba(0,0,0,.12)}
-    @keyframes spin{to{transform:rotate(360deg)}}
-    .scan-steps{padding:6px 0}
-    .scan-step{display:flex;align-items:center;gap:10px;padding:6px 8px;border-radius:10px;margin-bottom:6px;background:rgba(6,18,34,.55);border:1px solid var(--border)}
-    .scan-step .dot{width:10px;height:10px;border-radius:50%;background:#38BDF8;box-shadow:0 0 10px rgba(56,189,248,.7);animation:pulse .9s ease-in-out infinite}
-    .scan-step.done .dot{width:10px;height:10px;border-radius:2px;background:var(--ok);box-shadow:none;animation:none;clip-path:polygon(14% 44%,0 60%,42% 100%,100% 24%,84% 8%,42% 66%);transform:scale(1.1)}
-    .scan-step span{color:#e6f0ff}
-    @keyframes pulse{0%{transform:scale(.85);opacity:.7}50%{transform:scale(1);opacity:1}100%{transform:scale(.85);opacity:.7}}
-    .scanbar{height:8px;background:#0d2646;border:1px solid #2b558f;border-radius:10px;overflow:hidden;margin-top:10px}
-    .scanbar>i{display:block;height:100%;width:0;background:linear-gradient(90deg,#38BDF8,#0EA5E9,#F5A524,#F79009);transition:width .14s ease}
-    .scan-footer{display:flex;align-items:center;justify-content:space-between;margin-top:10px;color:#b9cae6;font-size:13px}
+/* active (in-progress) */
+.scan-step.active{
+  background:linear-gradient(180deg, rgba(14,40,72,.92), rgba(10,30,56,.9));
+  border-color:#2b558f;
+}
+
+/* done (green check) */
+.scan-step.done{
+  background:linear-gradient(180deg, rgba(10,34,30,.92), rgba(8,30,26,.90));
+  border-color:rgba(36,192,138,.45);
+}
+.scan-step.done .dot{
+  background:var(--ok);
+  box-shadow:none;
+  /* draw a check with CSS */
+  position:relative;
+}
+.scan-step.done .dot::after{
+  content:"";
+  position:absolute; inset:0;
+  /* checkmark using clip-path */
+  clip-path:polygon(18% 54%, 10% 62%, 42% 90%, 92% 26%, 84% 18%, 42% 74%);
+  background:#08221a;
+}
+
+/* progress bar chunkier */
+.scanbar{height:10px;background:#0d2646;border:1px solid #2b558f;border-radius:12px;overflow:hidden;margin-top:12px}
+.scanbar>i{display:block;height:100%;width:0;background:linear-gradient(90deg,#38BDF8,#0EA5E9,#F5A524,#F79009);transition:width .14s ease}
+
   </style>
 
   <!-- Google tag (gtag.js) -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-D0RMWZH4ZJ"></script>
   <script>
     window.dataLayer = window.dataLayer || [];
-    function gtag(){dataLayer.push(arguments);}
-    gtag('js', new Date());
-    gtag('config', 'G-D0RMWZH4ZJ');
+    function gtag(){dataLayer.push(arguments);} gtag('js', new Date()); gtag('config', 'G-D0RMWZH4ZJ');
   </script>
 </head>
+
 <body>
   <div class="site-bg" aria-hidden="true"></div>
   <div class="gridlines" aria-hidden="true"></div>
@@ -299,9 +262,10 @@
         <a class="name" href="/" aria-label="Go to CheckThatURL home">CheckThatURL</a>
       </div>
       <nav class="nav" aria-label="Primary">
+        <a href="#scanner-anchor">Scanner</a>
+        <a href="#hunter">Hunter</a>
         <a href="#why">Why</a>
         <a href="#capabilities">Capabilities</a>
-        <a href="#hunter">Hunter</a>
         <a href="#integrations">Integrations</a>
         <a href="#compliance">Assurance</a>
         <a href="#docs">Docs</a>
@@ -315,9 +279,10 @@
   </header>
   <aside id="mobileDrawer" class="mobile-drawer" aria-hidden="true">
     <nav>
+      <a href="#scanner-anchor" onclick="closeDrawer()">Scanner</a>
+      <a href="#hunter" onclick="closeDrawer()">Hunter</a>
       <a href="#why" onclick="closeDrawer()">Why</a>
       <a href="#capabilities" onclick="closeDrawer()">Capabilities</a>
-      <a href="#hunter" onclick="closeDrawer()">Hunter</a>
       <a href="#integrations" onclick="closeDrawer()">Integrations</a>
       <a href="#compliance" onclick="closeDrawer()">Assurance</a>
       <a href="#docs" onclick="closeDrawer()">Docs</a>
@@ -331,48 +296,29 @@
     <div class="hero-in">
       <div class="hero">
         <span class="eyebrow">🇳🇬 Nigeria-First, Africa-Aware</span>
-        <h1>Enterprise Phishing defense, <span class="accent">trained on Nigerian datasets</span>.</h1>
-        <p class="sub">Engineered for Nigerian banking & fintech realities — BVN/NIN lures, bank-clone domains, momo/OTP scams, .ng TLD misuse — with explainable verdicts your SOC (and regulators) can audit.</p>
+        <h1>Put threats under the microscope. <span class="accent">Scanner</span> & <span class="accent">Hunter</span> up front.</h1>
+        <p class="sub">Built for Nigerian banking & fintech realities — BVN/NIN lures, bank-clone domains, OTP/USSD scams — with explainable, SOC-ready outcomes.</p>
         <div class="hero-ctas">
-          <a class="btn" href="#scanner-anchor" onclick="document.getElementById('url').focus()">Start scanning</a>
-          <a class="btn secondary" href="#pricing">See Pricing</a>
-          <span class="trust-chip">🔒 Zero URL storage (default)</span>
-        </div>
-        <div class="trust-row" role="list">
-          <span class="trust-chip" role="listitem">🇳🇬 Nigerian datasets</span>
-          <span class="trust-chip" role="listitem">🌍 Africa-aware features</span>
-          <span class="trust-chip" role="listitem">🧪 Headless behavior checks</span>
-          <span class="trust-chip" role="listitem">🧾 Explainable reasons</span>
-          <span class="trust-chip" role="listitem">🛡️ SIEM/SOC ready</span>
+          <a class="btn" href="#scanner-anchor" onclick="document.getElementById('url').focus()">Open Scanner</a>
+          <a class="btn secondary" href="#hunter">Open Hunter</a>
+          <span class="btn ghost" style="border-color:#1e4d3a;color:#eafff5">🇳🇬 Nigeria-trained model</span>
         </div>
       </div>
-
-      <div class="hero-card">
-        <h3>Built for Nigerian threat patterns</h3>
-        <p style="margin:0;color:var(--muted)">
-          We fuse heuristics + ML + LLM rationale with live browser simulations to catch the tricks seen across Nigerian banking & fintech ecosystems.
-          Examples: BVN/NIN prompts, fake USSD/OTP flows, bank name variants, local spellings, local wallet/fund-transfer baits.
-        </p>
-        <div class="badge-row" style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
-          <span class="i-badge">BVN/NIN lure detection</span>
-          <span class="i-badge">Bank-clone signatures</span>
-          <span class="i-badge">.ng TLD abuse</span>
-          <span class="i-badge">Consent/redirect capture</span>
-          <span class="i-badge">Explainable AI</span>
-        </div>
+      <div class="hero-card card">
+        <h3 style="margin:0 0 6px;color:#fff">Why lead with Scanner + Hunter?</h3>
+        <p style="margin:0;color:var(--muted)">Speed for analysts, autonomy for discovery. Minimal clicks, maximum clarity. Everything else is here — but secondary.</p>
       </div>
     </div>
   </section>
 
-  <!-- ===== App Surface (scanner) ===== -->
+  <!-- ===== Core: Scanner (most prominent) ===== -->
   <a id="scanner-anchor" style="position:relative;top:-64px"></a>
   <div class="wrap">
     <div class="brandbar">
       <a class="brand-link" href="/" aria-label="Go to CheckThatURL home">
-        <img src="/static/ctu-mark.svg" alt="">
-        <span>CheckThatURL</span>
+        <img src="/static/ctu-mark.svg" alt=""><span>CheckThatURL</span>
       </a>
-      <span class="trust-chip">🇳🇬 Nigeria-trained Model</span>
+      <span class="btn ghost" style="border-color:#1e4d3a;color:#eafff5">🇳🇬 Nigeria-first</span>
     </div>
 
     <div class="top-privacy">
@@ -386,16 +332,18 @@
     <div class="grid-frame">
       <div class="grid">
         <div>
-          <div class="hero">
-            <h1 style="margin-top:0">Scan any link. <span class="accent">Instant</span> verdicts.<br/>Clear Nigerian-aware reasons.</h1>
+          <div class="hero" style="padding:0 0 4px">
+            <h1 style="margin-top:0">Scan any link. <span class="accent" style="color:var(--ng)">Instant</span> verdicts. Clear Nigeria-aware reasons.</h1>
             <p>AI-powered phishing detection tuned to Nigeria’s banking & fintech landscape.</p>
           </div>
 
           <div class="search">
-            <input id="url" class="url-input" placeholder="Paste a URL (e.g. https://bankname.ng/secure-login)" />
-            <button id="scan" class="btn">Check</button>
-            <button id="rescan" class="btn secondary" title="Re-run with cache-busting">Re-scan anyway</button>
-            <label class="quick"><input type="checkbox" id="fastToggle"> ⚡ Quick scan</label>
+            <input id="url" class="url-input mono" placeholder="Paste a URL (e.g. https://bankname.ng/secure-login)" />
+            <div class="action-stack">
+              <button id="scan" class="btn">Check</button>
+              <button id="rescan" class="btn secondary" title="Re-run with cache-busting">Re-scan anyway</button>
+              <label class="quick"><input type="checkbox" id="fastToggle"> ⚡ Quick scan</label>
+            </div>
           </div>
 
           <div id="hint" class="hint">Press Enter or click Check to scan.</div>
@@ -405,25 +353,16 @@
               <h3 style="margin:0;font-size:20px;color:#fff">Verdict</h3>
               <div id="verdictBadge" class="verdict-badge badge-warn">Suspicious</div>
             </div>
-
-            <div class="meta">
-              <span id="lastScanned">Last scanned —</span>
-              <span class="dot"></span>
-              <button id="shareBtn" class="btn small secondary">Share</button>
-            </div>
-
+            <div class="meta"><span id="lastScanned">Last scanned —</span><span class="dot"></span><button id="shareBtn" class="btn small secondary">Share</button></div>
             <div id="verdictTitle" style="font-size:28px;font-weight:800;letter-spacing:-.02em;margin:2px 0 6px;color:#fff">—</div>
             <div id="verdictExplain" style="color:#d1e3ff;margin-bottom:12px;">—</div>
-
             <div class="scorebar" style="margin:8px 0 16px;"><i id="riskFill"></i></div>
-
             <div class="section">
               <div class="pill" id="pill-domain"><h4>🌐 Domain Risks (.ng aware)</h4><div id="domainRisks" class="empty">No notable issues.</div></div>
               <div class="pill" id="pill-content"><h4>📝 Content Risks (BVN/NIN, OTP, USSD)</h4><div id="contentRisks" class="empty">No notable issues.</div></div>
               <div class="pill" id="pill-link"><h4>🔗 Link Risks (bank name variants)</h4><div id="linkRisks" class="empty">No notable issues.</div></div>
               <div class="pill" id="pill-behavior"><h4>🧪 Behavior Signals (redirects, timers)</h4><div id="behaviorRisks" class="empty">No notable issues.</div></div>
             </div>
-
             <details id="evidence" class="evidence">
               <summary>🧾 Evidence (redirect chains & consent/OTP prompts)</summary>
               <div class="evidence-body">
@@ -446,40 +385,84 @@
     </div>
   </div>
 
+  <!-- ===== Agentic Hunter (second core, still prominent) ===== -->
+  <section id="hunter" class="band" aria-labelledby="hunter-title">
+    <div class="section-wrap">
+      <h3 id="hunter-title" class="section-title">🕵🏽 Agentic Hunter — autonomous discovery for Nigerian playbooks</h3>
+      <div class="split" style="display:grid;grid-template-columns:1.05fr .95fr;gap:16px">
+        <div class="compare spark">
+          <h4 style="margin-top:0">Control Panel</h4>
+          <form id="hunterSeedForm" class="card" style="margin-top:10px">
+            <h4 style="margin:0 0 8px;color:#fff">Seed keywords / domains (Nigeria-focused)</h4>
+            <p class="hint" style="margin:0 0 8px">Comma-separated. Examples: “BVN update, NIN portal, GTBank verify, Access Bank login, Momo wallet reset”.</p>
+            <input id="hunterSeeds" class="url-input" placeholder="e.g. bvn update, gtbank login, access bank verify" />
+            <div class="action-stack" style="margin-top:10px">
+              <button id="hunterStartBtn" class="btn">Start Hunt</button>
+              <button id="hunterStopBtn" class="btn secondary">Stop</button>
+              <div style="display:flex;gap:14px;flex-wrap:wrap;color:#c5d6f0;font-size:13px">
+                <label class="quick"><input type="checkbox" id="hunterAuto" checked> Auto-hunt (continuous)</label>
+                <label class="quick"><input type="checkbox" id="hunterFollow" checked> Follow redirects / forms</label>
+                <label class="quick"><input type="checkbox" id="hunterNigeria" checked> Nigeria-focused</label>
+              </div>
+            </div>
+          </form>
+          <p id="hunterHint" class="hint" style="margin-top:10px">Hunter uses safe headless browsing to discover, test, and score live suspect links from Nigerian-tuned seeds and learned patterns.</p>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:6px 0 6px">
+            <span id="hunterStatusBadge" class="status-badge status-warn">Status: Unknown</span>
+            <button id="hunterRefreshBtn" class="btn small ghost">Refresh</button>
+          </div>
+        </div>
+        <div class="compare">
+          <h4 style="margin-top:0">Recent Discoveries</h4>
+          <div class="hint" id="hunterTableHint">Latest 50 (auto-refresh while running).</div>
+          <table class="tbl" aria-label="Hunter discoveries">
+            <thead>
+              <tr><th>Time</th><th>URL</th><th>Source</th><th>Risk</th><th>Verdict</th></tr>
+            </thead>
+            <tbody id="hunterTableBody">
+              <tr><td colspan="5" class="hint">No data loaded yet.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="hint" style="margin-top:8px">Backend endpoints: <code class="mono">GET /hunter/status</code>, <code class="mono">POST /hunter/start</code>, <code class="mono">POST /hunter/stop</code>, <code class="mono">GET /hunter/discoveries?limit=50</code>.</div>
+    </div>
+  </section>
+
   <!-- ===== Why ===== -->
   <section class="band" id="why" aria-labelledby="why-title">
     <div class="section-wrap">
       <h3 id="why-title" class="section-title">Why a Nigeria-First Approach Matters</h3>
-      <div class="why-grid">
-        <div class="why-card"><h4>Local attacker playbooks</h4><p>Threat actors adapt to Nigerian banks, telcos, and wallets. Our features reflect those patterns.</p></div>
-        <div class="why-card"><h4>Explainable by design</h4><p>Verdicts grouped across domain, content, links, and behavior — analysts can audit the “why”.</p></div>
-        <div class="why-card"><h4>Privacy without compromise</h4><p>Zero URL storage by default, in-memory processing, self-hostable enterprise mode.</p></div>
-        <div class="why-card"><h4>Hybrid signal fusion</h4><p>Heuristics + ML + LLM rationale + live browser simulation.</p></div>
-        <div class="why-card"><h4>SOC-ready outcomes</h4><p>Forward outcomes and evidence to SIEM; export redirect chains & interactions.</p></div>
-        <div class="why-card"><h4>CBN-fit positioning</h4><p>Built to align with Nigerian financial-sector realities and oversight needs.</p></div>
+      <div class="why-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px">
+        <div class="why-card spark"><h4>Local attacker playbooks</h4><p>Threat actors adapt to Nigerian banks, telcos, and wallets. Our features reflect those patterns.</p></div>
+        <div class="why-card spark"><h4>Explainable by design</h4><p>Verdicts grouped across domain, content, links, and behavior — analysts can audit the “why”.</p></div>
+        <div class="why-card spark"><h4>Privacy without compromise</h4><p>Zero URL storage by default, in-memory processing, self-hostable enterprise mode.</p></div>
+        <div class="why-card spark"><h4>Hybrid signal fusion</h4><p>Heuristics + ML + LLM rationale + live browser simulation.</p></div>
+        <div class="why-card spark"><h4>SOC-ready outcomes</h4><p>Forward outcomes and evidence to SIEM; export redirect chains & interactions.</p></div>
+        <div class="why-card spark"><h4>CBN-fit positioning</h4><p>Built to align with Nigerian financial-sector realities and oversight needs.</p></div>
       </div>
     </div>
   </section>
 
   <!-- ===== Compare ===== -->
   <section>
-    <div class="section-wrap split">
-      <div class="compare">
+    <div class="section-wrap split" style="display:grid;grid-template-columns:1.1fr .9fr;gap:16px">
+      <div class="compare card">
         <h4>What simple “checkers” typically do</h4>
-        <ul class="checklist">
-          <li><span class="warn"></span> Depend on global blocklists / reputation only.</li>
-          <li><span class="warn"></span> Little or no browser behavior simulation.</li>
-          <li><span class="warn"></span> Opaque scores without Nigerian context.</li>
-          <li><span class="warn"></span> Heavy data retention and privacy trade-offs.</li>
+        <ul class="checklist" style="list-style:none;margin:10px 0 0;padding:0">
+          <li style="display:flex;gap:10px;align-items:flex-start;margin:8px 0;color:#d8e8ff"><span class="warn" style="width:16px;height:16px;border-radius:50%;border:2px solid var(--danger);display:inline-block;margin-top:3px"></span> Depend on global blocklists / reputation only.</li>
+          <li style="display:flex;gap:10px;align-items:flex-start;margin:8px 0;color:#d8e8ff"><span class="warn" style="width:16px;height:16px;border-radius:50%;border:2px solid var(--danger);display:inline-block;margin-top:3px"></span> Little or no browser behavior simulation.</li>
+          <li style="display:flex;gap:10px;align-items:flex-start;margin:8px 0;color:#d8e8ff"><span class="warn" style="width:16px;height:16px;border-radius:50%;border:2px solid var(--danger);display:inline-block;margin-top:3px"></span> Opaque scores without Nigerian context.</li>
+          <li style="display:flex;gap:10px;align-items:flex-start;margin:8px 0;color:#d8e8ff"><span class="warn" style="width:16px;height:16px;border-radius:50%;border:2px solid var(--danger);display:inline-block;margin-top:3px"></span> Heavy data retention and privacy trade-offs.</li>
         </ul>
       </div>
       <div class="compare spark">
         <h4>What CheckThatURL does for Nigeria</h4>
-        <ul class="checklist">
-          <li><span class="check"></span> <strong>Behavior-first</strong> inspection of redirects, timers, popups, consent, OTP/USSD prompts.</li>
-          <li><span class="check"></span> <strong>Nigeria-aware</strong> feature engineering (BVN/NIN lures, bank-clone lexicons, .ng misuse).</li>
-          <li><span class="check"></span> <strong>Explainable</strong> verdicts grouped by signal class for SOC & audit.</li>
-          <li><span class="check"></span> <strong>Zero-retention</strong> default with self-hosted, retention-controlled enterprise mode.</li>
+        <ul class="checklist" style="list-style:none;margin:10px 0 0;padding:0">
+          <li class="row"><span class="check" style="width:16px;height:16px;border-radius:4px;background:var(--ok);display:inline-block;margin-top:3px"></span> <strong>Behavior-first</strong> inspection of redirects, timers, popups, consent, OTP/USSD prompts.</li>
+          <li class="row"><span class="check" style="width:16px;height:16px;border-radius:4px;background:var(--ok);display:inline-block;margin-top:3px"></span> <strong>Nigeria-aware</strong> features (BVN/NIN lures, bank-clone lexicons, .ng misuse).</li>
+          <li class="row"><span class="check" style="width:16px;height:16px;border-radius:4px;background:var(--ok);display:inline-block;margin-top:3px"></span> <strong>Explainable</strong> verdicts grouped by signal class for SOC & audit.</li>
+          <li class="row"><span class="check" style="width:16px;height:16px;border-radius:4px;background:var(--ok);display:inline-block;margin-top:3px"></span> <strong>Zero-retention</strong> default; self-hosted modes for regulated environments.</li>
         </ul>
       </div>
     </div>
@@ -489,11 +472,11 @@
   <section class="band" aria-labelledby="hood-title">
     <div class="section-wrap">
       <h3 id="hood-title" class="section-title">How a verdict is produced (Nigeria-aware)</h3>
-      <div class="pipe">
-        <div class="step"><p class="h">1) Signal Collection</p><p class="d">Domain (.ng nuances), content (BVN/NIN/OTP/USSD), link graph (bank-clone variants), and live behavior signals.</p></div>
-        <div class="step"><p class="h">2) Behavioral Simulation</p><p class="d">Headless browser follows redirects, detects timers/popups/consent, records OTP/USSD prompts.</p></div>
-        <div class="step"><p class="h">3) Hybrid Fusion</p><p class="d">Heuristics + ML + LLM-assisted rationale tuned to Nigerian patterns reduce noise and highlight intent.</p></div>
-        <div class="step"><p class="h">4) Explainable Output</p><p class="d">Verdict + grouped reasons + evidence, ready for SOC review and SIEM forwarding.</p></div>
+      <div class="pipe" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+        <div class="step card"><p class="h" style="font-weight:800;color:#fff;margin:0 0 6px">1) Signal Collection</p><p class="d" style="color:#d1e3ff;margin:0">Domain (.ng nuances), content (BVN/NIN/OTP/USSD), link graph (bank variants), and live behavior signals.</p></div>
+        <div class="step card"><p class="h" style="font-weight:800;color:#fff;margin:0 0 6px">2) Behavioral Simulation</p><p class="d" style="color:#d1e3ff;margin:0">Headless browser follows redirects, detects timers/popups/consent, records OTP/USSD prompts.</p></div>
+        <div class="step card"><p class="h" style="font-weight:800;color:#fff;margin:0 0 6px">3) Hybrid Fusion</p><p class="d" style="color:#d1e3ff;margin:0">Heuristics + ML + LLM-assisted rationale tuned to Nigerian patterns.</p></div>
+        <div class="step card"><p class="h" style="font-weight:800;color:#fff;margin:0 0 6px">4) Explainable Output</p><p class="d" style="color:#d1e3ff;margin:0">Verdict + grouped reasons + evidence, ready for SOC review.</p></div>
       </div>
     </div>
   </section>
@@ -503,11 +486,11 @@
     <div class="section-wrap">
       <h3 id="capabilities" class="section-title">Product Capabilities</h3>
       <div class="feature-grid">
-        <div class="fcard spark"><h4>Behavioral Simulation</h4><p>Redirects, timers, popups, consent, OTP/USSD prompts — captured and analyzed.</p></div>
-        <div class="fcard spark"><h4>Explainable Verdicts</h4><p>Grouped reasons across domain, content, links, and behavior — SOC-friendly.</p></div>
-        <div class="fcard spark"><h4>Nigeria-Aware Features</h4><p>BVN/NIN lure detection, bank-clone signatures, .ng TLD misuse, local spellings & wallets.</p></div>
-        <div class="fcard spark"><h4>Hybrid Detection</h4><p>Heuristics + ML + LLM rationale to boost accuracy and reduce false positives.</p></div>
-        <div class="fcard spark"><h4>Privacy by Design</h4><p>Zero URL storage by default. In-memory processing. Enterprise retention controls.</p></div>
+        <div class="spark"><h4>Behavioral Simulation</h4><p>Redirects, timers, popups, consent, OTP/USSD prompts — captured and analyzed.</p></div>
+        <div class="spark"><h4>Explainable Verdicts</h4><p>Grouped reasons across domain, content, links, and behavior — SOC-friendly.</p></div>
+        <div class="spark"><h4>Nigeria-Aware Features</h4><p>BVN/NIN lure detection, bank-clone signatures, .ng TLD misuse, local spellings & wallets.</p></div>
+        <div class="spark"><h4>Hybrid Detection</h4><p>Heuristics + ML + LLM rationale to boost accuracy and reduce false positives.</p></div>
+        <div class="spark"><h4>Privacy by Design</h4><p>Zero URL storage by default. In-memory processing. Enterprise retention controls.</p></div>
       </div>
     </div>
   </section>
@@ -537,9 +520,9 @@
     <div class="section-wrap">
       <h3 id="compliance-title" class="section-title">Assurance & Reliability (for Nigerian FS)</h3>
       <div class="comp-grid">
-        <div class="comp spark"><h4>Audit-ready Evidence</h4><p class="hint">Export redirect chains, OTP/USSD prompts, consent clicks, and grouped reasons.</p></div>
-        <div class="comp spark"><h4>Data Handling</h4><p class="hint">Ephemeral by default. Configurable retention in enterprise/self-hosted deployments.</p></div>
-        <div class="comp spark"><h4>Engineering for Trust</h4><p class="hint">Evaluation, drift checks, safe defaults, and change control — designed for SOC workflows in regulated environments.</p></div>
+        <div class="spark"><h4>Audit-ready Evidence</h4><p class="hint">Export redirect chains, OTP/USSD prompts, consent clicks, and grouped reasons.</p></div>
+        <div class="spark"><h4>Data Handling</h4><p class="hint">Ephemeral by default. Configurable retention in enterprise/self-hosted deployments.</p></div>
+        <div class="spark"><h4>Engineering for Trust</h4><p class="hint">Evaluation, drift checks, safe defaults, and change control — designed for SOC workflows in regulated environments.</p></div>
       </div>
     </div>
   </section>
@@ -548,17 +531,17 @@
   <section class="band" id="docs" aria-labelledby="docs-title">
     <div class="section-wrap">
       <h3 id="docs-title" class="section-title">Docs & Quickstart</h3>
-      <div class="doc-grid">
-        <div class="doc-card">
-          <span class="tag">REST API</span>
+      <div class="doc-grid" style="display:grid;grid-template-columns:1.1fr .9fr;gap:16px">
+        <div class="doc-card card">
+          <span class="tag" style="display:inline-flex;gap:8px;align-items:center;padding:6px 10px;border-radius:999px;background:rgba(56,189,248,.14);border:1px solid var(--border);color:#e6f0ff;font-weight:700;font-size:12px;letter-spacing:.2px;text-transform:uppercase">REST API</span>
           <h4 style="margin:8px 0 6px;color:#fff">Quickstart: POST /check</h4>
           <p class="hint" style="margin:0 0 10px">Send a URL for analysis. Optional <code class="mono">quick=1</code> for faster heuristics.</p>
-<pre class="code mono">POST https://checkthaturl.com/check?ui=redacted
+<pre class="code mono" style="margin:0;padding:14px;border-radius:12px;background:#0d2646;border:1px solid #2b558f;color:#d8e8ff;overflow:auto">POST https://checkthaturl.com/check?ui=redacted
 Content-Type: application/json
 
 {"url":"https://bankname.ng/secure-login"}</pre>
           <p class="hint" style="margin:10px 0 6px">Response (truncated):</p>
-<pre class="code mono">{
+<pre class="code mono" style="margin:0;padding:14px;border-radius:12px;background:#0d2646;border:1px solid #2b558f;color:#d8e8ff;overflow:auto">{
   "verdict": "Phishing",
   "risk": 0.86,
   "explanation": "BVN/OTP lure + suspicious .ng subdomain + redirect maze",
@@ -566,17 +549,15 @@ Content-Type: application/json
   "behavior": { "redirect_chain": [...], "clicks": 2 }
 }</pre>
         </div>
-        <div class="doc-card">
-          <span class="tag">SDK / Integrations</span>
-          <ul class="checklist" style="margin-top:10px">
-            <li><span class="check"></span> <strong>Browser Extension</strong> — inline verdicts on hover/click.</li>
-            <li><span class="check"></span> <strong>Email Scanner</strong> — scan inbound links, annotate messages.</li>
-            <li><span class="check"></span> <strong>SIEM Forwarders</strong> — Splunk, Elastic, Sentinel, QRadar.</li>
-            <li><span class="check"></span> <strong>SSO</strong> — Okta / Azure AD; RBAC for least privilege.</li>
+        <div class="doc-card card">
+          <span class="tag" style="display:inline-flex;gap:8px;align-items:center;padding:6px 10px;border-radius:999px;background:rgba(56,189,248,.14);border:1px solid var(--border);color:#e6f0ff;font-weight:700;font-size:12px;letter-spacing:.2px;text-transform:uppercase">SDK / Integrations</span>
+          <ul class="checklist" style="margin:10px 0 0;padding-left:18px;color:#e1eeff">
+            <li>Browser Extension — inline verdicts on hover/click.</li>
+            <li>Email Scanner — scan inbound links, annotate messages.</li>
+            <li>SIEM Forwarders — Splunk, Elastic, Sentinel, QRadar.</li>
+            <li>SSO — Okta / Azure AD; RBAC for least privilege.</li>
           </ul>
-          <div class="badge-row" style="margin-top:12px">
-            <a class="btn small" href="#contact">Contact for full docs</a>
-          </div>
+          <div class="badge-row" style="margin-top:12px"><a class="btn small" href="#contact">Contact for full docs</a></div>
         </div>
       </div>
     </div>
@@ -588,10 +569,10 @@ Content-Type: application/json
       <h3 id="learn" class="section-title">Operational Excellence</h3>
       <div class="stats">
         <div class="stat-grid">
-          <div class="stat spark"><div class="num">20+ checks</div><div class="lbl">Static & behavioral signals</div></div>
-          <div class="stat spark"><div class="num">Sub-sec</div><div class="lbl">Quick mode responses</div></div>
-          <div class="stat spark"><div class="num">Explainable</div><div class="lbl">Analyst-friendly reasons</div></div>
-          <div class="stat spark"><div class="num">SIEM-ready</div><div class="lbl">Event forwarding & audit</div></div>
+          <div class="spark card"><div class="num" style="font-size:clamp(20px,6vw,28px);font-weight:800;letter-spacing:-.02em;color:#fff">20+ checks</div><div class="lbl" style="color:#d1e3ff;font-size:13px">Static & behavioral signals</div></div>
+          <div class="spark card"><div class="num" style="font-size:clamp(20px,6vw,28px);font-weight:800;letter-spacing:-.02em;color:#fff">Sub-sec</div><div class="lbl" style="color:#d1e3ff;font-size:13px">Quick mode responses</div></div>
+          <div class="spark card"><div class="num" style="font-size:clamp(20px,6vw,28px);font-weight:800;letter-spacing:-.02em;color:#fff">Explainable</div><div class="lbl" style="color:#d1e3ff;font-size:13px">Analyst-friendly reasons</div></div>
+          <div class="spark card"><div class="num" style="font-size:clamp(20px,6vw,28px);font-weight:800;letter-spacing:-.02em;color:#fff">SIEM-ready</div><div class="lbl" style="color:#d1e3ff;font-size:13px">Event forwarding & audit</div></div>
         </div>
       </div>
     </div>
@@ -601,8 +582,8 @@ Content-Type: application/json
   <section class="band" id="pricing" aria-labelledby="pricing-title">
     <div class="section-wrap">
       <h3 id="pricing-title" class="section-title">Pricing</h3>
-      <div class="price-grid">
-        <div class="price">
+      <div class="price-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px">
+        <div class="price card">
           <span class="tag">Starter</span>
           <h4>Everyday Safety</h4>
           <p class="amt">$0</p>
@@ -614,7 +595,7 @@ Content-Type: application/json
           </ul>
           <a class="btn small" href="#scanner-anchor">Start Free</a>
         </div>
-        <div class="price">
+        <div class="price card">
           <span class="tag">Pro</span>
           <h4>Team Protection</h4>
           <p class="amt">$49 / seat / mo</p>
@@ -626,7 +607,7 @@ Content-Type: application/json
           </ul>
           <a class="btn small" href="#contact">Talk to Sales</a>
         </div>
-        <div class="price">
+        <div class="price card">
           <span class="tag">Enterprise</span>
           <h4>SOC & SIEM Ready</h4>
           <p class="amt">Custom</p>
@@ -643,49 +624,6 @@ Content-Type: application/json
     </div>
   </section>
 
-  <!-- ===== Agentic Hunter ===== -->
-  <section id="hunter" class="band" aria-labelledby="hunter-title">
-    <div class="section-wrap">
-      <h3 id="hunter-title" class="section-title">Agentic Hunter — autonomous discovery for Nigerian playbooks</h3>
-      <div class="split">
-        <div class="compare spark">
-          <h4 style="margin-top:0">Control Panel</h4>
-          <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:6px 0 10px">
-            <span id="hunterStatusBadge" class="status-badge status-warn">Status: Unknown</span>
-            <button id="hunterStartBtn" class="btn small">Start Hunt</button>
-            <button id="hunterStopBtn" class="btn small secondary">Stop</button>
-            <button id="hunterRefreshBtn" class="btn small ghost">Refresh</button>
-          </div>
-          <form id="hunterSeedForm" class="card" style="margin-top:10px">
-            <h4 style="margin:0 0 8px;color:#fff">Seed keywords / domains (Nigeria-focused)</h4>
-            <p class="hint" style="margin:0 0 8px">Comma-separated. Examples: “BVN update, NIN portal, GTBank verify, Access Bank login, Momo wallet reset”.</p>
-            <input id="hunterSeeds" class="url-input" placeholder="e.g. bvn update, gtbank login, access bank verify" />
-            <div style="display:flex;gap:10px;margin-top:10px">
-              <label class="quick"><input type="checkbox" id="hunterAuto" checked> Auto-hunt (continuous)</label>
-              <label class="quick"><input type="checkbox" id="hunterFollow" checked> Follow redirects / forms</label>
-              <label class="quick"><input type="checkbox" id="hunterNigeria" checked> Nigeria-focused</label>
-            </div>
-          </form>
-          <p id="hunterHint" class="hint" style="margin-top:10px">Hunter uses safe headless browsing to discover, test, and score live suspect links from Nigerian-tuned seeds and learned patterns.</p>
-        </div>
-
-        <div class="compare">
-          <h4 style="margin-top:0">Recent Discoveries</h4>
-          <div class="hint" id="hunterTableHint">Latest 50 (auto-refresh while running).</div>
-          <table class="tbl" aria-label="Hunter discoveries">
-            <thead>
-              <tr><th>Time</th><th>URL</th><th>Source</th><th>Risk</th><th>Verdict</th></tr>
-            </thead>
-            <tbody id="hunterTableBody">
-              <tr><td colspan="5" class="hint">No data loaded yet.</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-      <div class="hint" style="margin-top:8px">Backend endpoints: <code class="mono">GET /hunter/status</code>, <code class="mono">POST /hunter/start</code>, <code class="mono">POST /hunter/stop</code>, <code class="mono">GET /hunter/discoveries?limit=50</code>. UI degrades gracefully if disabled.</div>
-    </div>
-  </section>
-
   <!-- ===== CTA + Footer ===== -->
   <section>
     <div class="section-wrap">
@@ -695,7 +633,7 @@ Content-Type: application/json
             <h3 style="margin:0 0 6px;font-size:20px;letter-spacing:-.02em;color:#fff">Bring Nigeria-First CheckThatURL to your SOC</h3>
             <p>Free POV for banks/fintechs/telcos: Email Scanner, Browser Extensions, API, SIEM integrations.</p>
           </div>
-          <div class="cta-actions">
+          <div class="cta-actions" style="display:flex;gap:10px;flex-wrap:wrap">
             <a class="btn" href="#contact" style="background:linear-gradient(90deg,#38BDF8,#0EA5E9)">Request POV</a>
             <a class="btn secondary" href="#pricing">See Pricing</a>
             <a class="btn ghost" href="#docs">Docs</a>
@@ -715,21 +653,20 @@ Content-Type: application/json
   </section>
 
   <!-- ===== Scanner overlay (hidden by default) ===== -->
-  <div id="scanner" class="scanner" hidden aria-hidden="true">
-    <div class="scan-card" role="dialog" aria-live="polite" aria-label="Scanning in progress">
-      <div class="scan-head">
-        <div class="scan-title">Scanning…</div>
+  <div id="scanner" class="scanner" hidden aria-hidden="true" style="position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:radial-gradient(900px 400px at 50% -10%,rgba(56,189,248,.22),transparent 55%),rgba(4,10,18,.62);backdrop-filter:blur(6px) saturate(140%);z-index:9999">
+    <div class="scan-card" role="dialog" aria-live="polite" aria-label="Scanning in progress" style="width:min(660px,92vw);background:linear-gradient(180deg,rgba(17,45,78,.98),rgba(14,38,80,.96));border:1px solid var(--border);border-radius:18px;padding:18px;box-shadow:var(--shadow-lg)">
+      <div class="scan-head" style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px">
+        <div class="scan-title" style="font-weight:800;font-size:18px;color:#fff">Scanning…</div>
         <div class="scan-url mono" id="scanUrl">—</div>
-        <button id="scanCancel" class="scan-cancel">Cancel</button>
+        <button id="scanCancel" class="scan-cancel" style="background:#0f2b4e;color:#e6f0ff;border:1px solid var(--border);border-radius:10px;padding:8px 12px;cursor:pointer;min-height:var(--tap)">Cancel</button>
       </div>
-      <div class="scan-body">
-        <div class="ring-wrap"><div class="ring" aria-hidden="true"></div></div>
+      <div class="scan-body" style="display:grid;grid-template-columns:170px 1fr;gap:14px">
+        <div class="ring-wrap" style="display:flex;align-items:center;justify-content:center"><div class="ring" aria-hidden="true" style="width:140px;height:140px;border-radius:50%;background:conic-gradient(from 0deg,#38BDF8,#0EA5E9 38%,#F5A524 70%,#F79009 88%,#38BDF8 100%);-webkit-mask:radial-gradient(circle at center,transparent 56%,#000 57%);mask:radial-gradient(circle at center,transparent 56%,#000 57%);animation:spin 1.2s linear infinite;box-shadow:inset 0 0 18px rgba(0,0,0,.12)"></div></div>
         <div>
           <div id="scanSteps" class="scan-steps"></div>
-          <div class="scanbar"><i id="scanProgress"></i></div>
-          <div class="scan-footer">
-            <span id="scanStatus">Scanning In Progress, Please Wait...</span>
-            <span id="scanEta" class="mono">—</span>
+          <div class="scanbar" style="height:8px;background:#0d2646;border:1px solid #2b558f;border-radius:10px;overflow:hidden;margin-top:10px"><i id="scanProgress" style="display:block;height:100%;width:0;background:linear-gradient(90deg,#38BDF8,#0EA5E9,#F5A524,#F79009);transition:width .14s ease"></i></div>
+          <div class="scan-footer" style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;color:#b9cae6;font-size:13px">
+            <span id="scanStatus">Scanning In Progress, Please Wait...</span><span id="scanEta" class="mono">—</span>
           </div>
         </div>
       </div>
@@ -738,343 +675,400 @@ Content-Type: application/json
 
   <div id="toast" class="toast" style="display:none"></div>
 
-  <script>
-    const $ = s => document.querySelector(s);
-    const setText = (sel, txt) => { const el = (typeof sel === 'string') ? $(sel) : sel; if (el) el.textContent = txt; };
-    setText('#year', new Date().getFullYear());
+ <script>
+/* =========================================
+   Utilities & globals
+========================================= */
+const $  = (s)=>document.querySelector(s);
+const $$ = (s)=>Array.from(document.querySelectorAll(s));
+const setText = (sel, txt) => { const el = (typeof sel === 'string') ? $(sel) : sel; if (el) el.textContent = txt; };
+setText('#year', new Date().getFullYear());
 
-    /* ===== Mobile drawer ===== */
-    const drawer = $('#mobileDrawer');
-    const hdrBtn = $('#hdrScanBtn');
-    function closeDrawer(){ drawer.classList.remove('show'); drawer.setAttribute('aria-hidden','true'); hdrBtn.setAttribute('aria-expanded','false'); }
-    hdrBtn?.addEventListener('click', ()=>{
-      const open = drawer.classList.toggle('show');
-      drawer.setAttribute('aria-hidden', open ? 'false':'true');
-      hdrBtn.setAttribute('aria-expanded', open ? 'true':'false');
+/* =========================================
+   Mobile drawer
+========================================= */
+const drawer = $('#mobileDrawer');
+const hdrBtn = $('#hdrScanBtn');
+function closeDrawer(){
+  if (!drawer) return;
+  drawer.classList.remove('show');
+  drawer.setAttribute('aria-hidden','true');
+  hdrBtn?.setAttribute('aria-expanded','false');
+}
+hdrBtn?.addEventListener('click', ()=>{
+  const open = drawer.classList.toggle('show');
+  drawer.setAttribute('aria-hidden', open ? 'false':'true');
+  hdrBtn.setAttribute('aria-expanded', open ? 'true':'false');
+});
+drawer?.addEventListener('click', (e)=>{ if (e.target === drawer) closeDrawer(); });
+
+/* =========================================
+   Smart nav for /privacy, /legal, /faq
+========================================= */
+(function attachSmartNav(){
+  const anchors = document.querySelectorAll('[data-smart-nav][data-page]');
+  anchors.forEach(a=>{
+    a.addEventListener('click', async (e)=>{
+      e.preventDefault();
+      const page = a.getAttribute('data-page');
+      const primary = `/${page}`;
+      const fallback = `/${page}.html`;
+      const ctrl = new AbortController();
+      const t = setTimeout(()=>ctrl.abort(), 1200);
+      try{
+        const r = await fetch(primary, {method:'GET', cache:'no-store', signal:ctrl.signal});
+        clearTimeout(t);
+        location.assign(r.ok ? primary : fallback);
+      }catch{
+        clearTimeout(t);
+        location.assign(fallback);
+      }
     });
-    drawer?.addEventListener('click', (e)=>{ if (e.target === drawer) closeDrawer(); });
+  });
+})();
 
-    /* ===== Smart navigation (works with /privacy, /legal, /faq or *.html fallbacks) ===== */
-    function attachSmartNav(){
-      const anchors = document.querySelectorAll('[data-smart-nav][data-page]');
-      anchors.forEach(a=>{
-        a.addEventListener('click', async (e)=>{
-          e.preventDefault();
-          const page = a.getAttribute('data-page');
-          const primary = `/${page}`;
-          const fallback = `/${page}.html`;
-          const ctrl = new AbortController();
-          const t = setTimeout(()=>ctrl.abort(), 1200);
-          try{
-            const r = await fetch(primary, {method:'GET', cache:'no-store', signal:ctrl.signal});
-            clearTimeout(t);
-            if(r.ok) return location.assign(primary);
-            return location.assign(fallback);
-          }catch(_){
-            clearTimeout(t);
-            return location.assign(fallback);
-          }
-        });
-      });
+/* =========================================
+   Toast
+========================================= */
+function showToast(msg, ms=3500){
+  const t = $('#toast');
+  if (!t) return;
+  t.textContent = msg;
+  t.style.display = 'block';
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(()=>{ t.style.display='none'; }, ms);
+}
+
+/* =========================================
+   Scanner — inputs & UI parts
+========================================= */
+const urlInput   = $('#url');
+const btnScan    = $('#scan');
+const btnRescan  = $('#rescan');
+const fastToggle = $('#fastToggle');
+
+const card       = $('#verdictCard');
+const badge      = $('#verdictBadge');
+const titleEl    = $('#verdictTitle');
+const explainEl  = $('#verdictExplain');
+const riskFill   = $('#riskFill');
+const lastScanned= $('#lastScanned');
+
+const domRisks   = $('#domainRisks');
+const conRisks   = $('#contentRisks');
+const linkRisks  = $('#linkRisks');
+const behRisks   = $('#behaviorRisks');
+
+const evChain    = $('#evChain');
+const evConsent  = $('#evConsent');
+
+/* Overlay */
+const overlay     = $('#scanner');
+const scanUrlEl   = $('#scanUrl');
+const scanSteps   = $('#scanSteps');
+const scanProgress= $('#scanProgress');
+const scanStatus  = $('#scanStatus');
+const scanCancel  = $('#scanCancel');
+
+/* query param ?u= prefill */
+try{ const u = new URLSearchParams(location.search).get('u'); if (u) urlInput.value = u; }catch{}
+
+/* Helpers */
+function escapeHtml(s){ return String(s ?? '').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function setBadge(verdict){
+  let cls = 'verdict-badge badge-warn';
+  if (verdict === 'Legitimate') cls = 'verdict-badge badge-ok';
+  else if (verdict === 'Phishing') cls = 'verdict-badge badge-bad';
+  badge.className = cls;
+  badge.textContent = verdict;
+}
+function renderList(el, items, verdict){
+  if (!el) return;
+  const pill = el.closest('.pill');
+  if (!Array.isArray(items) || items.length === 0){
+    if (pill) pill.style.display = (verdict === 'Legitimate') ? '' : 'none';
+    el.classList.add('empty');
+    el.textContent = (verdict === 'Legitimate') ? 'No notable issues.' : '';
+    return;
+  }
+  if (pill) pill.style.display = '';
+  el.classList.remove('empty');
+  el.innerHTML = '<ul class="list">' + items.map(x=>`<li>${escapeHtml(x)}`).join('') + '</ul>';
+}
+function normalizePayload(data){
+  try { if (typeof data === 'string') data = JSON.parse(data); } catch {}
+  const p = data && typeof data === 'object' ? data : {};
+  let risk = (typeof p.risk === 'number') ? p.risk :
+             (typeof p.phishing_score === 'number') ? p.phishing_score/100 : 0.5;
+  risk = Math.max(0, Math.min(1, risk));
+  let verdict = (typeof p.verdict === 'string' && p.verdict.trim()) ? p.verdict.trim() : null;
+  if (!verdict) verdict = risk >= 0.70 ? 'Phishing' : risk <= 0.30 ? 'Legitimate' : 'Suspicious';
+  let explanation = p.explanation;
+  if ((!explanation || !explanation.trim()) && verdict !== 'Legitimate'){
+    explanation = 'Nigeria-aware risk factors detected (BVN/NIN/OTP/USSD, bank-clone variants, .ng misuse, redirects/timers).';
+  }
+  return {
+    verdict,
+    risk,
+    explanation,
+    domain_risks: Array.isArray(p.domain_risks) ? p.domain_risks : [],
+    content_risks: Array.isArray(p.content_risks) ? p.content_risks : [],
+    link_risks: Array.isArray(p.link_risks) ? p.link_risks : [],
+    behavior_risks: Array.isArray(p.behavior_risks) ? p.behavior_risks : [],
+    behavior: p.behavior || {}
+  };
+}
+function updateVerdictCard(payload){
+  if (!card) return;
+  card.style.display = '';
+  setBadge(payload.verdict || 'Suspicious');
+  setText(titleEl, payload.verdict || '—');
+  setText(explainEl, payload.explanation || '—');
+  setText(lastScanned, 'Last scanned ' + new Date().toLocaleTimeString());
+  riskFill.style.width = Math.max(1, Math.min(100, Math.round((payload.risk || 0)*100))) + '%';
+  renderList(domRisks, payload.domain_risks, payload.verdict);
+  renderList(conRisks, payload.content_risks, payload.verdict);
+  renderList(linkRisks, payload.link_risks, payload.verdict);
+  renderList(behRisks, payload.behavior_risks, payload.verdict);
+  const chain = payload.behavior?.redirect_chain || [];
+  setText(evChain, chain.length ? chain.join('  →  ') : '—');
+  const clicks = payload.behavior?.clicks || 0;
+  setText(evConsent, clicks ? `${clicks} interaction(s)` : '—');
+}
+
+/* Overlay stepper (matches the second screenshot style) */
+let scanning = false, tickTimer = null, aborter = null;
+const STEP_LABELS = [
+  'Fetching page',
+  'Analyzing content (BVN/NIN/OTP)',
+  'Checking link variants',
+  'Running behavior checks',
+  'Comparing structure',
+  'Computing verdict'
+];
+function addStep(label){
+  const row = document.createElement('div');
+  row.className = 'scan-step';
+  row.innerHTML = `<div class="dot"></div><span>${label}</span>`;
+  scanSteps.appendChild(row);
+}
+function markStepDone(i){ const row = scanSteps.children[i]; if (row){ row.classList.add('done'); row.classList.remove('active'); } }
+function setProgress(pct){ scanProgress.style.width = Math.max(0, Math.min(100, pct)) + '%'; }
+function startOverlay(url){
+  scanning = true;
+  overlay.hidden = false;
+  overlay.setAttribute('aria-hidden','false');
+  overlay.style.display = 'flex';
+  scanSteps.innerHTML = '';
+  STEP_LABELS.forEach((l, idx)=>{ addStep(l); if (idx===0) scanSteps.children[0].classList.add('active'); });
+  setText(scanStatus,'Scanning In Progress, Please Wait...');
+  setText(scanUrlEl, url || '—');
+  scanCancel.disabled = false;
+  let pct = 3;
+  clearInterval(tickTimer);
+  setProgress(pct);
+  tickTimer = setInterval(()=>{
+    pct = Math.min(97, pct + 0.6);
+    setProgress(pct);
+    /* animate active state to the current unfinished step */
+    const firstUndone = Array.from(scanSteps.children).findIndex(el=>!el.classList.contains('done'));
+    Array.from(scanSteps.children).forEach((el, j)=> el.classList.toggle('active', j===firstUndone && !el.classList.contains('done')));
+  }, 220);
+}
+function stopOverlay(){
+  scanning = false;
+  clearInterval(tickTimer); tickTimer = null;
+  scanCancel.disabled = true;
+  overlay.style.display = 'none';
+  overlay.setAttribute('aria-hidden','true');
+  overlay.hidden = true;
+  aborter = null;
+}
+scanCancel?.addEventListener('click', ()=>{
+  if (!scanning) return;
+  try { aborter?.abort(); } catch {}
+  showToast('Scan cancelled.');
+  stopOverlay();
+});
+
+/* Run scan */
+urlInput?.addEventListener('keydown', e=>{ if (e.key === 'Enter') runScan(false); });
+btnScan?.addEventListener('click', ()=> runScan(false));
+btnRescan?.addEventListener('click', ()=> runScan(true));
+
+async function runScan(forceRescan=false){
+  if (scanning) return;
+  const raw = (urlInput?.value || '').trim();
+  if (!raw) { urlInput?.focus(); return; }
+
+  startOverlay(raw);
+  aborter = new AbortController();
+
+  let optimisticIdx = 0;
+  const optimistic = setInterval(()=>{
+    if (!scanning) { clearInterval(optimistic); return; }
+    if (optimisticIdx < STEP_LABELS.length - 1){
+      markStepDone(optimisticIdx++);
+    } else {
+      clearInterval(optimistic);
     }
+  }, 1800);
 
-    function showToast(msg, ms=3500){
-      const t = $('#toast'); t.style.display='block'; t.textContent = msg;
-      clearTimeout(showToast._t); showToast._t=setTimeout(()=>t.style.display='none', ms);
-    }
+  const base = fastToggle?.checked ? '/check?ui=redacted&quick=1' : '/check?ui=redacted';
 
-    /* ===== Scanner logic (Nigeria-first copy preserved) ===== */
-    const urlInput = $('#url'), btnScan = $('#scan'), btnRescan = $('#rescan'), fastToggle = $('#fastToggle');
-    const card = $('#verdictCard'), badge = $('#verdictBadge'), title = $('#verdictTitle'), explain = $('#verdictExplain'), riskFill = $('#riskFill'), lastScanned = $('#lastScanned');
-    const domRisks = $('#domainRisks'), conRisks = $('#contentRisks'), linkRisks = $('#linkRisks'), behRisks = $('#behaviorRisks');
-    const evChain = $('#evChain'), evConsent = $('#evConsent');
-    const scanner = $('#scanner'), scanUrlEl = $('#scanUrl'), scanSteps = $('#scanSteps'), scanProgress = $('#scanProgress'), scanStatus = $('#scanStatus'), scanCancel = $('#scanCancel');
-
-    try{ const u = new URLSearchParams(location.search).get('u'); if (u) urlInput.value = u; }catch{}
-
-    let scanning = false, tickTimer = null, aborter = null;
-    const STEP_LABELS = ['Fetching page','Analyzing content (BVN/NIN/OTP)','Checking links (bank variants)','Running behavior checks','Comparing structure','Computing verdict'];
-
-    function startScanner(url){
-      scanning = true;
-      scanner.hidden = false;
-      scanner.setAttribute('aria-hidden','false');
-      scanner.classList.add('show');
-      scanSteps.innerHTML = '';
-      STEP_LABELS.forEach(l => addStep(l));
-      setProgress(2);
-      setText(scanStatus,'Scanning In Progress, Please Wait...');
-      setText(scanUrlEl,url||'—');
-      scanCancel.disabled = false;
-
-      let pct = 2;
-      clearInterval(tickTimer);
-      tickTimer = setInterval(()=>{ pct = Math.min(97, pct + 0.6); setProgress(pct); }, 220);
-    }
-    function stopScanner(){
-      scanning = false;
-      scanner.classList.remove('show');
-      scanner.setAttribute('aria-hidden','true');
-      scanner.hidden = true;
-      clearInterval(tickTimer); tickTimer = null;
-      aborter = null;
-      scanCancel.disabled = true;
-    }
-    function addStep(label){
-      const row = document.createElement('div');
-      row.className = 'scan-step';
-      row.innerHTML = `<div class="dot"></div><span>${label}</span>`;
-      scanSteps.appendChild(row);
-    }
-    function markStepDone(i){ const row = scanSteps.children[i]; if (row) row.classList.add('done'); }
-    function setProgress(pct){ scanProgress.style.width = Math.max(0, Math.min(100, pct)) + '%'; }
-
-    scanCancel.addEventListener('click', ()=>{
-      if (!scanning) return;
-      try { aborter?.abort(); } catch(e){}
-      showToast('Scan cancelled.');
-      stopScanner();
+  try{
+    const resp = await fetch(base + (forceRescan ? `&_=${Date.now()}` : ''), {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ url: raw }),
+      signal: aborter.signal,
+      cache: 'no-store',
+      mode: 'cors'
     });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+    for(let i=optimisticIdx; i<STEP_LABELS.length; i++) markStepDone(i);
+    setProgress(100);
+    setText(scanStatus,'Done');
+    updateVerdictCard(normalizePayload(data));
+    stopOverlay();
+  }catch(err){
+    if (err && err.name === 'AbortError') showToast('Scan cancelled.');
+    else { console.error('[scan]', err); showToast('Scan failed.'); }
+    updateVerdictCard(normalizePayload({ verdict:'Suspicious', risk:.5, explanation:'Scan failed or timed out.' }));
+    stopOverlay();
+  }
+}
 
-    function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-    function setBadge(verdict){ let cls='badge-warn'; if (verdict==='Legitimate') cls='badge-ok'; else if (verdict==='Phishing') cls='badge-bad'; badge.className='verdict-badge '+cls; badge.textContent=verdict; }
+/* =========================================
+   Agentic Hunter (graceful if backend 404s)
+========================================= */
+const hunter = {
+  statusBadge: $('#hunterStatusBadge'),
+  startBtn:    $('#hunterStartBtn'),
+  stopBtn:     $('#hunterStopBtn'),
+  refreshBtn:  $('#hunterRefreshBtn'),
+  seedsInput:  $('#hunterSeeds'),
+  auto:        $('#hunterAuto'),
+  follow:      $('#hunterFollow'),
+  ngOnly:      $('#hunterNigeria'),
+  tableBody:   $('#hunterTableBody'),
+  tableHint:   $('#hunterTableHint'),
+  hint:        $('#hunterHint'),
+  polling:     null,
+  running:     false
+};
+function setHunterStatus(text, level){ // level: ok|warn|bad
+  const el = hunter.statusBadge;
+  if (!el) return;
+  el.classList.remove('status-ok','status-warn','status-bad');
+  el.classList.add(level === 'ok' ? 'status-ok' : level === 'bad' ? 'status-bad' : 'status-warn');
+  el.textContent = `Status: ${text}`;
+}
+async function hunterStatus(){
+  try{
+    const r = await fetch('/hunter/status', {cache:'no-store'});
+    if (!r.ok) throw new Error('bad status');
+    const s = await r.json();
+    hunter.running = !!s.running;
+    setHunterStatus(hunter.running ? 'Running' : 'Idle', hunter.running ? 'ok' : 'warn');
+    if (s.note) hunter.hint.textContent = s.note;
+    if (hunter.running) startHunterPolling(); else stopHunterPolling();
+  }catch{
+    setHunterStatus('Unavailable','bad');
+    hunter.hint.textContent = 'Hunter backend not enabled. Enable server endpoints to use this feature.';
+    stopHunterPolling();
+  }
+}
+function startHunterPolling(){
+  stopHunterPolling();
+  hunter.polling = setInterval(hunterDiscoveries, 7000);
+  hunterDiscoveries(); // immediate
+}
+function stopHunterPolling(){
+  if (hunter.polling){ clearInterval(hunter.polling); hunter.polling = null; }
+}
+async function hunterDiscoveries(){
+  try{
+    const r = await fetch('/hunter/discoveries?limit=50', {cache:'no-store'});
+    if (!r.ok) throw new Error('bad');
+    const arr = await r.json();
+    renderDiscoveries(Array.isArray(arr) ? arr : []);
+    hunter.tableHint.textContent = 'Latest 50 (auto-refresh while running).';
+  }catch{
+    hunter.tableBody.innerHTML = `<tr><td colspan="5" class="hint">No data (backend unavailable).</td></tr>`;
+    hunter.tableHint.textContent = 'Enable hunter backend to populate discoveries.';
+  }
+}
+function renderDiscoveries(rows){
+  if (!rows.length){
+    hunter.tableBody.innerHTML = `<tr><td colspan="5" class="hint">No discoveries yet.</td></tr>`;
+    return;
+  }
+  hunter.tableBody.innerHTML = rows.map(r=>{
+    const t = r.seen_at ? new Date(r.seen_at).toLocaleString() : '—';
+    const risk = (typeof r.risk === 'number') ? Math.round(r.risk*100) + '%' : (r.risk ?? '—');
+    const v = r.verdict || '—';
+    const src = r.source || 'agent';
+    const url = r.url || r.target || '—';
+    return `<tr>
+      <td>${escapeHtml(t)}</td>
+      <td class="mono" style="max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(url)}</td>
+      <td>${escapeHtml(src)}</td>
+      <td>${escapeHtml(risk)}</td>
+      <td>${escapeHtml(v)}</td>
+    </tr>`;
+  }).join('');
+}
+async function hunterStart(){
+  const seeds = (hunter.seedsInput?.value || '').split(',').map(s=>s.trim()).filter(Boolean);
+  const body = {
+    seeds,
+    auto: !!hunter.auto?.checked,
+    follow: !!hunter.follow?.checked,
+    nigeria_only: !!hunter.ngOnly?.checked
+  };
+  try{
+    const r = await fetch('/hunter/start', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(body)
+    });
+    if (!r.ok) throw new Error(await r.text().catch(()=> 'start failed'));
+    showToast('Hunter started.');
+    setHunterStatus('Running','ok');
+    hunter.running = true;
+    startHunterPolling();
+  }catch{
+    showToast('Hunter unavailable.');
+    setHunterStatus('Unavailable','bad');
+  }
+}
+async function hunterStop(){
+  try{
+    const r = await fetch('/hunter/stop', {method:'POST'});
+    if (!r.ok) throw new Error('stop failed');
+    showToast('Hunter stopped.');
+    setHunterStatus('Idle','warn');
+    hunter.running = false;
+    stopHunterPolling();
+  }catch{
+    showToast('Could not stop hunter.');
+  }
+}
+hunter.startBtn?.addEventListener('click', e=>{ e.preventDefault(); hunterStart(); });
+hunter.stopBtn?.addEventListener('click',  e=>{ e.preventDefault(); hunterStop(); });
+hunter.refreshBtn?.addEventListener('click', e=>{ e.preventDefault(); hunterDiscoveries(); });
 
-    function renderList(el, items, verdict){
-      const pill = el.closest('.pill');
-      if(!items || !items.length){
-        if (verdict === 'Legitimate'){ el.classList.add('empty'); el.textContent='No notable issues.'; pill.style.display=''; }
-        else { el.classList.remove('empty'); el.innerHTML=''; pill.style.display='none'; }
-        return;
-      }
-      pill.style.display='';
-      el.classList.remove('empty');
-      el.innerHTML = '<ul class="list">' + items.map(x=>`<li>${escapeHtml(x)}`).join('') + '</ul>';
-    }
+/* =========================================
+   Init
+========================================= */
+document.addEventListener('DOMContentLoaded', ()=>{
+  // scanner hint is already in DOM; nothing else required here
+  hunterStatus();   // will gracefully show “Unavailable” if 404
+});
+</script>
 
-    function updateVerdictCard(p){
-      card.style.display = '';
-      setBadge(p.verdict || 'Suspicious');
-      title.textContent = p.verdict || '—';
-      const expl = p.explanation || (p.verdict && p.verdict !== 'Legitimate' ? 'Nigeria-aware risk factors detected.' : '—');
-      explain.textContent = expl;
-      lastScanned.textContent = 'Last scanned ' + new Date().toLocaleTimeString();
-      const pct = Math.round((p.risk || 0) * 100); riskFill.style.width = Math.max(1, Math.min(100, pct)) + '%';
-      renderList(domRisks, p.domain_risks, p.verdict);
-      renderList(conRisks, p.content_risks, p.verdict);
-      renderList(linkRisks, p.link_risks, p.verdict);
-      renderList(behRisks, p.behavior_risks, p.verdict);
-      const chain = (p.behavior && p.behavior.redirect_chain) || [];
-      evChain.textContent = chain.length ? chain.join('  →  ') : '—';
-      const clicks = (p.behavior && p.behavior.clicks || 0);
-      evConsent.textContent = clicks ? (clicks + ' interaction(s)') : '—';
-    }
-
-    function normalizePayload(data){
-      try { if (typeof data === 'string') data = JSON.parse(data); } catch {}
-      const p = data && typeof data === 'object' ? data : {};
-      let v = (typeof p.verdict === 'string' && p.verdict.trim()) ? p.verdict.trim() : null;
-      if (!v) {
-        const r = (typeof p.risk === 'number') ? p.risk : (typeof p.phishing_score === 'number' ? p.phishing_score/100 : null);
-        if (r !== null) v = r >= 0.70 ? 'Phishing' : r <= 0.30 ? 'Legitimate' : 'Suspicious';
-        else if (p.ok === true) v = 'Suspicious';
-      }
-      let explanation = p.explanation;
-      if ((!explanation || !explanation.trim()) && v && v !== 'Legitimate'){
-        explanation = 'Nigeria-aware risk factors detected (BVN/NIN/OTP/USSD, bank-clone variants, .ng misuse, redirects/timers).';
-      }
-      return {
-        ok: (p.ok !== false),
-        status: p.status || 'ok',
-        url: p.url || '',
-        verdict: v || 'Suspicious',
-        risk: (typeof p.risk === 'number') ? p.risk : (typeof p.phishing_score === 'number' ? p.phishing_score/100 : 0.5),
-        confidence: (typeof p.confidence === 'number') ? p.confidence : 0,
-        explanation,
-        domain_risks: Array.isArray(p.domain_risks) ? p.domain_risks : [],
-        content_risks: Array.isArray(p.content_risks) ? p.content_risks : [],
-        link_risks: Array.isArray(p.link_risks) ? p.link_risks : [],
-        behavior_risks: Array.isArray(p.behavior_risks) ? p.behavior_risks : [],
-        behavior: p.behavior || {},
-        structure: p.structure || {},
-        _raw: p
-      };
-    }
-
-    urlInput.addEventListener('keydown', e => { if (e.key === 'Enter') runScan(false); });
-    btnScan.addEventListener('click', () => runScan(false));
-    btnRescan.addEventListener('click', () => runScan(true));
-
-    async function runScan(forceRescan=false){
-      if (scanning) return;
-      const raw = (urlInput.value || '').trim();
-      if(!raw) return;
-
-      startScanner(raw);
-      aborter = new AbortController();
-
-      let optimisticIdx = 0;
-      const optimistic = setInterval(()=>{
-        if (!scanning) { clearInterval(optimistic); return; }
-        if (optimisticIdx < STEP_LABELS.length - 1) markStepDone(optimisticIdx++);
-        else clearInterval(optimistic);
-      }, 1800);
-
-      const base = (fastToggle && fastToggle.checked) ? '/check?ui=redacted&quick=1' : '/check?ui=redacted';
-
-      try{
-        const resp = await fetch(base + (forceRescan ? '&_=' + Date.now() : ''), {
-          method:'POST',
-          headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({url: raw}),
-          signal: aborter.signal,
-          mode: 'cors'
-        });
-        if (!resp.ok) {
-          const t = await resp.text().catch(()=> '');
-          throw new Error(`HTTP ${resp.status}${t ? ' — ' + t : ''}`);
-        }
-        const data = await resp.json();
-        for(let i=optimisticIdx; i<STEP_LABELS.length; i++) markStepDone(i);
-        setProgress(100);
-        setText('#scanStatus','Done');
-        updateVerdictCard(normalizePayload(data));
-        stopScanner();
-      } catch (err){
-        if (err && err.name === 'AbortError') showToast('Scan cancelled.');
-        else { console.error('[scan]', err); showToast((err && err.message) ? String(err.message) : 'Scan failed.'); }
-        stopScanner();
-      }
-    }
-
-    /* ===== Agentic Hunter JS (Nigeria-focused by default) ===== */
-    const hunter = {
-      statusBadge: $('#hunterStatusBadge'),
-      startBtn: $('#hunterStartBtn'),
-      stopBtn: $('#hunterStopBtn'),
-      refreshBtn: $('#hunterRefreshBtn'),
-      seedsInput: $('#hunterSeeds'),
-      form: $('#hunterSeedForm'),
-      auto: $('#hunterAuto'),
-      follow: $('#hunterFollow'),
-      ngOnly: $('#hunterNigeria'),
-      tableBody: $('#hunterTableBody'),
-      tableHint: $('#hunterTableHint'),
-      hint: $('#hunterHint'),
-      polling: null,
-      running: false
-    };
-
-    function setHunterStatus(text, level){ // level: ok|warn|bad
-      const el = hunter.statusBadge;
-      el.classList.remove('status-ok','status-warn','status-bad');
-      el.classList.add(level === 'ok' ? 'status-ok' : level === 'bad' ? 'status-bad' : 'status-warn');
-      el.textContent = `Status: ${text}`;
-    }
-
-    async function hunterStatus(){
-      try{
-        const r = await fetch('/hunter/status', {cache:'no-store'});
-        if (!r.ok) throw new Error('bad status');
-        const s = await r.json();
-        hunter.running = !!s.running;
-        setHunterStatus(hunter.running ? 'Running' : 'Idle', hunter.running ? 'ok' : 'warn');
-        if (s.note) hunter.hint.textContent = s.note;
-        if (hunter.running) startHunterPolling(); else stopHunterPolling();
-      }catch(e){
-        setHunterStatus('Unavailable', 'bad');
-        hunter.hint.textContent = 'Hunter backend not enabled. Enable server endpoints to use this feature.';
-        stopHunterPolling();
-      }
-    }
-
-    function startHunterPolling(){
-      stopHunterPolling();
-      hunter.polling = setInterval(()=>{ hunterDiscoveries(); }, 7000);
-      hunterDiscoveries(); // immediate
-    }
-    function stopHunterPolling(){
-      if (hunter.polling) { clearInterval(hunter.polling); hunter.polling = null; }
-    }
-
-    async function hunterDiscoveries(){
-      try{
-        const r = await fetch('/hunter/discoveries?limit=50', {cache:'no-store'});
-        if (!r.ok) throw new Error('bad status');
-        const arr = await r.json();
-        renderDiscoveries(Array.isArray(arr) ? arr : []);
-        hunter.tableHint.textContent = 'Latest 50 (auto-refresh while running).';
-      }catch(e){
-        hunter.tableBody.innerHTML = `<tr><td colspan="5" class="hint">No data (backend unavailable).</td></tr>`;
-        hunter.tableHint.textContent = 'Enable hunter backend to populate discoveries.';
-      }
-    }
-
-    function renderDiscoveries(rows){
-      if (!rows.length){
-        hunter.tableBody.innerHTML = `<tr><td colspan="5" class="hint">No discoveries yet.</td></tr>`;
-        return;
-      }
-      const html = rows.map(r=>{
-        const t = r.seen_at ? new Date(r.seen_at).toLocaleString() : '—';
-        const risk = (typeof r.risk === 'number') ? Math.round(r.risk*100) + '%' : (r.risk ?? '—');
-        const v = r.verdict || '—';
-        const src = r.source || 'agent';
-        const url = (r.url || r.target || '—');
-        return `<tr>
-          <td>${escapeHtml(t)}</td>
-          <td class="mono" style="max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(url)}</td>
-          <td>${escapeHtml(src)}</td>
-          <td>${escapeHtml(risk)}</td>
-          <td>${escapeHtml(v)}</td>
-        </tr>`;
-      }).join('');
-      hunter.tableBody.innerHTML = html;
-    }
-
-    async function hunterStart(){
-      const seeds = (hunter.seedsInput.value || '').split(',').map(s=>s.trim()).filter(Boolean);
-      const body = {
-        seeds,
-        auto: !!hunter.auto?.checked,
-        follow: !!hunter.follow?.checked,
-        nigeria_only: !!hunter.ngOnly?.checked
-      };
-      try{
-        const r = await fetch('/hunter/start', {
-          method:'POST', headers:{'Content-Type':'application/json'},
-          body: JSON.stringify(body)
-        });
-        if (!r.ok) throw new Error(await r.text().catch(()=> 'start failed'));
-        showToast('Hunter started.');
-        setHunterStatus('Running','ok');
-        hunter.running = true;
-        startHunterPolling();
-      }catch(e){
-        console.error(e);
-        showToast('Could not start hunter.');
-        setHunterStatus('Unavailable','bad');
-      }
-    }
-
-    async function hunterStop(){
-      try{
-        const r = await fetch('/hunter/stop', {method:'POST'});
-        if (!r.ok) throw new Error('stop failed');
-        showToast('Hunter stopped.');
-        setHunterStatus('Idle','warn');
-        hunter.running = false;
-        stopHunterPolling();
-      }catch(e){
-        console.error(e);
-        showToast('Could not stop hunter.');
-      }
-    }
-
-    hunter.startBtn?.addEventListener('click', hunterStart);
-    hunter.stopBtn?.addEventListener('click', hunterStop);
-    hunter.refreshBtn?.addEventListener('click', hunterDiscoveries);
-
-    document.addEventListener('DOMContentLoaded', ()=>{ attachSmartNav(); hunterStatus(); });
-  </script>
 </body>
 </html>
+

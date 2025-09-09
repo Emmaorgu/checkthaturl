@@ -1,0 +1,9 @@
+propose_block:
+  threshold_score: 0.30
+  require:
+    min_explanations: 1
+    any_of: []         # no boolean-gate in dev
+  ttl_minutes: 60
+  suggested_actions:
+    - block_email_gateway
+    - block_web_proxy

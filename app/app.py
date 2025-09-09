@@ -1,4 +1,4 @@
-# app/app.py
+﻿# app/app.py
 import os
 import sys
 import time
@@ -9,32 +9,22 @@ import re
 import requests
 import pandas as pd
 import joblib
-from flask import Flask, render_template, request, jsonify
-from flask_cors import CORS
 from datetime import datetime
 from urllib.parse import urlparse, urlunparse, urljoin
 
-# ------------------------------------------------------------------------------
-# IPv4 preference (prod egress reliability)
-# ------------------------------------------------------------------------------
-_PREFER_IPV4 = os.getenv("PREFER_IPV4", "1") in {"1", "true", "yes"}
-if _PREFER_IPV4:
-    _orig_getaddrinfo = socket.getaddrinfo
-    def _ipv4_first(host, port, family=0, type=0, proto=0, flags=0):
-        # Force AF_INET to avoid flaky IPv6 routes in some DCs
-        try:
-            v4 = _orig_getaddrinfo(host, port, socket.AF_INET, type, proto, flags)
-            if v4:
-                return v4
-        except Exception:
-            pass
-        # Fallback to default resolver if v4 fails
-        return _orig_getaddrinfo(host, port, family, type, proto, flags)
-    socket.getaddrinfo = _ipv4_first
+from flask import Flask, render_template, request, jsonify
+from flask_cors import CORS
+from flask_sqlalchemy import SQLAlchemy
+from flask_migrate import Migrate
 
-# ------------------------------------------------------------------------------
-# Flexible imports (works as `python -m app.app` or `python app/app.py`)
-# ------------------------------------------------------------------------------
+# -------------------------------------------------------------------
+# Single global SQLAlchemy handle (exported as `db` from this module)
+# -------------------------------------------------------------------
+db = SQLAlchemy()
+
+# -------------------------------------------------------------------
+# Flexible project-relative imports
+# -------------------------------------------------------------------
 if __package__ in (None, "",):
     sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
     from app.extract_features import extract_features
@@ -69,10 +59,9 @@ else:
     except Exception:
         feedback_bp = None
 
-
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
-# Prefer ./app/templates if it exists (your layout), otherwise fallback to ./templates
+# Template directory discovery
 CANDIDATE_TEMPLATES = [
     os.path.join(BASE_DIR, "templates"),
     os.path.join(BASE_DIR, "app", "templates"),
@@ -85,7 +74,7 @@ for p in CANDIDATE_TEMPLATES:
 else:
     TEMPLATE_DIR = CANDIDATE_TEMPLATES[0]
 
-# Static directory detection
+# Static directory discovery
 CANDIDATE_STATIC = [
     os.path.join(BASE_DIR, "static"),
     os.path.join(BASE_DIR, "app", "static"),
@@ -98,79 +87,96 @@ for p in CANDIDATE_STATIC:
 else:
     STATIC_DIR = CANDIDATE_STATIC[0]
 
-# ------------------------------------------------------------------------------
-# Flask
-# ------------------------------------------------------------------------------
-app = Flask(__name__, template_folder=TEMPLATE_DIR, static_folder=STATIC_DIR)
-CORS(app)
+# -------------------------------------------------------------------
+# Flask app
+# -------------------------------------------------------------------
+flask_app = Flask(__name__, template_folder=TEMPLATE_DIR, static_folder=STATIC_DIR)
+CORS(flask_app)
 if feedback_bp:
-    app.register_blueprint(feedback_bp)
+    flask_app.register_blueprint(feedback_bp)
 
-# ------------------------------------------------------------------------------
+# -------------------------------------------------------------------
+# Database & migrations (default to instance/ctu.db to preserve your path)
+# -------------------------------------------------------------------
+REPO_ROOT = os.path.dirname(os.path.dirname(__file__))
+INSTANCE_DIR = os.path.join(REPO_ROOT, "instance")
+os.makedirs(INSTANCE_DIR, exist_ok=True)
+DEFAULT_DB_URL = f"sqlite:///{os.path.join(INSTANCE_DIR, 'ctu.db')}"
+
+flask_app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv("DATABASE_URL", DEFAULT_DB_URL)
+flask_app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+db.init_app(flask_app)
+migrate = Migrate(flask_app, db)
+
+# Register existing Hunter API
+from app.hunter.routes.proposals import bp as hunter_proposals_bp
+flask_app.register_blueprint(hunter_proposals_bp, url_prefix="/api")
+
+# Import Hunter models AFTER db.init_app so Alembic sees them and no circulars
+try:
+    import app.hunter.models  # noqa: F401
+except Exception as e:
+    flask_app.logger.debug("Hunter models not loaded yet: %s", e)
+
+# --- FIXED: correct import path and register on Flask instance ---
+# Your review route file is app/hunter/routes_review.py
+from app.hunter.routes.routes_review import review_bp
+flask_app.register_blueprint(review_bp)
+
+# -------------------------------------------------------------------
 # Tunables / policy
-# ------------------------------------------------------------------------------
+# -------------------------------------------------------------------
 PHISHING_THRESHOLD = float(os.getenv("PHISHING_THRESHOLD", "0.70"))
 LEGIT_THRESHOLD    = float(os.getenv("LEGIT_THRESHOLD", "0.30"))
 
-STRICT_SURFACE_GUARD      = os.getenv("STRICT_SURFACE_GUARD", "1") not in {"0","false","no"}
-STARTUP_EXCEPTION_GUARD   = os.getenv("STARTUP_EXCEPTION_GUARD", "1") not in {"0","false","no"}
-DOMAIN_ONLY_CAN_PHISH     = os.getenv("DOMAIN_ONLY_CAN_PHISH", "0") in {"1","true","yes"}
+STRICT_SURFACE_GUARD    = os.getenv("STRICT_SURFACE_GUARD", "1") not in {"0","false","no"}
+STARTUP_EXCEPTION_GUARD = os.getenv("STARTUP_EXCEPTION_GUARD", "1") not in {"0","false","no"}
+DOMAIN_ONLY_CAN_PHISH   = os.getenv("DOMAIN_ONLY_CAN_PHISH", "0") in {"1","true","yes"}
 
-CTU_BEHAVIOR_MODE         = os.getenv("CTU_BEHAVIOR_MODE", "auto").lower()
-CTU_SOFT_WHITELIST_SELF   = os.getenv("CTU_SOFT_WHITELIST_SELF", "1") == "1"
-OUR_HOSTS                 = {"checkthaturl.com", "www.checkthaturl.com"}
+CTU_BEHAVIOR_MODE       = os.getenv("CTU_BEHAVIOR_MODE", "auto").lower()
+CTU_SOFT_WHITELIST_SELF = os.getenv("CTU_SOFT_WHITELIST_SELF", "1") == "1"
+OUR_HOSTS               = {"checkthaturl.com", "www.checkthaturl.com"}
 
-# Networking budgets (override via env if needed)
 CONNECT_TIMEOUT = float(os.getenv("CTU_CONNECT_TIMEOUT", "2.0"))
 READ_TIMEOUT    = float(os.getenv("CTU_READ_TIMEOUT", "3.0"))
-REQUEST_BUDGET  = float(os.getenv("CTU_REQUEST_BUDGET", "18.0"))   # whole /check request
+REQUEST_BUDGET  = float(os.getenv("CTU_REQUEST_BUDGET", "18.0"))
 LEGAL_BUDGET    = float(os.getenv("CTU_LEGAL_PROBE_BUDGET", "4.0"))
-BEHAVIOR_BUDGET = float(os.getenv("CTU_BEHAVIOR_BUDGET", "6.0"))   # if behavior is enabled
+BEHAVIOR_BUDGET = float(os.getenv("CTU_BEHAVIOR_BUDGET", "6.0"))
 
-# New: control retries from env (defaults gentle)
-CTU_RETRY_TOTAL = int(os.getenv("CTU_RETRY_TOTAL", "2"))
-CTU_POOL_MAXSIZE = int(os.getenv("CTU_POOL_MAXSIZE", "32"))
-
-BROWSER_UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-              "(KHTML, like Gecko) Chrome/124.0 Safari/537.36")
+BROWSER_UA     = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                  "(KHTML, like Gecko) Chrome/124.0 Safari/537.36")
 BROWSER_ACCEPT = "text/html,application/xhtml+xml"
-BROWSER_LANG = "en,en-NG;q=0.9,en-GB;q=0.8"
+BROWSER_LANG   = "en,en-NG;q=0.9,en-GB;q=0.8"
 
 DEFAULT_PSP = (
     "paypal.com,stripe.com,paystack.com,flutterwave.com,interswitchgroup.com,monnify.com,"
     "accounts.google.com,google.com,live.com,microsoftonline.com,apple.com,amazon.com"
 )
-CTU_TRUSTED_PSP = {d.strip().lower() for d in os.getenv("CTU_TRUSTED_PSP", DEFAULT_PSP).split(",") if d.strip()}
+CTU_TRUSTED_PSP     = {d.strip().lower() for d in os.getenv("CTU_TRUSTED_PSP", DEFAULT_PSP).split(",") if d.strip()}
 CTU_TRUSTED_DOMAINS = {d.strip().lower() for d in os.getenv("CTU_TRUSTED_DOMAINS", "").split(",") if d.strip()}
-CTU_FETCH_LEGAL = os.getenv("CTU_FETCH_LEGAL", "1") == "1"
+CTU_FETCH_LEGAL     = os.getenv("CTU_FETCH_LEGAL", "1") == "1"
 
-# Files
-LOCAL_TEMPLATE_INDEX = os.path.join(os.path.dirname(__file__), "templates", "index.html")
+LOCAL_TEMPLATE_INDEX        = os.path.join(os.path.dirname(__file__), "templates", "index.html")
 STRUCTURE_BENIGN_PREFIXES   = ("ctu_", "benign_", "safe_", "homepage_")
 STRUCTURE_IGNORE_TEMPLATES  = {"ctu_home"}
 
-# ------------------------------------------------------------------------------
-# Requests session (fail-fast, env-tuned retries)
-# ------------------------------------------------------------------------------
+# -------------------------------------------------------------------
+# Requests session with conservative retries
+# -------------------------------------------------------------------
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 def _make_session():
     s = requests.Session()
     retry = Retry(
-        total=CTU_RETRY_TOTAL, connect=CTU_RETRY_TOTAL, read=0, backoff_factor=0.25,
+        total=1, connect=1, read=0, backoff_factor=0.2,
         status_forcelist=(429, 500, 502, 503, 504),
         allowed_methods=frozenset(["HEAD","GET"])
     )
-    s.mount("http://", HTTPAdapter(max_retries=retry, pool_maxsize=CTU_POOL_MAXSIZE))
-    s.mount("https://", HTTPAdapter(max_retries=retry, pool_maxsize=CTU_POOL_MAXSIZE))
-    # Browser-like headers reduce bot-challenges compared to a custom UA
-    s.headers.update({
-        "User-Agent": BROWSER_UA,
-        "Accept": BROWSER_ACCEPT,
-        "Accept-Language": BROWSER_LANG,
-        "Connection": "keep-alive",
-    })
+    s.mount("http://", HTTPAdapter(max_retries=retry, pool_maxsize=32))
+    s.mount("https://", HTTPAdapter(max_retries=retry, pool_maxsize=32))
+    s.headers.update({"User-Agent": "CheckThatURL/1.0 (+https://www.checkthaturl.com/bot)"})
     return s
 
 SESSION = _make_session()
@@ -187,9 +193,9 @@ def _safe_req(method, url, *, timeout=None, allow_redirects=True, headers=None):
     except Exception:
         return None
 
-# ------------------------------------------------------------------------------
-# Model
-# ------------------------------------------------------------------------------
+# -------------------------------------------------------------------
+# Model loader
+# -------------------------------------------------------------------
 def _latest_model_path():
     model_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'model'))
     versioned = glob.glob(os.path.join(model_dir, "phish_rf_model_*.pkl"))
@@ -214,64 +220,76 @@ def _latest_model_path():
 MODEL_PATH = _latest_model_path()
 model = joblib.load(MODEL_PATH)
 
-# ------------------------------------------------------------------------------
+# -------------------------------------------------------------------
 # Jinja globals
-# ------------------------------------------------------------------------------
-@app.context_processor
+# -------------------------------------------------------------------
+@flask_app.context_processor
 def inject_globals():
     now = datetime.utcnow()
     return {"year": now.year, "now": now.strftime("%Y-%m-%d")}
 
-# ------------------------------------------------------------------------------
+# -------------------------------------------------------------------
 # Helpers
-# ------------------------------------------------------------------------------
+# -------------------------------------------------------------------
 def _host(u: str) -> str:
-    try: return urlparse(u).netloc.split(":")[0].lower()
-    except Exception: return ""
+    try:
+        return urlparse(u).netloc.split(":")[0].lower()
+    except Exception:
+        return ""
 
 def _registrable_domain(u: str) -> str:
     try:
         h = _host(u)
         parts = h.split(".")
-        if len(parts) < 2: return h
+        if len(parts) < 2:
+            return h
         last2, last3 = ".".join(parts[-2:]), ".".join(parts[-3:])
         MULTI = ("co.uk","org.uk","gov.uk","ac.uk","com.au","net.au","org.au","com.br","com.mx","com.tr","com.ng","co.jp")
-        if any(last3.endswith(t) for t in MULTI) and len(parts) >= 3: return last3
+        if any(last3.endswith(t) for t in MULTI) and len(parts) >= 3:
+            return last3
         return last2
     except Exception:
         return ""
 
 def _is_our_domain(u: str) -> bool:
-    try: return _host(u) in OUR_HOSTS
-    except Exception: return False
+    try:
+        return _host(u) in OUR_HOSTS
+    except Exception:
+        return False
 
 def to_http(u: str) -> str:
     p = urlparse(u)
     return urlunparse(("http", p.netloc, p.path, p.params, p.query, p.fragment)) if p.scheme == "https" else u
 
 def resolve_url(raw_url: str | None) -> str | None:
-    if not raw_url: return None
+    if not raw_url:
+        return None
     u = raw_url.strip()
-    if u.startswith(("http://","https://")): return u
-    if u.startswith("//"): return "https:" + u
+    if u.startswith(("http://","https://")):
+        return u
+    if u.startswith("//"):
+        return "https:" + u
     return "https://" + u
 
 def choose_verdict(p_phish: float) -> str:
-    if p_phish >= PHISHING_THRESHOLD: return "Phishing"
-    if p_phish <= LEGIT_THRESHOLD:    return "Legitimate"
+    if p_phish >= PHISHING_THRESHOLD:
+        return "Phishing"
+    if p_phish <= LEGIT_THRESHOLD:
+        return "Legitimate"
     return "Suspicious"
 
 def align_to_model(df: pd.DataFrame, mdl) -> pd.DataFrame:
     if hasattr(mdl, "feature_names_in_"):
         need = list(mdl.feature_names_in_)
         for c in need:
-            if c not in df.columns: df[c] = 0.0
+            if c not in df.columns:
+                df[c] = 0.0
         df = df[need]
     for c in df.columns:
-        if not pd.api.types.is_numeric_dtype(df[c]): df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0.0)
+        if not pd.api.types.is_numeric_dtype(df[c]):
+            df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0.0)
     return df
 
-# --------------------------- Diagnostics ----------------------
 def dns_preflight(u: str) -> dict:
     try:
         host = urlparse(u).netloc.split(":")[0]
@@ -283,7 +301,6 @@ def dns_preflight(u: str) -> dict:
     except Exception:
         return {"ok": False, "label": "DNS error"}
 
-# --------------------------- WAF detector (Cloudflare) --------
 def _is_waf_block(r) -> str | None:
     try:
         if not r:
@@ -299,22 +316,18 @@ def _is_waf_block(r) -> str | None:
     except Exception:
         return None
 
-# --------------------------- Legal probe (with time budget) ---
 ANCHOR_RE = re.compile(r"<a\b[^>]*href=[\'\"]([^\'\"#]+)[\'\"][^>]*>(.*?)</a>", re.I | re.S)
-
 LEGAL_GUESS_BASENAMES = [
-    "privacy", "privacy-policy", "policy/privacy", "policies/privacy", "legal/privacy",
-    "terms", "terms-and-conditions", "terms-of-service", "terms-conditions", "terms_of_use",
-    "legal", "legal/terms", "legal/privacy-policy",
-    "cookies", "cookie-policy", "policies/cookies", "policy/cookies",
-    "policies", "disclosure", "imprint"
+    "privacy","privacy-policy","policy/privacy","policies/privacy","legal/privacy",
+    "terms","terms-and-conditions","terms-of-service","terms-conditions","terms_of_use",
+    "legal","legal/terms","legal/privacy-policy","cookies","cookie-policy",
+    "policies/cookies","policy/cookies","policies","disclosure","imprint"
 ]
-
 LEGAL_MAX_TOTAL_CHECKS = 24
 
 def _looks_like_policy_url(u: str) -> bool:
     low = (u or "").lower()
-    return any(k in low for k in ("privacy", "terms", "cookie", "policy", "legal", "imprint"))
+    return any(k in low for k in ("privacy","terms","cookie","policy","legal","imprint"))
 
 def _looks_like_policy(html: str, u: str = "") -> bool:
     low = (html or "").lower()
@@ -347,13 +360,7 @@ def _find_footer_legal_links(html: str, base_url: str) -> list[str]:
             seen.add(u); uniq.append(u)
     return uniq
 
-_COUNTRY_HINTS = {
-    "nigeria": "ng",
-    "united kingdom": "uk",
-    "united states": "us",
-    "ghana": "gh",
-    "kenya": "ke",
-}
+_COUNTRY_HINTS = {"nigeria":"ng","united kingdom":"uk","united states":"us","ghana":"gh","kenya":"ke"}
 
 def _locale_prefixes_from_html(html: str) -> list[str]:
     prefs = set()
@@ -363,7 +370,7 @@ def _locale_prefixes_from_html(html: str) -> list[str]:
     for k, cc in _COUNTRY_HINTS.items():
         if k in low:
             prefs.add(cc)
-    for extra in ("en", "en-ng", "ng-en"):
+    for extra in ("en","en-ng","ng-en"):
         prefs.add(extra)
     return [""] + sorted(prefs)
 
@@ -415,8 +422,7 @@ def probe_legal_pages(html: str, base_url: str, *, time_left=lambda: 1.0):
 
     norm = norm[:LEGAL_MAX_TOTAL_CHECKS]
     headers = _legal_headers(base_url)
-    good = []
-    spent = 0.0
+    good, spent = [], 0.0
     start = time.monotonic()
 
     for u in norm:
@@ -450,7 +456,6 @@ def probe_legal_pages(html: str, base_url: str, *, time_left=lambda: 1.0):
 
     return {"ok": 1 if good else 0, "pages": good, "debug": debug}
 
-# --------------------------- Behavior helpers -----------------
 def _behavior_enabled() -> bool:
     return CTU_BEHAVIOR_MODE not in {"off","disabled","0","false"}
 
@@ -472,11 +477,15 @@ def _behavior_feature_block(b: dict) -> dict:
 def _blend_risk(model_prob_phish: float, behv: dict) -> float:
     bp = float(behv.get("score") or 0.0)
     bonus = 0.0
-    if behv.get("timer_decreasing"): bonus += 0.08
+    if behv.get("timer_decreasing"):
+        bonus += 0.08
     soft_redirs = behv.get("js_redirects", 0) + behv.get("client_redirects", 0)
-    if soft_redirs >= 1: bonus += min(0.08, 0.04 * soft_redirs)
-    if behv.get("post_redirects", 0) >= 1: bonus += 0.10
-    if (behv.get("dom_mutation") or 0.0) > 0.6: bonus += 0.04
+    if soft_redirs >= 1:
+        bonus += min(0.08, 0.04 * soft_redirs)
+    if behv.get("post_redirects", 0) >= 1:
+        bonus += 0.10
+    if (behv.get("dom_mutation") or 0.0) > 0.6:
+        bonus += 0.04
     base = 0.80 * float(model_prob_phish) + 0.20 * bp
     return clip01(base + bonus)
 
@@ -490,7 +499,6 @@ def _prune_explanations(verdict: str, reasons: list[str], behv: dict, timer_hint
             if any(k in txt for k in ["credential","countdown","urgency","verify now","password","2fa","otp","seed phrase","transfer"]):
                 continue
         out.append(r)
-
     if not out:
         if verdict == "Phishing":
             out = ["Multiple high-risk behavioral or content signals observed."]
@@ -500,9 +508,6 @@ def _prune_explanations(verdict: str, reasons: list[str], behv: dict, timer_hint
             out = []
     return out
 
-# ------------------------------------------------------------------------------
-# UI redaction helpers
-# ------------------------------------------------------------------------------
 LEGAL_SENTENCE_RE = re.compile(
     r'\b(legal\s*pages?|privacy(?:\s+policy| policies)?|terms(?:\s*&\s*conditions| of service| and conditions)?)\b',
     re.IGNORECASE
@@ -524,49 +529,51 @@ def redact_ui_payload(payload: dict) -> dict:
     if not isinstance(payload, dict):
         return payload
     p = dict(payload)
-
     if "explanation" in p:
         p["explanation"] = _redact_explanation(p["explanation"])
-
-    for key in ("domain_risks", "content_risks", "link_risks", "behavior_risks"):
+    for key in ("domain_risks","content_risks","link_risks","behavior_risks"):
         if key in p:
             p[key] = _redact_list(p.get(key))
-
     pol = p.get("policy")
     if isinstance(pol, dict):
         pol = dict(pol)
         pol.pop("legal_probe_pages", None)
         p["policy"] = pol
-
     return p
 
-# ------------------------------------------------------------------------------
+# -------------------------------------------------------------------
 # Routes
-# ------------------------------------------------------------------------------
-@app.route("/")
+# -------------------------------------------------------------------
+@flask_app.route("/")
 def home():
     return render_template("index.html")
 
-@app.route("/privacy")
+@flask_app.route("/privacy")
 def privacy():
-    return render_template("privacy.html") if os.path.exists(os.path.join(app.template_folder or "templates", "privacy.html")) else ("<h1>Privacy</h1>", 200)
+    tpl = os.path.join(flask_app.template_folder or "templates", "privacy.html")
+    return render_template("privacy.html") if os.path.exists(tpl) else ("<h1>Privacy</h1>", 200)
 
-@app.route("/legal")
+@flask_app.route("/legal")
 def legal():
-    return render_template("legal.html") if os.path.exists(os.path.join(app.template_folder or "templates", "legal.html")) else ("<h1>Legal</h1>", 200)
+    tpl = os.path.join(flask_app.template_folder or "templates", "legal.html")
+    return render_template("legal.html") if os.path.exists(tpl) else ("<h1>Legal</h1>", 200)
 
-@app.route("/faq")
+@flask_app.route("/faq")
 def faq():
-    return render_template("faq.html") if os.path.exists(os.path.join(app.template_folder or "templates", "faq.html")) else ("<h1>FAQ</h1>", 200)
+    tpl = os.path.join(flask_app.template_folder or "templates", "faq.html")
+    return render_template("faq.html") if os.path.exists(tpl) else ("<h1>FAQ</h1>", 200)
 
-@app.get("/healthz")
+@flask_app.get("/healthz")
 def healthz():
     return "ok", 200
 
-@app.get("/diag")
+@flask_app.get("/diag")
 def diag():
     import platform, sys, pkgutil, json, os
-    from playwright.sync_api import __version__ as pwv
+    try:
+        from playwright.sync_api import __version__ as pwv
+    except Exception:
+        pwv = "not-installed"
     info = {
         "python": sys.version,
         "platform": platform.platform(),
@@ -574,14 +581,15 @@ def diag():
         "scan_mode": os.getenv("SCAN_MODE"),
         "headless": os.getenv("HEADLESS"),
         "timeout_secs": os.getenv("REQUEST_TIMEOUT_SECS"),
-        "installed": sorted([m.name for m in pkgutil.iter_modules() if m.name in ("playwright","pandas","sklearn","xgboost","bs4","tldextract")])
+        "installed": sorted([m.name for m in pkgutil.iter_modules()
+                             if m.name in ("playwright","pandas","sklearn","xgboost","bs4","tldextract")])
     }
     return json.dumps(info), 200, {"Content-Type":"application/json"}
 
-# ------------------------------------------------------------------------------
-# API
-# ------------------------------------------------------------------------------
-@app.route("/check", methods=["POST"])
+# -------------------------------------------------------------------
+# /check API (unchanged logic)
+# -------------------------------------------------------------------
+@flask_app.route("/check", methods=["POST"])
 def check_url():
     start = time.monotonic()
     def time_left():
@@ -598,11 +606,11 @@ def check_url():
         if not (p["domain_risks"] or p["content_risks"] or p["link_risks"] or p["behavior_risks"]):
             status = (p.get("status") or "").lower()
             if status in ("partial","timeout"):
-                p["behavior_risks"].append("⏱ Partial result: some checks timed out/cancelled, live analysis incomplete.")
+                p["behavior_risks"].append("⌛ Partial result: some checks timed out/cancelled, live analysis incomplete.")
             elif verdict == "Unreachable":
                 p["domain_risks"].append("🔌 Site unreachable (DNS/host/timeout) — could not verify content.")
             else:
-                p["content_risks"].append("⚠ Risk signalled by model; no single factor dominated.")
+                p["content_risks"].append("⚠️ Risk signalled by model; no single factor dominated.")
         return p
 
     def out_partial(payload, msg="Timed out - partial checks only"):
@@ -611,18 +619,20 @@ def check_url():
         payload["status"] = "partial"
         payload.setdefault("message", msg)
         payload.setdefault("verdict", "Suspicious")
-        payload = ensure_reason_groups(payload)
-        return payload
+        return ensure_reason_groups(payload)
 
     try:
         data = request.json or {}
         raw = (data.get("url") or "").strip()
-        if not raw: return jsonify({"ok": False, "message": "No URL provided"}), 400
+        if not raw:
+            return jsonify({"ok": False, "message": "No URL provided"}), 400
 
         ui_flag = (request.args.get("ui") or data.get("ui") or "").strip().lower()
         url = resolve_url(raw)
-        if not url: return jsonify({"ok": False, "message": "Invalid URL"}), 400
+        if not url:
+            return jsonify({"ok": False, "message": "Invalid URL"}), 400
 
+        # DNS preflight
         pre = dns_preflight(url)
         if not pre.get("ok"):
             resp = {
@@ -633,11 +643,12 @@ def check_url():
                 "domain_risks": ["🔌 Site unreachable (DNS/host/timeout) — could not verify content."],
                 "content_risks": [], "link_risks": [], "behavior_risks": []
             }
-            if ui_flag == "redacted": resp = redact_ui_payload(resp)
-            app.logger.info("SCAN status=unreachable reason=dns label=%s url=%s", pre.get("label"), url)
+            if ui_flag == "redacted":
+                resp = redact_ui_payload(resp)
+            flask_app.logger.info("SCAN status=unreachable reason=dns label=%s url=%s", pre.get("label"), url)
             return jsonify(resp), 200
 
-        # ---------- Fetch page (robust HTTP with IPv4 + retries) ----------
+        # Fetch (fast-fail)
         html_content = ""
         fetch_error = None
 
@@ -654,7 +665,6 @@ def check_url():
             "Accept-Language": BROWSER_LANG,
             "Connection": "keep-alive",
         }
-
         def _try_get(u, c_to, r_to, ua=None):
             try:
                 h = dict(headers)
@@ -665,51 +675,26 @@ def check_url():
 
         if not html_content:
             r = _try_get(url, CONNECT_TIMEOUT, READ_TIMEOUT)
-
             if not r and time_left() > 0.5:
                 r = _try_get(url, max(6.0, CONNECT_TIMEOUT), max(8.0, READ_TIMEOUT),
                              ua=BROWSER_UA.replace("Chrome/124.0", "Chrome/122.0"))
-
             if not r and url.startswith("https://"):
                 r = _try_get(to_http(url), max(6.0, CONNECT_TIMEOUT), max(8.0, READ_TIMEOUT))
 
-            if not r and time_left() > 3.0:
-                try:
-                    from playwright.sync_api import sync_playwright
-                    with sync_playwright() as p:
-                        browser = p.chromium.launch(headless=True, args=[
-                            "--no-sandbox", "--disable-dev-shm-usage", "--disable-blink-features=AutomationControlled"
-                        ])
-                        ctx = browser.new_context(user_agent=BROWSER_UA, ignore_https_errors=True)
-                        page = ctx.new_page()
-                        page.goto(url, timeout=int(min(15000, max(3000, time_left() * 1000))))
-                        html_content = page.content()
-                        url = page.url
-                        ctx.close(); browser.close()
-                except Exception as e:
-                    fetch_error = f"playwright:{type(e).__name__}"
-
-            # WAF/Cloudflare → partial, never 'unreachable'
+            # Cloudflare guard
             if r:
                 waf = _is_waf_block(r)
                 if waf == "cloudflare":
                     resp = {
-                        "ok": True,
-                        "status": "partial",
-                        "url": getattr(r, "url", url),
-                        "verdict": "Suspicious",
-                        "risk": 0.30,
-                        "confidence": 30.0,
-                        "explanation": "Site is protected by Cloudflare (anti-bot) and blocked automated access from our server. Content couldn’t be fetched for full analysis.",
+                        "ok": True, "status": "partial", "url": getattr(r, "url", url),
+                        "verdict": "Suspicious", "risk": 0.30, "confidence": 30.0,
+                        "explanation": "Site is protected by Cloudflare (anti-bot). Content couldn’t be fetched for full analysis.",
                         "domain_risks": ["🚧 WAF/anti-bot protection (Cloudflare) blocked content retrieval from datacenter IP."],
-                        "content_risks": [],
-                        "link_risks": [],
-                        "behavior_risks": []
+                        "content_risks": [], "link_risks": [], "behavior_risks": []
                     }
                     if ui_flag == "redacted":
                         resp = redact_ui_payload(resp)
-                    app.logger.info("SCAN status=partial reason=cloudflare_block http=%s url=%s",
-                                    r.status_code, getattr(r, "url", url))
+                    flask_app.logger.info("SCAN status=partial reason=cloudflare http=%s url=%s", r.status_code, getattr(r, "url", url))
                     return jsonify(resp), 200
 
             if r:
@@ -722,16 +707,15 @@ def check_url():
                     "risk": 0.4, "confidence": 40.0,
                     "explanation": "Fetched the site but response was not OK (non-2xx or empty).",
                     "domain_risks": [f"HTTP {r.status_code} while fetching."],
-                    "content_risks": [], "link_risks": [],
-                    "behavior_risks": ["⏱ Live checks limited due to response quality."]
+                    "content_risks": [], "link_risks": [], "behavior_risks": ["⌛ Live checks limited due to response quality."]
                 }
-                if ui_flag == "redacted": resp = redact_ui_payload(resp)
-                app.logger.info("SCAN status=partial reason=http_%s url=%s", r.status_code, url)
+                if ui_flag == "redacted":
+                    resp = redact_ui_payload(resp)
+                flask_app.logger.info("SCAN status=partial reason=http_%s url=%s", r.status_code, url)
                 return jsonify(resp), 200
 
             if not (html_content or "").strip():
                 diag_label = "connect_error"
-                if fetch_error: diag_label = fetch_error
                 resp = {
                     "ok": True, "status": "partial", "url": url, "verdict": "Suspicious",
                     "risk": 0.35, "confidence": 35.0,
@@ -740,32 +724,37 @@ def check_url():
                     "domain_risks": ["🔌 Fetch instability — could not reliably retrieve content within budget."],
                     "content_risks": [], "link_risks": [], "behavior_risks": []
                 }
-                if ui_flag == "redacted": resp = redact_ui_payload(resp)
-                app.logger.info("SCAN status=partial reason=%s url=%s", diag_label, url)
+                if ui_flag == "redacted":
+                    resp = redact_ui_payload(resp)
+                flask_app.logger.info("SCAN status=partial reason=%s url=%s", diag_label, url)
                 return jsonify(resp), 200
 
-        # ---------- Feature extraction ----------
+        # Feature extraction
         features = extract_features(url, html_content)
         features.pop("registrar_name", None)
 
         if _is_our_domain(url) and CTU_SOFT_WHITELIST_SELF:
-            for k in ("is_new_domain","suspicious_tld"): features[k] = 0
+            for k in ("is_new_domain","suspicious_tld"):
+                features[k] = 0
 
-        # Timer fallback (markup/NLP hints even when behavior is off)
         timer_fallback = detect_urgency_timer(html_content)
-        if not int(features.get("has_js_timer", 0)) and timer_fallback["has_js_timer"]: features["has_js_timer"] = 1
-        if not int(features.get("has_html_timer", 0)) and timer_fallback["has_html_timer"]: features["has_html_timer"] = 1
-        features["timer_urgency_score"] = max(float(features.get("timer_urgency_score", 0.0)),
-                                              float(timer_fallback["timer_urgency_score"]))
+        if not int(features.get("has_js_timer", 0)) and timer_fallback["has_js_timer"]:
+            features["has_js_timer"] = 1
+        if not int(features.get("has_html_timer", 0)) and timer_fallback["has_html_timer"]:
+            features["has_html_timer"] = 1
+        features["timer_urgency_score"] = max(
+            float(features.get("timer_urgency_score", 0.0)),
+            float(timer_fallback["timer_urgency_score"])
+        )
 
-        # ---------- Legal probe ----------
+        # Legal probe (budgeted)
         legal_probe = {"ok": 0, "pages": []}
-        if time_left() > 0.2:
-            legal_probe = probe_legal_pages(html_content, url, time_left=time_left)
+        if (REQUEST_BUDGET - (time.monotonic() - start)) > 0.2:
+            legal_probe = probe_legal_pages(html_content, url, time_left=lambda: REQUEST_BUDGET - (time.monotonic() - start))
         legal_ok = bool(legal_probe.get("ok"))
         features["legal_pages_ok"] = 1 if legal_ok else 0
 
-        # ---------- Model ----------
+        # Model
         df = align_to_model(pd.DataFrame([features]), model)
         proba = model.predict_proba(df)[0]
         p_phish = float(dict(zip(model.classes_, proba)).get(1, 0.0))
@@ -773,9 +762,9 @@ def check_url():
         legit_score    = round((1.0 - p_phish) * 100.0, 2)
         confidence     = round(100 * (1 - math.exp(-4 * abs(p_phish - 0.5))), 1)
 
-        # ---------- Behavior (optional, budgeted) ----------
+        # Behavior (optional)
         behavior = {"mode": "disabled", "score": 0.0, "events": []}
-        if _behavior_enabled() and time_left() > 0.5:
+        if CTU_BEHAVIOR_MODE not in {"off","disabled","0","false"} and (REQUEST_BUDGET - (time.monotonic() - start)) > 0.5:
             try:
                 t0 = time.monotonic()
                 behavior = simulate_behavior(url)
@@ -783,9 +772,17 @@ def check_url():
             except Exception as e:
                 behavior = {"mode": "error", "score": 0.0, "events": [f"behavior engine unavailable: {type(e).__name__}"]}
 
-        behv_full = _behavior_feature_block(behavior)
+        behv_full = {
+            "score": float(behavior.get("score") or 0.0),
+            "dom_mutation": float(behavior.get("dom_mutation_score") or 0.0),
+            "js_redirects": int(behavior.get("js_redirects_cross_site") or behavior.get("js_redirects_detected") or 0),
+            "client_redirects": int(behavior.get("client_redirects_cross_site") or behavior.get("client_redirects") or 0),
+            "post_redirects": int(behavior.get("post_action_redirects_form") or 0),
+            "timer_decreasing": 1 if ("timer_decreasing_confirmed" in (behavior.get("events") or [])) else 0,
+            "timer_hint": 1 if ("timer_hint_detected" in (behavior.get("events") or [])) else 0,
+        }
 
-        # Neutralize PSP redirects
+        # PSP neutrality
         chain = behavior.get("redirect_chain") or []
         cross_targets = []
         for i in range(len(chain) - 1):
@@ -800,14 +797,14 @@ def check_url():
             behv_for_blend["client_redirects"] = 0
 
         if _is_our_domain(url):
-            behv_for_blend.update({
-                "score": 0.0, "dom_mutation": 0.0, "js_redirects": 0,
-                "client_redirects": 0, "post_redirects": 0, "timer_decreasing": 0, "timer_hint": 0
-            })
+            behv_for_blend.update({"score":0.0,"dom_mutation":0.0,"js_redirects":0,"client_redirects":0,"post_redirects":0,"timer_decreasing":0,"timer_hint":0})
 
         behavior_score = float(behv_for_blend.get("score", 0.0))
+        blended_risk = clip01(0.80 * float(p_phish) + 0.20 * behavior_score)
+        if behv_for_blend.get("timer_decreasing"):
+            blended_risk = clip01(blended_risk + 0.08)
 
-        # ---------- Structure & Visual ----------
+        # Structure & Visual
         structure_guard = "none"
         try:
             structure = structure_similarity(html_content or "")
@@ -825,18 +822,16 @@ def check_url():
         except Exception:
             visual = {"score": 0.0, "closest": None}
 
-        # ---------- Risk / Verdict ----------
-        blended_risk = _blend_risk(p_phish, behv_for_blend)
-        verdict = choose_verdict(blended_risk)
+        # Verdict controls
+        verdict = ("Phishing" if blended_risk >= PHISHING_THRESHOLD else
+                   "Legitimate" if blended_risk <= LEGIT_THRESHOLD else "Suspicious")
         category_scores = compute_category_scores(features, behavior_score)
 
         if not DOMAIN_ONLY_CAN_PHISH:
             non_surface = int(features.get("non_surface_red_flags", 0))
-            link_sig = (
-                int(features.get("link_red_flags", 0)) or
-                float(features.get("mismatched_anchor_ratio", 0)) > 0.30 or
-                float(features.get("external_link_ratio", 0)) > 0.65
-            )
+            link_sig = (int(features.get("link_red_flags", 0)) or
+                        float(features.get("mismatched_anchor_ratio", 0)) > 0.30 or
+                        float(features.get("external_link_ratio", 0)) > 0.65)
             content_sig = int(features.get("content_red_flags", 0)) or float(features.get("phish_context_score", 0)) >= 0.35
             behavior_sig = float(behavior_score) >= 0.25
             if verdict == "Phishing" and not (content_sig or link_sig or behavior_sig or non_surface):
@@ -854,10 +849,11 @@ def check_url():
             int(features.get("has_password_field", 0)) == 1 or
             float(features.get("phish_context_score", 0.0)) >= 0.45 or
             float(features.get("timer_urgency_score", 0.0)) >= 0.45 or
-            behv_for_blend.get("timer_decreasing", 0) == 1 or
+            behv_for_blend.get("timer_decreasing") == 1 or
             int(behavior.get("post_action_redirects_form", 0)) >= 1
         )
 
+        legal_ok = bool(legal_probe.get("ok"))
         if legal_ok and not hard_content and (len((behavior.get("redirect_chain") or [])) <= 1) and int(features.get("suspicious_tld", 0)) == 0:
             verdict = "Legitimate"
             blended_risk = min(blended_risk, 0.25)
@@ -875,30 +871,34 @@ def check_url():
             verdict = "Legitimate"
             blended_risk = min(blended_risk, 0.30)
 
-        # ---------- Reasons (timers/http restored) ----------
+        # Reasons
         human_reasons = []
-
         if verdict in ("Phishing","Suspicious"):
             if int(features.get("has_https", 1)) == 0:
                 human_reasons.append("🔓 Connection not secure (HTTP).")
-
-            if features.get("suspicious_keyword_found"): human_reasons.append("🔑 Suspicious keywords present.")
-            if features.get("suspicious_tld"):           human_reasons.append("🌐 Suspicious TLD.")
-            if features.get("domain_entropy", 0) > 4.0:  human_reasons.append("🎲 Domain name has high entropy.")
+            if features.get("suspicious_keyword_found"):
+                human_reasons.append("🔑 Suspicious keywords present.")
+            if features.get("suspicious_tld"):
+                human_reasons.append("🌐 Suspicious TLD.")
+            if features.get("domain_entropy", 0) > 4.0:
+                human_reasons.append("🎲 Domain name has high entropy.")
             if features.get("has_password_field"):
                 human_reasons.append("🔒 Password field present (possible credential capture).")
             elif features.get("num_forms", 0) > 0 and verdict != "Legitimate":
                 human_reasons.append("📝 Form(s) present (likely contact/newsletter).")
-            if features.get("keyword_density", 0) > 0.02: human_reasons.append("📌 Elevated phishing keyword density.")
-            if features.get("duplicate_phrases", 0) > 1:  human_reasons.append("📋 Repeating suspicious phrases.")
-            if float(features.get("mismatched_anchor_ratio", 0)) > 0.3: human_reasons.append("🔗 Anchor text vs link mismatch.")
+            if features.get("keyword_density", 0) > 0.02:
+                human_reasons.append("📄 Elevated phishing keyword density.")
+            if features.get("duplicate_phrases", 0) > 1:
+                human_reasons.append("📃 Repeating suspicious phrases.")
+            if float(features.get("mismatched_anchor_ratio", 0)) > 0.3:
+                human_reasons.append("🔗 Anchor text vs link mismatch.")
             if float(features.get("external_link_ratio", 0)) > 0.65 and not _is_our_domain(url):
                 human_reasons.append("🌍 Many external links.")
 
             if int(features.get("has_html_timer", 0)) == 1 or int(features.get("has_js_timer", 0)) == 1:
-                human_reasons.append("⏱ Timer/countdown present in page markup.")
+                human_reasons.append("⌛ Timer/countdown present in page markup.")
             if float(features.get("timer_urgency_score", 0.0)) >= 0.25:
-                human_reasons.append("⚠ Urgency language / timer hints detected in content.")
+                human_reasons.append("⚠️ Urgency language / timer hints detected in content.")
 
             chain = behavior.get("redirect_chain") or []
             cross_soft_count = max(0, len(chain) - 1)
@@ -907,9 +907,9 @@ def check_url():
                 a, b = chain[i], chain[i+1]
                 if _registrable_domain(a) != _registrable_domain(b):
                     cross_targets.append(_registrable_domain(b))
-            psp_neutral = bool(cross_targets) and all(d in CTU_TRUSTED_PSP for d in cross_targets)
+            psp_neutral2 = bool(cross_targets) and all(d in CTU_TRUSTED_PSP for d in cross_targets)
 
-            if cross_soft_count > 0 and not psp_neutral:
+            if cross_soft_count > 0 and not psp_neutral2:
                 human_reasons.append("↪ Client/JS-driven redirect to a different site (behavior).")
             if int(behavior.get("post_action_redirects_form", 0)) > 0:
                 human_reasons.append("➡️ Redirect occurred after form submission (behavior).")
@@ -934,12 +934,11 @@ def check_url():
             behv_for_blend.get("timer_decreasing") == 1 or
             behv_for_blend.get("timer_hint") == 1
         )
-
         pruned = _prune_explanations(verdict, human_reasons, behv_for_blend, timer_hint_present=timer_hint_present)
 
         DOMAIN_HINTS  = ("domain","whois","tld","dns","registrar","mx","spf","dkim","age","subdomain","punycode","entropy")
         CONTENT_HINTS = ("content","text","keyword","phrase","login","form","credential","timer","urgency","brand","logo","tfidf","nlp","password","ocr","policy","terms")
-        LINK_HINTS    = ("link","url","redirect","anchor","href","shortener","bit.ly","t.co","utm_","outbound","mismatch")
+        LINK_HINTS    = ("link","url","redirect","anchor","href","shortener","utm_","outbound","mismatch")
         BEHAV_HINTS   = ("redirect","cta","mutation","hidden","sandbox","behavior","post-action")
 
         def _group_reasons(reasons):
@@ -951,25 +950,33 @@ def check_url():
                 elif any(h in low for h in LINK_HINTS):    lin.append(r)
                 elif any(h in low for h in BEHAV_HINTS):   beh.append(r)
                 else:                                      other.append(r)
-            if not (dom or con or lin or beh) and other: con, other = other, []
+            if not (dom or con or lin or beh) and other:
+                con, other = other, []
             return dom, con, lin, beh, other
 
         domain_risks, content_risks, link_risks, behavior_risks, _ = _group_reasons(pruned)
 
         if verdict in ("Phishing","Suspicious") and not (domain_risks or content_risks or link_risks or behavior_risks):
-            if features.get("is_new_domain"):          domain_risks.append("🆕 Recently-registered domain.")
-            if features.get("suspicious_tld"):         domain_risks.append("🌐 Suspicious/rare TLD.")
-            if features.get("domain_entropy", 0) > 4:  domain_risks.append("🎲 Unnatural/complex domain pattern.")
+            if features.get("is_new_domain"):
+                domain_risks.append("🆕 Recently-registered domain.")
+            if features.get("suspicious_tld"):
+                domain_risks.append("🌐 Suspicious/rare TLD.")
+            if features.get("domain_entropy", 0) > 4:
+                domain_risks.append("🎲 Unnatural/complex domain pattern.")
             if float(features.get("phish_context_score", 0)) >= 0.35:
                 content_risks.append("🧠 NLP flagged phishing-like phrasing.")
             if not (domain_risks or content_risks or link_risks or behavior_risks):
-                domain_risks.append("⚠ Model confidence came primarily from domain-only signals; content/link/behavior had no red flags.")
+                domain_risks.append("⚠️ Model confidence came primarily from domain-only signals; content/link/behavior had no red flags.")
 
         summary_bits = []
-        if features.get("startup_like"):                 summary_bits.append("startup-like pattern detected")
-        if features.get("is_new_domain"):                summary_bits.append("young domain")
-        if features.get("non_surface_red_flags", 0) > 0: summary_bits.append(f"{int(features.get('non_surface_red_flags', 0))} non-surface signal(s)")
-        if behavior_score >= 0.35:                       summary_bits.append("dynamic behavior observed")
+        if features.get("startup_like"):
+            summary_bits.append("startup-like pattern detected")
+        if features.get("is_new_domain"):
+            summary_bits.append("young domain")
+        if features.get("non_surface_red_flags", 0) > 0:
+            summary_bits.append(f"{int(features.get('non_surface_red_flags', 0))} non-surface signal(s)")
+        if behavior_score >= 0.35:
+            summary_bits.append("dynamic behavior observed")
         summary_tail = (" • " + ", ".join(summary_bits)) if summary_bits else ""
         explanation = (
             f"{confidence}% confidence • {verdict}{summary_tail}. See grouped risk signals below."
@@ -1010,33 +1017,27 @@ def check_url():
             "elapsed_ms": int((time.monotonic() - start) * 1000),
         }
 
-        if time_left() <= 0:
+        if (REQUEST_BUDGET - (time.monotonic() - start)) <= 0:
             resp = out_partial(resp)
 
-        resp = ensure_reason_groups(resp)
+        resp = redact_ui_payload(resp) if ui_flag == "redacted" else resp
 
-        if ui_flag == "redacted":
-            resp = redact_ui_payload(resp)
-
-        app.logger.info(
-            "SCAN verdict=%s risk=%.3f conf=%.1f http=%s struct=%s beh=%.2f psp_neutral=%s legal=%s url=%s",
+        flask_app.logger.info(
+            "SCAN verdict=%s risk=%.3f conf=%.1f http=%s struct=%s beh=%.2f legal=%s url=%s",
             resp.get("verdict"), resp.get("risk"), resp.get("confidence"),
             resp.get("behavior", {}).get("http_status", None),
             resp.get("structure", {}).get("template", None),
             float(behavior_score),
-            bool(psp_neutral), bool(legal_ok),
+            bool(legal_ok),
             resp.get("url"),
         )
-
         return jsonify(resp), 200
 
     except Exception as e:
-        app.logger.exception("SCAN fatal error: %s", e)
+        flask_app.logger.exception("SCAN fatal error: %s", e)
         return jsonify({"ok": False, "status": "error", "message": f"{type(e).__name__}: {e}"}), 200
 
-# --- Self-tests ---
-
-@app.get("/selftest/playwright")
+@flask_app.get("/selftest/playwright")
 def selftest_playwright():
     try:
         from playwright.sync_api import sync_playwright
@@ -1044,16 +1045,7 @@ def selftest_playwright():
         with sync_playwright() as pw:
             browser = pw.chromium.launch(
                 headless=True,
-                args=[
-                    "--no-sandbox",
-                    "--disable-dev-shm-usage",
-                    "--disable-gpu",
-                    "--disable-setuid-sandbox",
-                    "--disable-web-security",
-                    "--no-first-run",
-                    "--no-zygote",
-                    "--single-process",
-                ],
+                args=["--no-sandbox","--disable-dev-shm-usage","--disable-gpu","--disable-setuid-sandbox"]
             )
             ctx = browser.new_context(ignore_https_errors=True, user_agent=BROWSER_UA, locale="en-GB")
             page = ctx.new_page()
@@ -1062,18 +1054,11 @@ def selftest_playwright():
             title = page.title()
             final_url = page.url
             browser.close()
-        return jsonify({
-            "ok": True,
-            "elapsed_ms": int((time.monotonic()-t0)*1000),
-            "title": title,
-            "final_url": final_url,
-            "note": "If ok==True here, Chromium can launch in prod."
-        }), 200
+        return jsonify({"ok": True, "elapsed_ms": int((time.monotonic()-t0)*1000), "title": title, "final_url": final_url}), 200
     except Exception as e:
         return jsonify({"ok": False, "error": f"{type(e).__name__}: {e}"}), 200
 
-
-@app.get("/selftest/behavior")
+@flask_app.get("/selftest/behavior")
 def selftest_behavior():
     try:
         t0 = time.monotonic()
@@ -1084,6 +1069,5 @@ def selftest_behavior():
     except Exception as e:
         return jsonify({"ok": False, "error": f"{type(e).__name__}: {e}"}), 200
 
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.getenv("PORT", "5000")), debug=True)
+# Export for Flask CLI (`flask --app app.app:app ...`)
+app = flask_app
