@@ -6,27 +6,50 @@ services:
     autoDeploy: true
     healthCheckPath: /healthz
     envVars:
+      # Timezone
       - key: TZ
         value: Africa/Lagos
+
+      # --- SCAN ENGINE MODES (hotfix: static only) ---
       - key: SCAN_MODE
-        value: playwright
+        value: httpx          # ← TEMP for demo; avoids Playwright path entirely
       - key: CTU_BEHAVIOR_MODE
-        value: auto
-      - key: REQUEST_TIMEOUT_SECS
-        value: "60"
+        value: off            # ← TEMP; re-enable later with "auto" or "on"
+
+      # --- Networking + resilience ---
+      - key: PREFER_IPV4
+        value: "1"            # app respects if patched; OS also prefers IPv4 via Dockerfile
+      - key: RES_OPTIONS
+        value: single-request  # mitigate DNS AAAA/A race in glibc
+      - key: CTU_RETRY_TOTAL
+        value: "2"
+      - key: CTU_POOL_MAXSIZE
+        value: "32"
+
+      # --- Budgets (gentle but reliable) ---
+      - key: CTU_CONNECT_TIMEOUT
+        value: "6"
+      - key: CTU_READ_TIMEOUT
+        value: "8"
+      - key: CTU_REQUEST_BUDGET
+        value: "22"
+      - key: CTU_BEHAVIOR_BUDGET
+        value: "8"
+
+      # --- Playwright flags kept for later (harmless while disabled) ---
+      - key: CTU_PW_ARGS
+        value: "--no-sandbox,--disable-dev-shm-usage,--disable-gpu,--disable-setuid-sandbox,--single-process"
       - key: HEADLESS
         value: "1"
+
+      # --- Other flags you already use ---
       - key: CTU_SELF_HOSTED
         value: "0"
+      - key: REQUEST_TIMEOUT_SECS
+        value: "60"
 
-      # 🔒 set these in the Render dashboard (don’t commit secrets)
+      # 🔒 Secrets live in dashboard, not git
       - key: GOOGLE_API_KEY
         sync: false
       - key: VIRUSTOTAL_API_KEY
         sync: false
-
-CTU_PW_ARGS: --no-sandbox,--disable-dev-shm-usage,--disable-gpu,--disable-setuid-sandbox,--single-process
-CTU_BEHAVIOR_BUDGET: 8.0
-CTU_REQUEST_BUDGET: 22.0
-CTU_CONNECT_TIMEOUT: 3.0
-CTU_READ_TIMEOUT: 5.0

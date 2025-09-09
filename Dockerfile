@@ -1,28 +1,38 @@
-# ✅ Ships Chromium + all native deps for Playwright out of the box
-FROM mcr.microsoft.com/playwright/python:v1.45.0-jammy
+# ---- Dockerfile (stable, CBN-demo ready) ----
+FROM python:3.11-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    PIP_NO_CACHE_DIR=1 \
-    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
-    TZ=Africa/Lagos \
-    SCAN_MODE=playwright \
-    CTU_BEHAVIOR_MODE=auto \
-    REQUEST_TIMEOUT_SECS=60 \
-    HEADLESS=1
+    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
 WORKDIR /app
 
-# 1) Use the *exact* deps from your working venv (run `pip freeze > requirements.txt` locally first)
-COPY requirements.txt /app/requirements.txt
-RUN pip install --upgrade pip && pip install -r requirements.txt
+# System libs for Chromium/Playwright (current Debian names)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates curl gnupg procps \
+    libnss3 libnspr4 libxkbcommon0 libx11-6 libxcb1 libxcomposite1 libxdamage1 \
+    libxext6 libxfixes3 libxrandr2 libasound2 libpangocairo-1.0-0 libatk1.0-0 \
+    libatk-bridge2.0-0 libcups2 libdbus-1-3 libdrm2 libxshmfence1 libgbm1 \
+    libegl1 libglib2.0-0 libcairo2 libpango-1.0-0 libjpeg62-turbo libpng16-16 \
+    xdg-utils fonts-liberation fonts-unifont fonts-noto-color-emoji \
+    && rm -rf /var/lib/apt/lists/*
 
-# 2) Copy app
-COPY . /app
+# Prefer IPv4 at OS level (helps with CDN/WAF over DC IPv6 ranges)
+RUN sed -i 's/^#precedence ::ffff:0:0\/96 100/precedence ::ffff:0:0\/96 100/' /etc/gai.conf || true
 
-# Healthcheck route exists in app/app.py as /healthz
+# Python deps
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt playwright
+
+# Install the Chromium browser for Playwright (no legacy --with-deps)
+RUN python -m playwright install chromium
+
+# App code
+COPY . .
+
+# (EXPOSE is informational; Render injects $PORT at runtime)
 EXPOSE 10000
 
-# Gunicorn entry for your structure (module path: app/app.py → app.app:app)
-CMD ["gunicorn", "app.app:app", "--bind", "0.0.0.0:10000", "--workers", "2", "--threads", "4", "--timeout", "180"]
+# Use shell-form so $PORT expands on Render
+CMD ["sh", "-c", "gunicorn app.app:app --bind 0.0.0.0:${PORT} --workers 2 --threads 4 --timeout 180"]
