@@ -4,19 +4,19 @@
 FROM python:3.11-slim
 
 # Bump to force cache bust when needed
-ARG CACHEBUST=2025-09-09-03
+ARG CACHEBUST=2025-09-09-04
 
 # --------------------------------------------
-# OS basics + Chromium runtime deps
+# OS basics + Chromium runtime deps (Debian names)
 # --------------------------------------------
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates curl dumb-init \
-    # Chromium runtime dependencies for Playwright on Debian
+    # Chromium/Playwright runtime libraries
     libnss3 libatk-bridge2.0-0 libgtk-3-0 libdrm2 libxkbcommon0 \
     libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 \
     libasound2 \
-    # Fonts (Debian package names)
-    fonts-unifont fonts-ubuntu \
+    # Fonts (Debian packages; replace unavailable fonts-ubuntu)
+    fonts-dejavu fonts-noto-core fonts-noto-color-emoji fonts-unifont \
  && rm -rf /var/lib/apt/lists/*
 
 # --------------------------------------------
@@ -53,7 +53,7 @@ PY
 
 # --------------------------------------------
 # Playwright + Chromium
-# (drop --with-deps; we installed Debian deps already)
+# (no --with-deps; we installed Debian libs above)
 # --------------------------------------------
 RUN pip install --no-cache-dir playwright \
  && python -m playwright install chromium
@@ -67,9 +67,10 @@ COPY . /app
 # Start command
 # --------------------------------------------
 ENV PORT=10000
-# Default app entry; override APP_MODULE if you use factory
+# Default app entry; set APP_MODULE to "app.app:create_app()" if you use a factory.
 ENV APP_MODULE="app.app:app"
 
+# Use dumb-init so Gunicorn handles signals properly
 CMD ["dumb-init", "gunicorn", "-k", "gthread", "-w", "2", "-b", "0.0.0.0:${PORT}", "app.app:app"]
-# Or use APP_MODULE:
+# Or, to honor APP_MODULE env instead of hardcoding:
 # CMD ["dumb-init", "gunicorn", "-k", "gthread", "-w", "2", "-b", "0.0.0.0:${PORT}", "${APP_MODULE}"]
