@@ -3,12 +3,10 @@
 # --------------------------------------------
 FROM python:3.11-slim
 
-# --- Optional cache-bust arg (bump value to force a fresh build on Render) ---
-ARG CACHEBUST=2025-09-09-01
+# Bump to force cache bust on Render when needed
+ARG CACHEBUST=2025-09-09-02
 
-# --------------------------------------------
-# OS basics (small, no bloat)
-# --------------------------------------------
+# Minimal OS deps; dumb-init for PID1 signals
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates curl dumb-init \
  && rm -rf /var/lib/apt/lists/*
@@ -16,44 +14,43 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONIOENCODING=UTF-8 \
-    # Playwright downloads live here so they persist as a layer
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_NO_CACHE_DIR=1 \
     PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
-    # Make imports work from /app without fiddling with sys.path
     PYTHONPATH=/app
 
 WORKDIR /app
 
-# --------------------------------------------
-# Install Python deps first (better layer caching)
-# --------------------------------------------
+# ---- Install Python deps first (best caching) ----
 COPY requirements.txt /app/requirements.txt
-
-# Always upgrade pip and install exact deps (no wheel cache to keep image small)
 RUN python -m pip install --upgrade pip \
  && pip install --no-cache-dir -r /app/requirements.txt
 
-# --------------------------------------------
-# Playwright + Chromium (with system deps auto-installed)
-# NOTE: --with-deps will apt-install required libs for Chromium on Debian slim
-# --------------------------------------------
+# ---- Verify critical packages exist (fail fast if not) ----
+RUN python - <<'PY'
+import importlib, sys
+for mod in ("flask", "flask_sqlalchemy", "sqlalchemy"):
+    try:
+        importlib.import_module(mod)
+        print(f"[OK] {mod}")
+    except Exception as e:
+        print(f"[FAIL] {mod}: {e}")
+        sys.exit(1)
+PY
+
+# ---- Playwright + Chromium (with system deps) ----
 RUN pip install --no-cache-dir playwright \
  && python -m playwright install --with-deps chromium
 
-# --------------------------------------------
-# Copy application code
-# --------------------------------------------
+# ---- App code last ----
 COPY . /app
 
-# --------------------------------------------
-# Start command
-# - Render injects $PORT; default to 10000 for local use
-# - APP_MODULE is overrideable; defaults to "app.app:app"
-# --------------------------------------------
+# ---- Gunicorn start ----
 ENV PORT=10000
+# If you use an app factory, set APP_MODULE to "app.app:create_app()"
 ENV APP_MODULE="app.app:app"
 
-# dumb-init handles PID 1 signals so Gunicorn shuts down cleanly
+# Use dumb-init for clean signal handling
 CMD ["dumb-init", "gunicorn", "-k", "gthread", "-w", "2", "-b", "0.0.0.0:${PORT}", "app.app:app"]
-# If you use a factory instead, set APP_MODULE to "app.app:create_app()" in Render env
-# and change the last token above to "${APP_MODULE}" if you prefer:
+# Alternative (use APP_MODULE env):
 # CMD ["dumb-init", "gunicorn", "-k", "gthread", "-w", "2", "-b", "0.0.0.0:${PORT}", "${APP_MODULE}"]
