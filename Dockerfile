@@ -1,38 +1,59 @@
-# ---- Dockerfile (stable, CBN-demo ready) ----
+# --------------------------------------------
+# Base image
+# --------------------------------------------
 FROM python:3.11-slim
+
+# --- Optional cache-bust arg (bump value to force a fresh build on Render) ---
+ARG CACHEBUST=2025-09-09-01
+
+# --------------------------------------------
+# OS basics (small, no bloat)
+# --------------------------------------------
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates curl dumb-init \
+ && rm -rf /var/lib/apt/lists/*
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+    PYTHONIOENCODING=UTF-8 \
+    # Playwright downloads live here so they persist as a layer
+    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
+    # Make imports work from /app without fiddling with sys.path
+    PYTHONPATH=/app
 
 WORKDIR /app
 
-# System libs for Chromium/Playwright (current Debian names)
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates curl gnupg procps \
-    libnss3 libnspr4 libxkbcommon0 libx11-6 libxcb1 libxcomposite1 libxdamage1 \
-    libxext6 libxfixes3 libxrandr2 libasound2 libpangocairo-1.0-0 libatk1.0-0 \
-    libatk-bridge2.0-0 libcups2 libdbus-1-3 libdrm2 libxshmfence1 libgbm1 \
-    libegl1 libglib2.0-0 libcairo2 libpango-1.0-0 libjpeg62-turbo libpng16-16 \
-    xdg-utils fonts-liberation fonts-unifont fonts-noto-color-emoji \
-    && rm -rf /var/lib/apt/lists/*
+# --------------------------------------------
+# Install Python deps first (better layer caching)
+# --------------------------------------------
+COPY requirements.txt /app/requirements.txt
 
-# Prefer IPv4 at OS level (helps with CDN/WAF over DC IPv6 ranges)
-RUN sed -i 's/^#precedence ::ffff:0:0\/96 100/precedence ::ffff:0:0\/96 100/' /etc/gai.conf || true
+# Always upgrade pip and install exact deps (no wheel cache to keep image small)
+RUN python -m pip install --upgrade pip \
+ && pip install --no-cache-dir -r /app/requirements.txt
 
-# Python deps
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt playwright
+# --------------------------------------------
+# Playwright + Chromium (with system deps auto-installed)
+# NOTE: --with-deps will apt-install required libs for Chromium on Debian slim
+# --------------------------------------------
+RUN pip install --no-cache-dir playwright \
+ && python -m playwright install --with-deps chromium
 
-# Install the Chromium browser for Playwright (no legacy --with-deps)
-RUN python -m playwright install chromium
+# --------------------------------------------
+# Copy application code
+# --------------------------------------------
+COPY . /app
 
-# App code
-COPY . .
+# --------------------------------------------
+# Start command
+# - Render injects $PORT; default to 10000 for local use
+# - APP_MODULE is overrideable; defaults to "app.app:app"
+# --------------------------------------------
+ENV PORT=10000
+ENV APP_MODULE="app.app:app"
 
-# (EXPOSE is informational; Render injects $PORT at runtime)
-EXPOSE 10000
-
-# Use shell-form so $PORT expands on Render
-CMD ["sh", "-c", "gunicorn app.app:app --bind 0.0.0.0:${PORT} --workers 2 --threads 4 --timeout 180"]
+# dumb-init handles PID 1 signals so Gunicorn shuts down cleanly
+CMD ["dumb-init", "gunicorn", "-k", "gthread", "-w", "2", "-b", "0.0.0.0:${PORT}", "app.app:app"]
+# If you use a factory instead, set APP_MODULE to "app.app:create_app()" in Render env
+# and change the last token above to "${APP_MODULE}" if you prefer:
+# CMD ["dumb-init", "gunicorn", "-k", "gthread", "-w", "2", "-b", "0.0.0.0:${PORT}", "${APP_MODULE}"]
