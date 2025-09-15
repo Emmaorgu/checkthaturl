@@ -249,35 +249,39 @@
     function gtag(){dataLayer.push(arguments);} gtag('js', new Date()); gtag('config', 'G-D0RMWZH4ZJ');
   </script>
 
-<style id="ctu-simple-css">
-/* --- CTU Targeted Hide/Reveal --- */
-.ctu-hidden { display: none !important; }
-</style>
-
-<style id="ctu-mobile-fixes">
-/* ---------- Global safe wrapping & overflow ---------- */
+<style id="ctu-mobile-fixes-v6">
+/* ---------- Mobile readability (no letter-by-letter splits) ---------- */
 html, body { max-width: 100%; overflow-x: hidden; }
 * { min-width: 0; box-sizing: border-box; }
-p, .hint, .section-title, h1, h2, h3, h4, h5 { overflow-wrap: anywhere; word-break: break-word; }
-.card { overflow: visible; } /* don't clip content */
+p, .hint, .section-title, h1, h2, h3, h4, h5, h6, li, .h {
+  overflow-wrap: break-word;   /* prefer breaking at word boundaries */
+  word-break: normal;          /* avoid letter-level breaking */
+  hyphens: auto;               /* allow soft hyphenation where supported */
+  line-height: 1.35;
+}
+.card { overflow: visible; } /* don't clip children */
 /* Code blocks readable on mobile */
 pre, .code { max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
 pre { white-space: pre; }
 code, .mono { white-space: pre-wrap; }
 /* Avoid iOS zoom on input focus */
 input[type="text"], input[type="url"], input[type="email"] { font-size: 16px; }
+/* Pills / tags / badges wrap nicely */
+.badge, .pill, .tag { white-space: normal !important; display: inline-flex; flex-wrap: wrap; align-items: center; max-width: 100%; }
 
 /* ---------- Layout breakpoints ---------- */
 @media (max-width: 1024px){
   .doc-grid { grid-template-columns: 1fr !important; }
 }
 @media (max-width: 900px){
-  /* Stack any two/three-column grids */
-  .grid, .tri-grid, .cap-grid, .price-grid, .feature-grid, .band .grid, .split, .doc-grid {
+  /* Stack multi-column grids */
+  .grid, .tri-grid, .cap-grid, .price-grid, .feature-grid, .band .grid, .split, .doc-grid, .pipe {
     display: grid !important;
     grid-template-columns: 1fr !important;
     gap: 12px !important;
   }
+  .pipe .step { min-width: 0; }
+  .pipe .step .h { font-size: 18px !important; }
   .row, .action-row, .action-stack { flex-direction: column !important; align-items: stretch !important; gap: 10px !important; }
   .container, .section-wrap, .card { padding: 14px !important; }
   /* Headings scale */
@@ -286,13 +290,22 @@ input[type="text"], input[type="url"], input[type="email"] { font-size: 16px; }
   h3, .section-title { font-size: clamp(16px, 5vw, 22px) !important; }
   /* Buttons full width for comfort */
   .btn, button { width: 100%; }
-  /* Badges/pills wrap if needed */
-  .badge, .pill, .tag { white-space: normal !important; }
-  /* Tables (if any) */
+  /* tables (if any) */
   table { display: block; overflow-x: auto; max-width: 100%; -webkit-overflow-scrolling: touch; }
 }
 </style>
-</head>
+
+<style id="ctu-hidden-util">.ctu-hidden{display:none !important;}</style>
+<style id='ctu-scanner-mobile'>
+/* Scanner hero scaling on mobile */
+@media (max-width: 900px){
+  #scanner h1, #scanner .h1 { font-size: clamp(22px, 7.2vw, 34px) !important; line-height: 1.18 !important; }
+  #scanner h2, #scanner .h2 { font-size: clamp(18px, 5.6vw, 26px) !important; }
+  #scanner p, #scanner .hint { font-size: clamp(14px, 4.2vw, 18px) !important; }
+  #scanner .split { display: grid !important; grid-template-columns: 1fr !important; gap: 12px !important; }
+  #scanner .badge, #scanner .pill, #scanner .tag { white-space: normal !important; }
+}
+</style></head>
 
 <body>
   <div class="site-bg" aria-hidden="true"></div>
@@ -1114,52 +1127,64 @@ document.addEventListener('DOMContentLoaded', ()=>{
 </script>
 
 
-<script id="ctu-reveal-nav">
+<script id="ctu-reveal-v6">
 (function(){
-  // Sections we will manage (hide on load, reveal via nav)
+  // IDs to reveal on demand (hidden by default)
   const MANAGED = ['why','integrations','compliance','docs','pricing','contact'];
-  const ALWAYS_VISIBLE = new Set(['scanner','hunter','verdictCard']); // keep scanner UI + verdict + hunter
+  // Explicit non-ID blocks to hide by default (have aria labels or classes)
+  const EXTRA_HIDE_SELECTORS = [
+    '.mega-hero', '.top-privacy',
+    'section[aria-labelledby="hood-title"]' // "How a verdict is produced"
+  ];
+  const ALWAYS_VISIBLE = new Set(['scanner','scanner-anchor','verdictCard','hunter','hunter-anchor']);
 
-  function hasId(el){ return el && el.id && typeof el.id === 'string'; }
+  function insideScanner(el){ return !!el.closest && !!el.closest('#scanner'); }
+  function hideBySelector(sel){
+    document.querySelectorAll(sel).forEach(el => { if(!insideScanner(el)) el.classList.add('ctu-hidden'); });
+  }
 
-  function hideManaged(initial=false){
-    MANAGED.forEach(id=>{
+  function hideManaged(){
+    MANAGED.forEach(id => {
       const el = document.getElementById(id);
       if (el) el.classList.add('ctu-hidden');
     });
-    // Additionally hide marketing/hero privacy blocks if present
-    const hero = document.querySelector('.hero');
-    if (hero) hero.classList.add('ctu-hidden');
-    const topPrivacy = document.querySelector('.top-privacy');
-    if (topPrivacy) topPrivacy.classList.add('ctu-hidden');
-    // DO NOT touch the search input / grid-frame because it contains scanner UI
+    EXTRA_HIDE_SELECTORS.forEach(hideBySelector);
   }
 
   function showOnly(id){
-    MANAGED.forEach(mid=>{
+    // Hide managed sections except 'id'
+    MANAGED.forEach(mid => {
       const el = document.getElementById(mid);
       if (!el) return;
       if (mid === id) el.classList.remove('ctu-hidden');
       else el.classList.add('ctu-hidden');
     });
+    // Special case: "How a verdict is produced" uses aria-labelledby, reveal it when id === 'hood-title'
+    if (id === 'hood-title'){
+      document.querySelectorAll('section[aria-labelledby="hood-title"]').forEach(el => el.classList.remove('ctu-hidden'));
+    } else {
+      document.querySelectorAll('section[aria-labelledby="hood-title"]').forEach(el => el.classList.add('ctu-hidden'));
+    }
   }
 
   function initNavHandlers(){
     const links = Array.from(document.querySelectorAll('a[href^="#"]'));
-    links.forEach(a=>{
+    links.forEach(a => {
       a.addEventListener('click', (e)=>{
         const href = a.getAttribute('href') || '';
         const id = href.startsWith('#') ? href.slice(1) : null;
         if (!id) return;
         if (ALWAYS_VISIBLE.has(id)) {
-          // Let default scroll occur for scanner/hunter anchors
+          // Let default scroll happen for scanner/hunter
           return;
         }
-        if (MANAGED.includes(id)) {
+        if (MANAGED.includes(id) || id === 'hood-title'){
           e.preventDefault();
           showOnly(id);
           history.pushState({}, '', '#' + id);
-          const target = document.getElementById(id);
+          const target = id === 'hood-title'
+            ? document.querySelector('section[aria-labelledby="hood-title"]')
+            : document.getElementById(id);
           if (target) try { target.scrollIntoView({behavior:'smooth', block:'start'}); } catch {}
         }
       }, {passive:false});
@@ -1169,15 +1194,17 @@ document.addEventListener('DOMContentLoaded', ()=>{
   function handleInitialHash(){
     const id = (location.hash || '').replace(/^#/, '');
     if (!id) return;
-    if (MANAGED.includes(id)) {
+    if (MANAGED.includes(id) || id === 'hood-title'){
       showOnly(id);
-      const target = document.getElementById(id);
+      const target = id === 'hood-title'
+        ? document.querySelector('section[aria-labelledby="hood-title"]')
+        : document.getElementById(id);
       if (target) try { target.scrollIntoView({behavior:'instant', block:'start'}); } catch {}
     }
   }
 
   document.addEventListener('DOMContentLoaded', function(){
-    hideManaged(true);
+    hideManaged();
     initNavHandlers();
     handleInitialHash();
   });
