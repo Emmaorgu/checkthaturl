@@ -305,7 +305,48 @@ input[type="text"], input[type="url"], input[type="email"] { font-size: 16px; }
   #scanner .split { display: grid !important; grid-template-columns: 1fr !important; gap: 12px !important; }
   #scanner .badge, #scanner .pill, #scanner .tag { white-space: normal !important; }
 }
-</style></head>
+</style>
+<style id="ctu-prehide-v2">
+/* --- Default: hide all secondary sections on first paint --- */
+#why, #capabilities, #learn, #integrations, #compliance, #docs, #pricing, #contact,
+section[aria-labelledby="hood-title"], .mega-hero, .top-privacy { display:none !important; }
+/* Only show when user explicitly navigates (JS toggles these classes) */
+body.show-why #why { display:block !important; }
+body.show-capabilities #capabilities { display:block !important; }
+body.show-learn #learn { display:block !important; }
+body.show-integrations #integrations { display:block !important; }
+body.show-compliance #compliance { display:block !important; }
+body.show-docs #docs { display:block !important; }
+body.show-pricing #pricing { display:block !important; }
+body.show-contact #contact { display:block !important; }
+body.show-hood section[aria-labelledby="hood-title"] { display:block !important; }
+
+/* --- Mobile brand cluster fix inside scanner header --- */
+@media (max-width: 900px){
+  #scanner .brandbar, #scanner .badge-row, #scanner .brand-row {
+    display:flex; flex-wrap:wrap; align-items:flex-start; gap:8px;
+  }
+  #scanner .brandbar .btn.ghost, #scanner .badge-row .btn.ghost, #scanner .brand-row .btn.ghost {
+    order:2; margin-left:0; white-space:normal; max-width:100%;
+  }
+  #scanner .brandbar .brand-link, #scanner .badge-row :first-child, #scanner .brand-row :first-child {
+    order:1;
+  }
+  #scanner .pill, #scanner .badge, #scanner .tag { max-width:100%; white-space:normal; }
+}
+</style>
+
+<style id="ctu-forcehide-caps-ops">
+/* Hide Product Capabilities & Operational Excellence on first paint, regardless of JS */
+h3#capabilities,
+h3#capabilities ~ *,
+section[aria-labelledby="learn"] { display:none !important; }
+/* Reveal when user opts in via nav (script toggles these body classes) */
+body.show-capabilities h3#capabilities,
+body.show-capabilities h3#capabilities ~ * { display:initial !important; }
+body.show-learn section[aria-labelledby="learn"] { display:block !important; }
+</style>
+</head>
 
 <body>
   <div class="site-bg" aria-hidden="true"></div>
@@ -1127,87 +1168,65 @@ document.addEventListener('DOMContentLoaded', ()=>{
 </script>
 
 
-<script id="ctu-reveal-v6">
+
+
+<script id="ctu-reveal-v7fix">
 (function(){
-  // IDs to reveal on demand (hidden by default)
-  const MANAGED = ['why','integrations','compliance','docs','pricing','contact'];
-  // Explicit non-ID blocks to hide by default (have aria labels or classes)
-  const EXTRA_HIDE_SELECTORS = [
-    '.mega-hero', '.top-privacy',
-    'section[aria-labelledby="hood-title"]' // "How a verdict is produced"
-  ];
-  const ALWAYS_VISIBLE = new Set(['scanner','scanner-anchor','verdictCard','hunter','hunter-anchor']);
+  const MAP = {
+    'why':'show-why',
+    'capabilities':'show-capabilities',
+    'learn':'show-learn',
+    'integrations':'show-integrations',
+    'compliance':'show-compliance',
+    'docs':'show-docs',
+    'pricing':'show-pricing',
+    'contact':'show-contact',
+    'hood-title':'show-hood'
+  };
+  const ALWAYS = new Set(['scanner','hunter','scanner-anchor','hunter-anchor','verdictCard']);
 
-  function insideScanner(el){ return !!el.closest && !!el.closest('#scanner'); }
-  function hideBySelector(sel){
-    document.querySelectorAll(sel).forEach(el => { if(!insideScanner(el)) el.classList.add('ctu-hidden'); });
-  }
-
-  function hideManaged(){
-    MANAGED.forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.classList.add('ctu-hidden');
-    });
-    EXTRA_HIDE_SELECTORS.forEach(hideBySelector);
+  function clearShows(){
+    document.body.classList.remove(
+      'show-why','show-capabilities','show-learn','show-integrations','show-compliance',
+      'show-docs','show-pricing','show-contact','show-hood'
+    );
   }
 
   function showOnly(id){
-    // Hide managed sections except 'id'
-    MANAGED.forEach(mid => {
-      const el = document.getElementById(mid);
-      if (!el) return;
-      if (mid === id) el.classList.remove('ctu-hidden');
-      else el.classList.add('ctu-hidden');
-    });
-    // Special case: "How a verdict is produced" uses aria-labelledby, reveal it when id === 'hood-title'
+    clearShows();
+    if (MAP[id]) document.body.classList.add(MAP[id]);
+    // Smooth scroll to the revealed block
+    let target = null;
     if (id === 'hood-title'){
-      document.querySelectorAll('section[aria-labelledby="hood-title"]').forEach(el => el.classList.remove('ctu-hidden'));
+      target = document.querySelector('section[aria-labelledby="hood-title"]');
     } else {
-      document.querySelectorAll('section[aria-labelledby="hood-title"]').forEach(el => el.classList.add('ctu-hidden'));
+      target = document.getElementById(id);
     }
+    if (target) { try { target.scrollIntoView({behavior:'smooth', block:'start'}); } catch {} }
   }
 
-  function initNavHandlers(){
-    const links = Array.from(document.querySelectorAll('a[href^="#"]'));
-    links.forEach(a => {
-      a.addEventListener('click', (e)=>{
-        const href = a.getAttribute('href') || '';
-        const id = href.startsWith('#') ? href.slice(1) : null;
+  function init(){
+    // Nav clicks
+    document.querySelectorAll('a[href^="#"]').forEach(a => {
+      a.addEventListener('click', function(e){
+        const href = this.getAttribute('href') || '';
+        const id = href.startsWith('#') ? href.slice(1) : '';
         if (!id) return;
-        if (ALWAYS_VISIBLE.has(id)) {
-          // Let default scroll happen for scanner/hunter
-          return;
-        }
-        if (MANAGED.includes(id) || id === 'hood-title'){
+        if (ALWAYS.has(id)) return; // let native scroll for scanner/hunter
+        if (MAP[id]){
           e.preventDefault();
           showOnly(id);
           history.pushState({}, '', '#' + id);
-          const target = id === 'hood-title'
-            ? document.querySelector('section[aria-labelledby="hood-title"]')
-            : document.getElementById(id);
-          if (target) try { target.scrollIntoView({behavior:'smooth', block:'start'}); } catch {}
         }
       }, {passive:false});
     });
-  }
 
-  function handleInitialHash(){
+    // Direct hash access
     const id = (location.hash || '').replace(/^#/, '');
-    if (!id) return;
-    if (MANAGED.includes(id) || id === 'hood-title'){
-      showOnly(id);
-      const target = id === 'hood-title'
-        ? document.querySelector('section[aria-labelledby="hood-title"]')
-        : document.getElementById(id);
-      if (target) try { target.scrollIntoView({behavior:'instant', block:'start'}); } catch {}
-    }
+    if (MAP[id]) showOnly(id);
   }
 
-  document.addEventListener('DOMContentLoaded', function(){
-    hideManaged();
-    initNavHandlers();
-    handleInitialHash();
-  });
+  document.addEventListener('DOMContentLoaded', init);
 })();
 </script>
 </body>
