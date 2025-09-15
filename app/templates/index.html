@@ -248,11 +248,6 @@
     window.dataLayer = window.dataLayer || [];
     function gtag(){dataLayer.push(arguments);} gtag('js', new Date()); gtag('config', 'G-D0RMWZH4ZJ');
   </script>
-
-<style id="ctu-simple-css">
-/* --- CTU Simple/Reveal Mode --- */
-.ctu-hidden { display: none !important; }
-</style>
 </head>
 
 <body>
@@ -1074,88 +1069,6 @@ document.addEventListener('DOMContentLoaded', ()=>{
 });
 </script>
 
-
-<script id="ctu-reveal-nav">
-(function(){
-  const ALWAYS_VISIBLE = new Set(['scanner','scanner-anchor','hunter','hunter-anchor','verdictCard']); // keep these visible
-  function isRevealCandidate(el){
-    if(!el || !el.id) return false;
-    const tag = el.tagName.toLowerCase();
-    if (ALWAYS_VISIBLE.has(el.id)) return false;
-    if (['header','footer','nav'].includes(tag)) return false;
-    // Sections we consider as content blocks
-    return ['section','main','div','article'].includes(tag);
-  }
-  function collectSections(){
-    const ids = new Set();
-    // prioritize common content containers with IDs
-    const candidates = Array.from(document.querySelectorAll('section[id], main[id], article[id], div[id]'));
-    const sections = [];
-    for (const el of candidates){
-      if (ids.has(el.id)) continue;
-      if (isRevealCandidate(el)) {
-        ids.add(el.id);
-        sections.push(el);
-      }
-    }
-    return sections;
-  }
-  function hideAllExceptCore(){
-    const sections = collectSections();
-    for (const el of sections){
-      if (!ALWAYS_VISIBLE.has(el.id)){
-        el.classList.add('ctu-hidden');
-      }
-    }
-  }
-  function showSection(targetId){
-    const sections = collectSections();
-    for (const el of sections){
-      if (el.id === targetId){
-        el.classList.remove('ctu-hidden');
-      }else if (!ALWAYS_VISIBLE.has(el.id)){
-        el.classList.add('ctu-hidden');
-      }
-    }
-  }
-  function initNavHandlers(){
-    const links = Array.from(document.querySelectorAll('a[href^="#"]'));
-    links.forEach(a => {
-      a.addEventListener('click', (e)=>{
-        const href = a.getAttribute('href') || '';
-        const id = href.startsWith('#') ? href.slice(1) : null;
-        if (!id) return;
-        // If link points to a known reveal section, manage visibility
-        const target = document.getElementById(id);
-        if (target && isRevealCandidate(target)){
-          e.preventDefault();
-          showSection(id);
-          history.pushState({}, '', '#' + id);
-          // Smooth scroll into view
-          try { target.scrollIntoView({behavior:'smooth', block:'start'}); } catch {}
-        }else{
-          // links to #scanner or #hunter should just scroll
-          // preserve hidden state for others
-        }
-      }, {passive:false});
-    });
-  }
-  function handleInitialHash(){
-    const id = (location.hash || '').replace(/^#/, '');
-    if (!id) return;
-    const target = document.getElementById(id);
-    if (target && isRevealCandidate(target)){
-      showSection(id);
-      try { target.scrollIntoView({behavior:'instant', block:'start'}); } catch {}
-    }
-  }
-  document.addEventListener('DOMContentLoaded', function(){
-    hideAllExceptCore();
-    initNavHandlers();
-    handleInitialHash();
-  });
-})();
-</script>
 </body>
 </html>
 
